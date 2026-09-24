@@ -1,4 +1,4 @@
-# Higgsfield Mobile App
+# UNOFFICIAL Higgsfield API Mobile App
 
 An Android client for exploring Higgsfield’s image and video generation models through a native conversational interface.
 
