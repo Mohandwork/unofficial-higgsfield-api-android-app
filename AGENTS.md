@@ -1,5 +1,11 @@
 # Higgsfield engineering instructions
 
+## Git safety — read before doing any task
+
+- Do not create commits, amend commits, force-push, or push to any remote without the user's explicit permission in the current conversation.
+- Editing files and preparing a diff is allowed; committing or pushing is a separate action that always requires confirmation.
+- Do not infer permission from a request to "finish", "ship", "publish", or "make it ready". Ask before committing or pushing.
+
 These instructions govern work in this repository. They are intentionally opinionated about clarity and verification, while leaving room to choose the smallest design that fits the feature.
 
 ## Product and technical baseline

@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Higgsfield</string>
+    <string name="missing_credentials">Add HF_KEY_ID and HF_KEY_SECRET to secrets.properties to enable API actions.</string>
 </resources>
