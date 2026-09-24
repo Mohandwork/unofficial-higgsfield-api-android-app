@@ -77,27 +77,12 @@ See the project documents for the detailed plan:
 
 ## Security and API usage
 
-Higgsfield credentials are local-only configuration. Do not commit real credentials, paste them into chat, or distribute builds containing them.
+Higgsfield credentials are local-only configuration. Do not commit real credentials, paste them anywhere, or distribute builds containing them.
 
 Use the ignored `secrets.properties` file locally and the tracked [`secrets.properties.example`](secrets.properties.example) as a template. The app is not intended to be a production-distributed client while credentials are used directly from the mobile application, because values embedded in an APK can be extracted.
-
-The project will not make billable Higgsfield requests automatically. Real API testing requires explicit approval.
 
 ## Development status
 
 The project foundation, adaptive Compose shell, fake-backed conversation experience, model catalog, persistence layer, and documentation are being built incrementally. Real endpoint schemas remain gated until they are verified against the current Higgsfield documentation.
 
 Current delivery progress is tracked in [`docs/progress.md`](docs/progress.md).
-
-## Open and run
-
-1. Open `C:\Users\DELL\AndroidStudioProjects\Higgsfield` in Android Studio.
-2. Allow Gradle to sync and install any required SDK components.
-3. Select an emulator or connected Android device.
-4. Run the `app` configuration.
-
-The package name is `com.higgsfield.mobile`. The project uses the configured Gradle and Android Gradle Plugin versions from the repository.
-
-## Git workflow
-
-Review changes before committing. No code is committed or pushed automatically. Keep local credentials and generated files out of Git, and use small, reviewable commits for implementation patches.
