@@ -26,6 +26,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
+import com.higgsfield.mobile.R
 
 @Composable
 fun HomeScreen(onOpenImages: () -> Unit, onOpenVideos: () -> Unit) {
@@ -39,26 +42,26 @@ fun HomeScreen(onOpenImages: () -> Unit, onOpenVideos: () -> Unit) {
                 verticalArrangement = Arrangement.Center,
             ) {
                 Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text("Higgsfield", style = MaterialTheme.typography.displaySmall)
+                Text(stringResource(R.string.app_name), style = MaterialTheme.typography.displaySmall)
                 Text(
-                    "Create, iterate, compare, and save — with every request kept explicit.",
+                    stringResource(R.string.home_tagline),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp, bottom = 28.dp),
                 )
                 if (wide) {
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        CreationCard("Image", "SOUL, Marketing Studio, Qwen", true, Modifier.weight(1f), onOpenImages)
-                        CreationCard("Video", "Seedance, Kling, Cinema Studio, Wan", false, Modifier.weight(1f), onOpenVideos)
+                        CreationCard(R.string.home_image, R.string.home_image_models, true, Modifier.weight(1f), onOpenImages)
+                        CreationCard(R.string.home_video, R.string.home_video_models, false, Modifier.weight(1f), onOpenVideos)
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        CreationCard("Image", "SOUL, Marketing Studio, Qwen", true, Modifier.fillMaxWidth(), onOpenImages)
-                        CreationCard("Video", "Seedance, Kling, Cinema Studio, Wan", false, Modifier.fillMaxWidth(), onOpenVideos)
+                        CreationCard(R.string.home_image, R.string.home_image_models, true, Modifier.fillMaxWidth(), onOpenImages)
+                        CreationCard(R.string.home_video, R.string.home_video_models, false, Modifier.fillMaxWidth(), onOpenVideos)
                     }
                 }
                 Text(
-                    "Private local build · API generation stays disabled until credentials and a verified adapter are present.",
+                    stringResource(R.string.home_private_build),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 24.dp),
@@ -69,10 +72,12 @@ fun HomeScreen(onOpenImages: () -> Unit, onOpenVideos: () -> Unit) {
 }
 
 @Composable
-private fun CreationCard(title: String, subtitle: String, image: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun CreationCard(@StringRes title: Int, @StringRes subtitle: Int, image: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val titleText = stringResource(title)
+    val creationWorkspaceDescription = stringResource(R.string.creation_workspace, titleText)
     Card(
         modifier = modifier
-            .semantics { stateDescription = "$title creation workspace" }
+            .semantics { stateDescription = creationWorkspaceDescription }
             .clickable(role = Role.Button, onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
     ) {
@@ -82,8 +87,8 @@ private fun CreationCard(title: String, subtitle: String, image: Boolean, modifi
                 contentDescription = null,
                 modifier = Modifier.size(36.dp),
             )
-            Text(title, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 28.dp))
-            Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+            Text(titleText, style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(top = 28.dp))
+            Text(stringResource(subtitle), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }

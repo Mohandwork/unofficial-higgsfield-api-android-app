@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 value class WorkflowId(val value: String)
 
-enum class MediaKind { IMAGE, VIDEO }
+enum class MediaKind { IMAGE, VIDEO, AUDIO }
 enum class WorkflowFamily { SOUL, MARKETING_STUDIO, QWEN, SEEDANCE, KLING, CINEMA_STUDIO, WAN }
 enum class WorkflowCapability {
     TEXT_TO_IMAGE, IMAGE_TO_IMAGE, TEXT_TO_VIDEO, IMAGE_TO_VIDEO,

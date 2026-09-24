@@ -6,6 +6,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import com.higgsfield.mobile.core.preferences.ThemePreference
 
 private val LightColors = lightColorScheme(
     primary = Color(0xFF006A6A),
@@ -32,9 +33,14 @@ private val DarkColors = darkColorScheme(
 
 @Composable
 fun HiggsfieldTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themePreference: ThemePreference = ThemePreference.SYSTEM,
     content: @Composable () -> Unit,
 ) {
+    val darkTheme = when (themePreference) {
+        ThemePreference.SYSTEM -> isSystemInDarkTheme()
+        ThemePreference.LIGHT -> false
+        ThemePreference.DARK -> true
+    }
     MaterialTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
         typography = MaterialTheme.typography,

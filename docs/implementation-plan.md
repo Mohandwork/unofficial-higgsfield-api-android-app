@@ -12,6 +12,8 @@ Higgsfield Mobile is a personal-use Android client for creating images and video
 - Direct mobile authentication is a personal-build exception. Credentials are extractable from an APK, so this build must not be distributed.
 - Generation POST requests are not retried after ambiguous timeouts. Status GET requests may retry with backoff.
 - Offline drafts are editable but are never auto-submitted when connectivity returns.
+- `WorkflowCatalog` is the single source of truth for all model IDs and user-visible model names. Do not repeat model identifiers or display names as literals elsewhere in code or tests.
+- Compose-visible copy belongs in Android string resources. Non-Compose user-facing state messages must use centralized reusable copy until they migrate to a resource-backed UI-text type.
 
 ## Delivery slices
 

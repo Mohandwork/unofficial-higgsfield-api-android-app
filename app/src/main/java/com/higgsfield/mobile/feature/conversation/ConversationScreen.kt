@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudDone
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
@@ -67,11 +69,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.res.stringResource
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.higgsfield.mobile.core.model.CreativeBrief
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.WorkflowDescriptor
+import com.higgsfield.mobile.R
 
 @Composable
 fun ConversationRoute(
@@ -123,21 +127,29 @@ private fun ConversationScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text(if (state.mediaKind == MediaKind.IMAGE) "Image studio" else "Video studio")
-                        Text("Draft saved locally", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(stringResource(if (state.mediaKind == MediaKind.IMAGE) R.string.image_studio else R.string.video_studio))
+                        Text(stringResource(R.string.draft_saved_locally), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.back)) }
                 },
                 actions = {
-                    Icon(Icons.Rounded.CloudDone, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Text("Online", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(horizontal = 12.dp))
+                    Icon(
+                        if (state.isOnline) Icons.Rounded.CloudDone else Icons.Rounded.CloudOff,
+                        contentDescription = null,
+                        tint = if (state.isOnline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    )
+                    Text(
+                        stringResource(if (state.isOnline) R.string.online else R.string.offline),
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                    )
                 },
             )
         },
     ) { padding ->
-        BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
             if (maxWidth >= 840.dp) {
                 Row(Modifier.fillMaxSize()) {
                     ConversationRail(state, Modifier.width(280.dp).fillMaxHeight())
@@ -163,17 +175,17 @@ private fun ConversationScreen(
 private fun ConversationRail(state: ConversationUiState, modifier: Modifier = Modifier) {
     Surface(modifier, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)) {
         Column(Modifier.padding(20.dp)) {
-            Text("Conversations", style = MaterialTheme.typography.titleLarge)
-            Text("Today", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 28.dp, bottom = 8.dp))
+            Text(stringResource(R.string.conversations), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.today), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 28.dp, bottom = 8.dp))
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Column(Modifier.padding(16.dp)) {
-                    Text(if (state.mediaKind == MediaKind.IMAGE) "Image exploration" else "Video exploration", fontWeight = FontWeight.SemiBold)
-                    Text("Current local draft", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(if (state.mediaKind == MediaKind.IMAGE) R.string.image_studio else R.string.video_studio), fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.current_local_draft), style = MaterialTheme.typography.bodySmall)
                 }
             }
             Spacer(Modifier.weight(1f))
-            Text("Versions", style = MaterialTheme.typography.titleMedium)
-            Text("${state.timeline.size} local demo version(s)", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.versions), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.local_demo_versions, state.timeline.size), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -200,14 +212,14 @@ private fun Workspace(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box {
-                AssistChip(onClick = onToggleModelMenu, label = { Text(state.selectedWorkflow?.displayName ?: "Choose model") })
+                AssistChip(onClick = onToggleModelMenu, label = { Text(state.selectedWorkflow?.displayName ?: stringResource(R.string.choose_model)) })
                 DropdownMenu(expanded = state.modelMenuOpen, onDismissRequest = onToggleModelMenu) {
                     state.workflows.forEach { workflow ->
                         DropdownMenuItem(
                             text = {
                                 Column {
                                     Text(workflow.displayName)
-                                    Text("Adapter verification pending", style = MaterialTheme.typography.labelSmall)
+                                    Text(stringResource(R.string.adapter_verification_pending), style = MaterialTheme.typography.labelSmall)
                                 }
                             },
                             onClick = { onSelectWorkflow(workflow) },
@@ -215,10 +227,10 @@ private fun Workspace(
                     }
                 }
             }
-            FilledTonalIconButton(onClick = { onShowInfo(true) }) { Icon(Icons.Rounded.Info, "Model details and cost") }
-            AssistChip(onClick = { onShowBrief(true) }, label = { Text("Creative brief") })
+            FilledTonalIconButton(onClick = { onShowInfo(true) }) { Icon(Icons.Rounded.Info, stringResource(R.string.model_details_and_cost)) }
+            AssistChip(onClick = { onShowBrief(true) }, label = { Text(stringResource(R.string.creative_brief)) })
             Spacer(Modifier.weight(1f))
-            Text("Estimate unavailable", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.estimate_unavailable), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         HorizontalDivider()
         LazyColumn(
@@ -251,19 +263,19 @@ private fun Workspace(
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
                 maxLines = 5,
-                placeholder = { Text(if (state.activeSourceId != null) "Describe what to change…" else "Describe what to create…") },
+                placeholder = { Text(stringResource(if (state.activeSourceId != null) R.string.describe_change else R.string.describe_creation)) },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onPickImage) { Icon(Icons.Rounded.AddPhotoAlternate, "Attach a reference image") }
-                IconButton(onClick = { onShowOptions(true) }) { Icon(Icons.Rounded.Tune, "Advanced options") }
+                IconButton(onClick = onPickImage) { Icon(Icons.Rounded.AddPhotoAlternate, stringResource(R.string.attach_reference_image)) }
+                IconButton(onClick = { onShowOptions(true) }) { Icon(Icons.Rounded.Tune, stringResource(R.string.advanced_options_description)) }
                 Spacer(Modifier.weight(1f))
                 Button(onClick = onAddDemoResult, enabled = state.prompt.isNotBlank()) {
                     Icon(Icons.Rounded.AutoAwesome, contentDescription = null)
-                    Text("Preview locally", Modifier.padding(start = 8.dp))
+                    Text(stringResource(R.string.preview_locally), Modifier.padding(start = 8.dp))
                 }
             }
             if (!state.credentialsConfigured) {
-                Text("API disabled: add local credentials. Preview locally never calls the API.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.api_disabled_preview), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }
@@ -273,10 +285,9 @@ private fun Workspace(
 private fun EmptyConversation(kind: MediaKind) {
     Column(Modifier.fillMaxWidth().padding(vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(Icons.Rounded.AutoAwesome, null, Modifier.size(44.dp), tint = MaterialTheme.colorScheme.primary)
-        Text("Start with a clear idea", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
+        Text(stringResource(R.string.start_with_clear_idea), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 16.dp))
         Text(
-            if (kind == MediaKind.IMAGE) "Create an image, then make the next edit from its visible active source."
-            else "Create a video from text or attach a compatible reference image.",
+            stringResource(if (kind == MediaKind.IMAGE) R.string.empty_image_conversation else R.string.empty_video_conversation),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 8.dp),
         )
@@ -303,8 +314,8 @@ private fun TimelineCard(item: TimelineItem, active: Boolean, onUseOutput: (Time
                     Text(item.modelName, fontWeight = FontWeight.SemiBold)
                     Text(item.stateLabel, style = MaterialTheme.typography.bodySmall)
                 }
-                if (active) Text("Editing source", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-                else Text("Use this", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                if (active) Text(stringResource(R.string.editing_source), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+                else Text(stringResource(R.string.use_this), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -316,10 +327,10 @@ private fun ActiveSourceCard(label: String, onDetach: () -> Unit) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(58.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp)))
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text("Editing this image", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.editing_this_image), fontWeight = FontWeight.Bold)
                 Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
             }
-            IconButton(onClick = onDetach) { Icon(Icons.Rounded.Close, "Detach active image and start fresh") }
+            IconButton(onClick = onDetach) { Icon(Icons.Rounded.Close, stringResource(R.string.detach_active_image)) }
         }
     }
 }
@@ -328,13 +339,15 @@ private fun ActiveSourceCard(label: String, onDetach: () -> Unit) {
 private fun ModelInfoDialog(workflow: WorkflowDescriptor?, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
-        title = { Text(workflow?.displayName ?: "Model") },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) } },
+        title = { Text(workflow?.displayName ?: stringResource(R.string.model)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Capabilities: ${workflow?.capabilities?.joinToString { it.name.lowercase().replace('_', ' ') } ?: "Unknown"}")
-                Text("Cost depends on the exact options. A live estimate will appear before real generation.")
-                Text("This adapter is not enabled until its endpoint schema is verified.", color = MaterialTheme.colorScheme.error)
+                val capabilities = workflow?.capabilities?.joinToString { it.name.lowercase().replace('_', ' ') }
+                    ?: stringResource(R.string.unknown)
+                Text(stringResource(R.string.capabilities, capabilities))
+                Text(stringResource(R.string.model_cost_note))
+                Text(stringResource(R.string.adapter_not_enabled), color = MaterialTheme.colorScheme.error)
             }
         },
     )
@@ -347,15 +360,15 @@ private fun BriefDialog(initial: CreativeBrief, onDismiss: () -> Unit, onSave: (
     var exclusions by remember(initial) { mutableStateOf(initial.exclusions) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = { onSave(initial.copy(subject = subject, style = style, exclusions = exclusions)) }) { Text("Save brief") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-        title = { Text("Pinned creative brief") },
+        confirmButton = { TextButton(onClick = { onSave(initial.copy(subject = subject, style = style, exclusions = exclusions)) }) { Text(stringResource(R.string.save_brief)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        title = { Text(stringResource(R.string.pinned_creative_brief)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Applied explicitly to each request; chat history is not silently sent.")
-                OutlinedTextField(subject, { subject = it }, label = { Text("Subject") })
-                OutlinedTextField(style, { style = it }, label = { Text("Style and mood") })
-                OutlinedTextField(exclusions, { exclusions = it }, label = { Text("Exclusions") })
+                Text(stringResource(R.string.brief_explanation))
+                OutlinedTextField(subject, { subject = it }, label = { Text(stringResource(R.string.subject)) })
+                OutlinedTextField(style, { style = it }, label = { Text(stringResource(R.string.style_and_mood)) })
+                OutlinedTextField(exclusions, { exclusions = it }, label = { Text(stringResource(R.string.exclusions)) })
             }
         },
     )
@@ -365,8 +378,8 @@ private fun BriefDialog(initial: CreativeBrief, onDismiss: () -> Unit, onSave: (
 private fun OptionsDialog(kind: MediaKind, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } },
-        title = { Text("Advanced options") },
-        text = { Text(if (kind == MediaKind.IMAGE) "Aspect ratio, resolution, seed, and negative prompt will appear here when supported by the selected model." else "Aspect ratio, resolution, duration, camera, and audio options will appear here when supported.") },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) } },
+        title = { Text(stringResource(R.string.advanced_options_description)) },
+        text = { Text(stringResource(if (kind == MediaKind.IMAGE) R.string.image_options_description else R.string.video_options_description)) },
     )
 }
