@@ -11,6 +11,8 @@ import com.higgsfield.mobile.core.database.PersistedConversationSnapshot
 import com.higgsfield.mobile.core.database.PersistedGenerationStatus
 import com.higgsfield.mobile.core.model.CreativeBrief
 import com.higgsfield.mobile.core.model.MediaKind
+import com.higgsfield.mobile.core.model.MediaRequirement
+import com.higgsfield.mobile.core.model.MediaRole
 import com.higgsfield.mobile.core.model.WorkflowCapability
 import com.higgsfield.mobile.core.model.WorkflowDescriptor
 import com.higgsfield.mobile.core.model.WorkflowRegistry
@@ -33,6 +35,12 @@ data class TimelineItem(
     val parentId: String? = null,
 )
 
+data class DraftMediaAttachment(
+    val role: MediaRole,
+    val kind: MediaKind,
+    val label: String,
+)
+
 data class ConversationUiState(
     val mediaKind: MediaKind = MediaKind.IMAGE,
     val prompt: String = "",
@@ -42,6 +50,8 @@ data class ConversationUiState(
     val timeline: List<TimelineItem> = emptyList(),
     val activeSourceId: String? = null,
     val activeSourceLabel: ConversationText? = null,
+    val attachmentSlots: List<MediaRequirement> = emptyList(),
+    val attachments: List<DraftMediaAttachment> = emptyList(),
     val modelMenuOpen: Boolean = false,
     val infoOpen: Boolean = false,
     val briefOpen: Boolean = false,
@@ -69,6 +79,7 @@ class ConversationViewModel @Inject constructor(
             mediaKind = kind,
             workflows = workflows,
             selectedWorkflow = workflows.firstOrNull(),
+            attachmentSlots = attachmentSlotsFor(workflows.firstOrNull()),
         )
         val id = kind.name.lowercase() + "-default"
         conversationId = id
@@ -97,6 +108,12 @@ class ConversationViewModel @Inject constructor(
                 WorkflowCapability.IMAGE_TO_IMAGE !in workflow.capabilities
             current.copy(
                 selectedWorkflow = workflow,
+                attachmentSlots = attachmentSlotsFor(workflow),
+                attachments = current.attachments.filter { attachment ->
+                    attachmentSlotsFor(workflow).any { slot ->
+                        slot.role == attachment.role && slot.kind == attachment.kind
+                    }
+                },
                 modelMenuOpen = false,
                 message = if (sourceIncompatible) {
                     ConversationText.Resource(R.string.message_model_cannot_edit_active_image)
@@ -106,6 +123,21 @@ class ConversationViewModel @Inject constructor(
         conversationId?.let { id ->
             viewModelScope.launch { persistence.saveSelectedWorkflow(id, workflow.id) }
         }
+    }
+
+    fun attachMedia(role: MediaRole, kind: MediaKind, label: String) {
+        mutableState.update { current ->
+            val slot = current.attachmentSlots.firstOrNull { it.role == role && it.kind == kind }
+                ?: return@update current
+            current.copy(
+                attachments = current.attachments.filterNot { it.role == role } +
+                    DraftMediaAttachment(role, slot.kind, label),
+            )
+        }
+    }
+
+    fun removeMedia(role: MediaRole) = mutableState.update { current ->
+        current.copy(attachments = current.attachments.filterNot { it.role == role })
     }
 
     fun updateBrief(brief: CreativeBrief) {
@@ -230,6 +262,19 @@ class ConversationViewModel @Inject constructor(
                     ConversationText.Resource(R.string.message_select_output_before_continuing)
                 } else current.message,
             )
+        }
+    }
+
+    private fun attachmentSlotsFor(workflow: WorkflowDescriptor?): List<MediaRequirement> {
+        if (workflow == null) return emptyList()
+        val referenceSlot = MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE)
+        return workflow.mediaRequirements + if (
+            WorkflowCapability.REFERENCE_IMAGE in workflow.capabilities &&
+                workflow.mediaRequirements.none { it.role == MediaRole.REFERENCE }
+        ) {
+            listOf(referenceSlot)
+        } else {
+            emptyList()
         }
     }
 

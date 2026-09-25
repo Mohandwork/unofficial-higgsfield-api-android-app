@@ -26,6 +26,7 @@ Higgsfield Mobile is a personal-use Android client for creating images and video
 7. Seedance, Cinema Studio, and Wan adapters in family-sized patches.
 8. Kling 2.x, Kling 3.x, O3, and Omni in smaller workflow patches.
 9. Storage Access Framework downloads, Media3 playback, profiling, accessibility, screenshots, and hardening.
+10. Website-inspired conversation workspace redesign: model-aware settings, estimates, action/chat motion, and composer polish.
 
 Each model is visible through the registry, but a workflow is enabled for real submission only after its current API schema, endpoint, estimate body, and fixture tests have been verified against the official workflow page. Soul ID training is excluded.
 
@@ -38,6 +39,41 @@ The latest successful image is automatically displayed in a large **Editing this
 Requests are stateless. The app sends a deterministic composition of the current instruction and Creative Brief, not hidden chat history. Reuse actions explicitly carry prompts, options, seeds, attachments, or outputs forward.
 
 Compact screens show one full-screen workspace with sheets for history and versions. Expanded screens reserve a conversation rail beside the workspace. Light, dark, and system themes use warm neutrals with blue and teal accents.
+
+## Planned experience improvements
+
+The conversation workspace will be redesigned with a compact top bar that contains only navigation, workspace identity, and connection state. Model selection and its estimate card will sit directly below it. The composer will own secondary actions and expose a single primary generation action.
+
+- Replace the current information dialog with a model estimate/details sheet. It will show a documentation-backed, static indicative price/range and the factors that affect cost until live estimates are authorized and implemented; never invent prices or make an estimate request solely to populate the UI.
+- Keep Creative Brief persisted but move it into a collapsed, optional prompt-settings section instead of the top bar.
+- Add explicit per-workflow option metadata for aspect ratio, resolution, duration, seed, negative prompt, audio, and reference media. Render only supported controls and clear only values invalidated by a model switch.
+- Replace the generic options dialog with a model-aware settings sheet using compact chips or segmented controls.
+- Add subtle functional motion for chat insertion/reordering, action visibility, attachment cards, model changes, sheets, and estimate cards. Respect the Android reduced-motion preference.
+- Improve empty states, composer spacing, visual hierarchy, cards, contrast, and touch targets in a Higgsfield website-inspired editorial direction.
+
+### Locked design specification
+
+- Treat the supplied three-screen dark mockup as the visual reference, not a source of model names, prices, timing, credits, or other factual data.
+- Use one consistent user-message color unless color communicates a documented state. Remove the unused vertical band beneath the navigation area and prioritize conversation space.
+- Keep the top bar compact. Use a compact model chip rather than a dominant dropdown, then place one model/estimate strip directly beneath the bar. Do not repeat the same estimate across the toolbar, composer, and output card.
+- The estimate strip opens a modal model-details sheet that dims the workspace and covers or disables the composer. It shows verified starting price/range, credit guidance, expected latency when available, supported settings, and the verification date.
+- Pricing is maintained as static per-workflow metadata because no supported live pricing endpoint has been verified. Keep values in the model/data registry rather than UI code, record the source URL and `verifiedOn` date, and update them manually when Higgsfield pricing changes.
+- Display static values as `Estimated` or `From` rather than `Live`. Resolve documented option-dependent prices when an exact combination is known; otherwise show `Pricing unavailable` instead of calculating or inventing a value.
+- The composer contains the prompt, attachment action, capability-driven preset/settings actions, and one prominent send/generate button. Avoid presenting every possible action simultaneously.
+- Hide `Reference`, `Presets`, aspect ratio, resolution, duration, seed, negative prompt, audio, and other controls whenever the selected workflow does not support them. `Reuse parameters` appears only on completed outputs whose settings can be reused.
+- Label attachments by their assigned role, such as `Source image`, `Reference image`, or `Motion-reference video`; do not use generic preview headings.
+- Render completed generations as media cards with compact verified metadata and context-valid actions such as Download, Share, and Reuse parameters. Metadata must remain legible and meet contrast requirements.
+- Loading uses skeleton media, determinate progress when the API supplies it, and a meaningful status such as `Generating`; never expose implementation labels such as `Progressive Loading State`.
+- Motion is short and functional: message insertion, output-card placement, attachment and action visibility, model/estimate crossfades, and the loading-to-result transition. Reduced-motion mode removes spatial movement while preserving immediate state feedback.
+- The redesigned workspace must remain usable at compact and expanded widths, with large fonts, dark theme, IME visibility, and system gesture/navigation insets.
+
+### Improvements backlog
+
+- Connect local media-role attachments to the secure upload lifecycle and public remote URLs.
+- Add live model estimates after authenticated estimate bodies are verified and billable operation approval is granted.
+- Add Compose screenshot coverage for compact, expanded, dark-theme, large-font, and reduced-motion states.
+- Complete downloads, accessibility audit, and performance profiling.
+- Re-verify and manually update static pricing metadata whenever Higgsfield changes its model catalog or pricing. Replace this policy only if a supported pricing API is documented and adopted deliberately.
 
 ## API lifecycle
 

@@ -56,6 +56,8 @@ Repositories persist the stable code and safe diagnostic message for generation 
 
 Schemas are grouped in one registry rather than adapter classes. Common lifecycle envelopes and the generic JSON boundary are shared; each enabled model still owns its verified route and field configuration.
 
+The conversation state derives local attachment slots from the selected workflow. A user assigns each picked item to the declared media role (for example, a source image or motion-reference video); changing models discards slots unsupported by the new workflow. These are local draft references until the existing secure upload lifecycle produces public URLs, so the UI never treats a picked device URI as remotely submittable media.
+
 ## Request composition
 
 Higgsfield is stateless. `PromptComposer` deterministically joins non-empty Creative Brief fields and the current instruction. When supported, exclusions are mapped to the DTO's `negative_prompt`; they are not duplicated into hidden history. The exact composed draft and option snapshot are persisted with every generation.

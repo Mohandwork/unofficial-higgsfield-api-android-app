@@ -22,7 +22,8 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 | 4. Secure API lifecycle | Complete | Validated connectivity, credential-safe Retrofit service, authenticated upload-URL requests, explicitly unauthenticated presigned uploads, validated status/cancel URLs, status synchronization, backoff polling, and network-constrained WorkManager recovery added. Model-specific estimate and submission bodies remain intentionally deferred to the first verified adapter. No real request without explicit billable approval. |
 | 5. SOUL vertical slice | Complete | A generic schema-driven workflow adapter and dynamic submission boundary are verified with the SOUL V2 Standard prompt schema, fixture coverage, and MockWebServer authorization/body/route coverage. SOUL Standard is registered with the same prompt schema and its own verified route. |
 | 6. Verified family schemas | Complete | The single shared adapter now has real routes and request field configurations for every catalog entry: SOUL Cinema; Marketing Studio Alpha, Flare, and Sunburst; Qwen Image 3 and Edit; Seedance 2/2.5; all listed Kling workflows; Cinema Studio 4; and Wan 2.6, 2.7, 3, and 3 Prime. Text-to-video routes use their minimal documented prompt body; shared image/video URL values support Kling Motion; O3 and Omni use their documented image-reference routes. |
-| 7+. Remaining hardening | Not started | Add UI media-role assignment for advanced reference workflows, then downloads, accessibility, profiling, and final hardening. |
+| 7. Local media-role assignment | Complete | The conversation UI derives attachment slots from the selected workflow, lets users assign picked images/videos to source, motion-reference, or image-reference roles, and removes slots that a newly selected model does not support. Picked device URIs remain local until the secure upload lifecycle supplies public URLs. |
+| 8+. Remaining hardening | Not started | Connect local attachment slots to the secure upload lifecycle, then downloads, accessibility, profiling, and final hardening. |
 
 ## Latest verification
 
@@ -36,4 +37,4 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 ## Known follow-up
 
 - Convert the fake workspace coverage into Compose/screenshot tests at compact, medium, and expanded widths.
-- Add UI media-role assignment for advanced reference workflows; the generic network schema already supports the required media URL shapes.
+- Connect local attachment slots to the secure upload lifecycle so the generic network schema receives public media URLs.

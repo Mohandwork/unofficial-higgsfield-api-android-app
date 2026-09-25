@@ -28,6 +28,14 @@
     <string name="describe_change">Describe what to change…</string>
     <string name="describe_creation">Describe what to create…</string>
     <string name="attach_reference_image">Attach a reference image</string>
+    <string name="attach_media">Attach media</string>
+    <string name="remove_attachment">Remove attachment</string>
+    <string name="media_role_source_image">Source image</string>
+    <string name="media_role_motion_video">Motion-reference video</string>
+    <string name="media_role_reference_image">Reference image</string>
+    <string name="media_role_start_frame">Start frame</string>
+    <string name="media_role_end_frame">End frame</string>
+    <string name="media_role_audio">Audio reference</string>
     <string name="advanced_options_description">Advanced options</string>
     <string name="preview_locally">Preview locally</string>
     <string name="api_disabled_preview">API disabled: add local credentials. Preview locally never calls the API.</string>

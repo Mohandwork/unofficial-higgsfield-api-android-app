@@ -1,6 +1,7 @@
 package com.higgsfield.mobile.feature.conversation
 
 import com.higgsfield.mobile.core.model.MediaKind
+import com.higgsfield.mobile.core.model.MediaRole
 import com.higgsfield.mobile.core.connectivity.ConnectivityStatusProvider
 import com.higgsfield.mobile.R
 import com.higgsfield.mobile.core.model.WorkflowCatalog
@@ -96,6 +97,24 @@ class ConversationViewModelTest {
 
         connectivity.setOnline(true)
         assertEquals(true, viewModel.state.value.isOnline)
+    }
+
+    @Test
+    fun `motion workflow assigns source image and motion video to separate draft slots`() {
+        val viewModel = ConversationViewModel(FakeConversationPersistence())
+        viewModel.initialize(MediaKind.VIDEO)
+        viewModel.selectWorkflow(WorkflowRegistry.find(WorkflowCatalog.KLING_2_6_MOTION.id)!!)
+
+        viewModel.attachMedia(MediaRole.SOURCE, MediaKind.IMAGE, "subject.png")
+        viewModel.attachMedia(MediaRole.MOTION_REFERENCE, MediaKind.VIDEO, "motion.mp4")
+
+        assertEquals(
+            listOf(
+                DraftMediaAttachment(MediaRole.SOURCE, MediaKind.IMAGE, "subject.png"),
+                DraftMediaAttachment(MediaRole.MOTION_REFERENCE, MediaKind.VIDEO, "motion.mp4"),
+            ),
+            viewModel.state.value.attachments,
+        )
     }
 }
 

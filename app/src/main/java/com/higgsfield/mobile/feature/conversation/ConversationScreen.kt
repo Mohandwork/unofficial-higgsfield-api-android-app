@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.activity.result.contract.ActivityResultContracts.GetContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -74,6 +75,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.higgsfield.mobile.core.model.CreativeBrief
 import com.higgsfield.mobile.core.model.MediaKind
+import com.higgsfield.mobile.core.model.MediaRole
 import com.higgsfield.mobile.core.model.WorkflowDescriptor
 import com.higgsfield.mobile.R
 
@@ -85,6 +87,21 @@ fun ConversationRoute(
 ) {
     LaunchedEffect(mediaKind) { viewModel.initialize(mediaKind) }
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var pendingRole by remember { mutableStateOf<MediaRole?>(null) }
+    val imagePicker = rememberLauncherForActivityResult(PickVisualMedia()) { uri: Uri? ->
+        val role = pendingRole
+        if (uri != null && role != null) {
+            viewModel.attachMedia(role, MediaKind.IMAGE, uri.lastPathSegment ?: uri.toString())
+        }
+        pendingRole = null
+    }
+    val videoPicker = rememberLauncherForActivityResult(GetContent()) { uri: Uri? ->
+        val role = pendingRole
+        if (uri != null && role != null) {
+            viewModel.attachMedia(role, MediaKind.VIDEO, uri.lastPathSegment ?: uri.toString())
+        }
+        pendingRole = null
+    }
     ConversationScreen(
         state = state,
         onBack = onBack,
@@ -95,7 +112,15 @@ fun ConversationRoute(
         onShowBrief = viewModel::showBrief,
         onShowOptions = viewModel::showOptions,
         onUpdateBrief = viewModel::updateBrief,
-        onAttachSource = viewModel::attachSource,
+        onPickMedia = { role, kind ->
+            pendingRole = role
+            when (kind) {
+                MediaKind.IMAGE -> imagePicker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly))
+                MediaKind.VIDEO -> videoPicker.launch(VIDEO_MIME_TYPE)
+                MediaKind.AUDIO -> Unit
+            }
+        },
+        onRemoveMedia = viewModel::removeMedia,
         onDetachSource = viewModel::detachSource,
         onUseOutput = viewModel::useOutput,
         onAddDemoResult = viewModel::addDemoResult,
@@ -114,15 +139,12 @@ private fun ConversationScreen(
     onShowBrief: (Boolean) -> Unit,
     onShowOptions: (Boolean) -> Unit,
     onUpdateBrief: (CreativeBrief) -> Unit,
-    onAttachSource: (String) -> Unit,
+    onPickMedia: (MediaRole, MediaKind) -> Unit,
+    onRemoveMedia: (MediaRole) -> Unit,
     onDetachSource: () -> Unit,
     onUseOutput: (TimelineItem) -> Unit,
     onAddDemoResult: () -> Unit,
 ) {
-    val selectedImageLabel = stringResource(R.string.selected_image)
-    val picker = rememberLauncherForActivityResult(PickVisualMedia()) { uri: Uri? ->
-        uri?.let { onAttachSource(it.lastPathSegment ?: selectedImageLabel) }
-    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -155,14 +177,10 @@ private fun ConversationScreen(
                 Row(Modifier.fillMaxSize()) {
                     ConversationRail(state, Modifier.width(280.dp).fillMaxHeight())
                     HorizontalDivider(Modifier.fillMaxHeight().width(1.dp))
-                    Workspace(state, onPromptChange, onToggleModelMenu, onSelectWorkflow, onShowInfo, onShowBrief, onShowOptions, {
-                        picker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly))
-                    }, onDetachSource, onUseOutput, onAddDemoResult, Modifier.weight(1f))
+                    Workspace(state, onPromptChange, onToggleModelMenu, onSelectWorkflow, onShowInfo, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onAddDemoResult, Modifier.weight(1f))
                 }
             } else {
-                Workspace(state, onPromptChange, onToggleModelMenu, onSelectWorkflow, onShowInfo, onShowBrief, onShowOptions, {
-                    picker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly))
-                }, onDetachSource, onUseOutput, onAddDemoResult, Modifier.fillMaxSize())
+                Workspace(state, onPromptChange, onToggleModelMenu, onSelectWorkflow, onShowInfo, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onAddDemoResult, Modifier.fillMaxSize())
             }
         }
     }
@@ -200,12 +218,14 @@ private fun Workspace(
     onShowInfo: (Boolean) -> Unit,
     onShowBrief: (Boolean) -> Unit,
     onShowOptions: (Boolean) -> Unit,
-    onPickImage: () -> Unit,
+    onPickMedia: (MediaRole, MediaKind) -> Unit,
+    onRemoveMedia: (MediaRole) -> Unit,
     onDetachSource: () -> Unit,
     onUseOutput: (TimelineItem) -> Unit,
     onAddDemoResult: () -> Unit,
     modifier: Modifier,
 ) {
+    var attachmentMenuOpen by remember { mutableStateOf(false) }
     Column(modifier) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -264,6 +284,9 @@ private fun Workspace(
                 }
             }
             if (state.activeSourceId != null) ActiveSourceCard(state.activeSourceLabel?.resolve().orEmpty(), onDetachSource)
+            state.attachments.forEach { attachment ->
+                DraftAttachmentCard(attachment, onRemoveMedia)
+            }
             OutlinedTextField(
                 value = state.prompt,
                 onValueChange = onPromptChange,
@@ -273,7 +296,22 @@ private fun Workspace(
                 placeholder = { Text(stringResource(if (state.activeSourceId != null) R.string.describe_change else R.string.describe_creation)) },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onPickImage) { Icon(Icons.Rounded.AddPhotoAlternate, stringResource(R.string.attach_reference_image)) }
+                Box {
+                    IconButton(onClick = { attachmentMenuOpen = true }) {
+                        Icon(Icons.Rounded.AddPhotoAlternate, stringResource(R.string.attach_media))
+                    }
+                    DropdownMenu(expanded = attachmentMenuOpen, onDismissRequest = { attachmentMenuOpen = false }) {
+                        state.attachmentSlots.forEach { slot ->
+                            DropdownMenuItem(
+                                text = { Text(attachmentRoleText(slot.role)) },
+                                onClick = {
+                                    attachmentMenuOpen = false
+                                    onPickMedia(slot.role, slot.kind)
+                                },
+                            )
+                        }
+                    }
+                }
                 IconButton(onClick = { onShowOptions(true) }) { Icon(Icons.Rounded.Tune, stringResource(R.string.advanced_options_description)) }
                 Spacer(Modifier.weight(1f))
                 Button(onClick = onAddDemoResult, enabled = state.prompt.isNotBlank()) {
@@ -287,6 +325,33 @@ private fun Workspace(
         }
     }
 }
+
+@Composable
+private fun DraftAttachmentCard(attachment: DraftMediaAttachment, onRemove: (MediaRole) -> Unit) {
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(attachmentRoleText(attachment.role), style = MaterialTheme.typography.labelLarge)
+                Text(attachment.label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+            }
+            IconButton(onClick = { onRemove(attachment.role) }) {
+                Icon(Icons.Rounded.Close, stringResource(R.string.remove_attachment))
+            }
+        }
+    }
+}
+
+@Composable
+private fun attachmentRoleText(role: MediaRole): String = stringResource(
+    when (role) {
+        MediaRole.SOURCE -> R.string.media_role_source_image
+        MediaRole.MOTION_REFERENCE -> R.string.media_role_motion_video
+        MediaRole.REFERENCE -> R.string.media_role_reference_image
+        MediaRole.START_FRAME -> R.string.media_role_start_frame
+        MediaRole.END_FRAME -> R.string.media_role_end_frame
+        MediaRole.AUDIO -> R.string.media_role_audio
+    },
+)
 
 @Composable
 private fun EmptyConversation(kind: MediaKind) {
@@ -390,3 +455,5 @@ private fun OptionsDialog(kind: MediaKind, onDismiss: () -> Unit) {
         text = { Text(stringResource(if (kind == MediaKind.IMAGE) R.string.image_options_description else R.string.video_options_description)) },
     )
 }
+
+private const val VIDEO_MIME_TYPE = "video/*"
