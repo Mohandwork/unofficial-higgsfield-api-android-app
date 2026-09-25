@@ -9,6 +9,7 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 - API safety: no Higgsfield request, upload, estimate, or billable generation has been made.
 - Toolchain: AGP 9.4.0, Gradle 9.6.0, AGP built-in Kotlin, KSP, and Android Studio JBR 25 verified locally.
 - Build conventions: `gradle/libs.versions.toml` is the source of truth for project plugin and dependency versions.
+- Code conventions: production domain/data literals are locally scoped constants; UI state carries resource-backed text; `core/error` owns persisted safe error mapping.
 
 ## Delivery slices
 
@@ -23,8 +24,8 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 
 ## Latest verification
 
-- `testDebugUnitTest lintDebug assembleDebug`: passed after completing the shared secure lifecycle and migrating to the Gradle version catalog. Kotlin incremental compilation was disabled for this run because the local Kotlin cache was locked.
-- Tests: 23 passing, including MockWebServer coverage for authorization, upload URLs, status checks, cancellation, unauthenticated presigned uploads, and polling cadence.
+- `testDebugUnitTest lintDebug assembleDebug`: passed after applying the constants, UI-text, and centralized-error conventions. Kotlin incremental compilation was disabled for this run because the local Kotlin cache was locked.
+- Tests: 25 passing, including resource-backed conversation-state and central error-mapper coverage, plus MockWebServer coverage for authorization, upload URLs, status checks, cancellation, unauthenticated presigned uploads, and polling cadence.
 - Lint: zero errors; dependency-version and plural suggestions remain.
 - APK: debug assembly succeeded.
 

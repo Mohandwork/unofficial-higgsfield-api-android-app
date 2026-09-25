@@ -20,7 +20,7 @@ class PresignedUploadClient(
         body: RequestBody,
     ) {
         require(contentType == body.contentType()?.toString()) {
-            "The upload body content type must match the presigned upload content type"
+            CONTENT_TYPE_MISMATCH_MESSAGE
         }
         val request = Request.Builder()
             .url(uploadUrl)
@@ -28,7 +28,7 @@ class PresignedUploadClient(
             .apply { headers.forEach { (name, value) -> header(name, value) } }
             .build()
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) throw IOException("Presigned upload failed with HTTP ${response.code}")
+            if (!response.isSuccessful) throw IOException("$UPLOAD_FAILED_PREFIX${response.code}")
         }
     }
 
@@ -44,6 +44,10 @@ class PresignedUploadClient(
 
 private object RemoveAuthorizationHeaderInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain) = chain.proceed(
-        chain.request().newBuilder().removeHeader("Authorization").build()
+        chain.request().newBuilder().removeHeader(AUTHORIZATION_HEADER).build()
     )
 }
+
+private const val AUTHORIZATION_HEADER = "Authorization"
+private const val CONTENT_TYPE_MISMATCH_MESSAGE = "The upload body content type must match the presigned upload content type"
+private const val UPLOAD_FAILED_PREFIX = "Presigned upload failed with HTTP "

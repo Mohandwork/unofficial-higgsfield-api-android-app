@@ -119,8 +119,9 @@ private fun ConversationScreen(
     onUseOutput: (TimelineItem) -> Unit,
     onAddDemoResult: () -> Unit,
 ) {
+    val selectedImageLabel = stringResource(R.string.selected_image)
     val picker = rememberLauncherForActivityResult(PickVisualMedia()) { uri: Uri? ->
-        uri?.let { onAttachSource(it.lastPathSegment ?: "Selected image") }
+        uri?.let { onAttachSource(it.lastPathSegment ?: selectedImageLabel) }
     }
     Scaffold(
         topBar = {
@@ -253,10 +254,10 @@ private fun Workspace(
         ) {
             state.message?.let { message ->
                 Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(12.dp)) {
-                    Text(message, Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
+                    Text(message.resolve(), Modifier.padding(12.dp), style = MaterialTheme.typography.bodySmall)
                 }
             }
-            if (state.activeSourceId != null) ActiveSourceCard(state.activeSourceLabel.orEmpty(), onDetachSource)
+            if (state.activeSourceId != null) ActiveSourceCard(state.activeSourceLabel?.resolve().orEmpty(), onDetachSource)
             OutlinedTextField(
                 value = state.prompt,
                 onValueChange = onPromptChange,
@@ -307,12 +308,12 @@ private fun TimelineCard(item: TimelineItem, active: Boolean, onUseOutput: (Time
                 ),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(item.outputLabel.orEmpty(), style = MaterialTheme.typography.titleLarge)
+                Text(item.outputLabel?.resolve().orEmpty(), style = MaterialTheme.typography.titleLarge)
             }
             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(item.modelName, fontWeight = FontWeight.SemiBold)
-                    Text(item.stateLabel, style = MaterialTheme.typography.bodySmall)
+                    Text(item.stateLabel.resolve(), style = MaterialTheme.typography.bodySmall)
                 }
                 if (active) Text(stringResource(R.string.editing_source), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
                 else Text(stringResource(R.string.use_this), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)

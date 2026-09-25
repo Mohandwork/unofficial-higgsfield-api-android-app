@@ -89,7 +89,7 @@ class RoomConversationPersistence @Inject constructor(
                     ConversationEntity(
                         id = conversationId,
                         mediaKind = kind.name,
-                        title = if (kind == MediaKind.IMAGE) "Image exploration" else "Video exploration",
+                        title = if (kind == MediaKind.IMAGE) IMAGE_EXPLORATION_TITLE else VIDEO_EXPLORATION_TITLE,
                         selectedWorkflowId = initialWorkflowId?.value,
                         createdAtEpochMillis = now,
                         updatedAtEpochMillis = now,
@@ -115,7 +115,7 @@ class RoomConversationPersistence @Inject constructor(
 
     override suspend fun saveSelectedWorkflow(conversationId: String, workflowId: WorkflowId) {
         check(conversationDao.setSelectedWorkflow(conversationId, workflowId.value, System.currentTimeMillis()) == 1) {
-            "Cannot save a workflow for a missing conversation"
+            MISSING_CONVERSATION_WORKFLOW_MESSAGE
         }
     }
 
@@ -130,7 +130,7 @@ class RoomConversationPersistence @Inject constructor(
         val now = System.currentTimeMillis()
         val parent = parentGenerationId?.let { generationDao.get(it) }
         require(parentGenerationId == null || parent?.conversationId == conversationId) {
-            "A branch parent must exist in the same conversation"
+            CROSS_CONVERSATION_PARENT_MESSAGE
         }
         val branchRoot = parent?.branchRootId ?: generationId
         localStore.insertDraft(
@@ -142,17 +142,17 @@ class RoomConversationPersistence @Inject constructor(
                 workflowId = workflowId.value,
                 instruction = instruction,
                 composedPrompt = instruction,
-                optionsSnapshotJson = "{}",
+                optionsSnapshotJson = EMPTY_OPTIONS_SNAPSHOT,
                 createdAtEpochMillis = now,
                 updatedAtEpochMillis = now,
             ),
             attachments = emptyList(),
         )
         val output = OutputEntity(
-            id = "$generationId-output",
+            id = "$generationId$DEMO_OUTPUT_SUFFIX",
             generationId = generationId,
             mediaKind = outputKind.name,
-            remoteUrl = "demo://$generationId",
+            remoteUrl = "$DEMO_URL_PREFIX$generationId",
             createdAtEpochMillis = now,
         )
         localStore.applyCompleted(conversationId, generationId, listOf(output), now)
@@ -172,3 +172,11 @@ private fun ConversationEntity.toBrief() = CreativeBrief(
     exclusions = briefExclusions,
     outputGoal = briefOutputGoal,
 )
+
+private const val IMAGE_EXPLORATION_TITLE = "Image exploration"
+private const val VIDEO_EXPLORATION_TITLE = "Video exploration"
+private const val MISSING_CONVERSATION_WORKFLOW_MESSAGE = "Cannot save a workflow for a missing conversation"
+private const val CROSS_CONVERSATION_PARENT_MESSAGE = "A branch parent must exist in the same conversation"
+private const val EMPTY_OPTIONS_SNAPSHOT = "{}"
+private const val DEMO_OUTPUT_SUFFIX = "-output"
+private const val DEMO_URL_PREFIX = "demo://"

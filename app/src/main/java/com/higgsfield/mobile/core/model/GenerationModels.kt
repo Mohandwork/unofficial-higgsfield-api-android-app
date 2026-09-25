@@ -56,7 +56,7 @@ data class GenerationAttachment(
 )
 
 data class GenerationOptions(
-    val aspectRatio: String = "1:1",
+    val aspectRatio: String = DEFAULT_ASPECT_RATIO,
     val resolution: String? = null,
     val durationSeconds: Int? = null,
     val seed: Long? = null,
@@ -114,3 +114,5 @@ interface WorkflowAdapter<Request : Any> {
     fun validate(draft: GenerationDraft): DraftValidation
     fun toRequest(draft: GenerationDraft): Request
 }
+
+private const val DEFAULT_ASPECT_RATIO = "1:1"

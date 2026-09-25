@@ -26,6 +26,19 @@ com.higgsfield.mobile
 
 UI reads immutable state and emits events to ViewModels. ViewModels call repository contracts. Repositories coordinate local and remote data sources and expose domain models; Composables do not know Retrofit or Room types.
 
+## Code and UI text conventions
+
+- Domain and data code must not repeat meaningful string literals. Define constants for stable values such as persistence keys, API fields, status codes, MIME types, and workflow-independent messages.
+- Keep constants as narrow as possible: a value used only by one file belongs in that file as a private constant; promote it to a feature or shared contract only when it has multiple consumers.
+- UI code must use Android resource IDs for user-visible copy rather than hardcoded text. UI state and events should carry a `@StringRes` identifier (and formatting arguments when needed) where copy must cross a layer boundary; Compose resolves it with `stringResource`.
+- Do not introduce a global constants dump. Constants are grouped with the feature or data boundary that owns their meaning.
+
+## Error boundary
+
+`core/error` is the single boundary for application errors. `ErrorMapper` converts network, storage, validation, and unexpected failures into a closed `AppError` contract containing a stable error code, a user-facing string resource ID, retry guidance, and an optional safe diagnostic message.
+
+Repositories persist the stable code and safe diagnostic message for generation history, then return the mapped `AppError` to callers. UI renders only the resource-backed message and allowed action; it never displays raw exceptions, HTTP bodies, credentials, signed URLs, or unfiltered server diagnostics. This keeps errors consistent across foreground work, polling, and WorkManager recovery while retaining useful, non-secret history for support and retry decisions.
+
 ## Core contracts
 
 - `WorkflowId` is the stable local catalog identity. `WorkflowDescriptor.endpointPath` remains null until the exact API endpoint is verified; adapters cannot submit without it.

@@ -2,6 +2,7 @@ package com.higgsfield.mobile.feature.conversation
 
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.connectivity.ConnectivityStatusProvider
+import com.higgsfield.mobile.R
 import com.higgsfield.mobile.core.model.WorkflowCatalog
 import com.higgsfield.mobile.core.model.WorkflowId
 import com.higgsfield.mobile.core.model.WorkflowRegistry
@@ -47,7 +48,7 @@ class ConversationViewModelTest {
         val state = viewModel.state.value
         assertEquals(1, state.timeline.size)
         assertNotNull(state.activeSourceId)
-        assertTrue(state.activeSourceLabel!!.startsWith("Demo image"))
+        assertEquals(ConversationText.Resource(R.string.demo_image, listOf(1)), state.activeSourceLabel)
         assertEquals("", state.prompt)
     }
 
@@ -63,7 +64,7 @@ class ConversationViewModelTest {
         val state = viewModel.state.value
         assertNull(state.activeSourceId)
         assertEquals(1, state.timeline.size)
-        assertEquals("Fresh generation started.", state.message)
+        assertEquals(ConversationText.Resource(R.string.message_fresh_generation_started), state.message)
     }
 
     @Test

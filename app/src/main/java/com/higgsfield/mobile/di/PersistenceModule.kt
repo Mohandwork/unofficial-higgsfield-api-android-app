@@ -22,7 +22,7 @@ object PersistenceModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): HiggsfieldDatabase =
-        Room.databaseBuilder(context, HiggsfieldDatabase::class.java, "higgsfield.db").build()
+        Room.databaseBuilder(context, HiggsfieldDatabase::class.java, DATABASE_NAME).build()
 
     @Provides fun provideConversationDao(database: HiggsfieldDatabase): ConversationDao = database.conversationDao()
     @Provides fun provideGenerationDao(database: HiggsfieldDatabase): GenerationDao = database.generationDao()
@@ -44,3 +44,5 @@ abstract class PersistenceBindings {
         implementation: AndroidConnectivityStatusProvider,
     ): ConnectivityStatusProvider
 }
+
+private const val DATABASE_NAME = "higgsfield.db"

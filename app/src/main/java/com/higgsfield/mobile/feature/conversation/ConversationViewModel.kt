@@ -2,6 +2,7 @@ package com.higgsfield.mobile.feature.conversation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.higgsfield.mobile.R
 import com.higgsfield.mobile.BuildConfig
 import com.higgsfield.mobile.core.connectivity.AlwaysOnlineConnectivityStatusProvider
 import com.higgsfield.mobile.core.connectivity.ConnectivityStatusProvider
@@ -26,8 +27,8 @@ data class TimelineItem(
     val id: String,
     val prompt: String,
     val modelName: String,
-    val stateLabel: String,
-    val outputLabel: String? = null,
+    val stateLabel: ConversationText,
+    val outputLabel: ConversationText? = null,
     val sourceOutputId: String? = null,
     val parentId: String? = null,
 )
@@ -40,12 +41,12 @@ data class ConversationUiState(
     val selectedWorkflow: WorkflowDescriptor? = null,
     val timeline: List<TimelineItem> = emptyList(),
     val activeSourceId: String? = null,
-    val activeSourceLabel: String? = null,
+    val activeSourceLabel: ConversationText? = null,
     val modelMenuOpen: Boolean = false,
     val infoOpen: Boolean = false,
     val briefOpen: Boolean = false,
     val optionsOpen: Boolean = false,
-    val message: String? = null,
+    val message: ConversationText? = null,
     val isOnline: Boolean = true,
     val credentialsConfigured: Boolean = BuildConfig.HF_KEY_ID.isNotBlank() && BuildConfig.HF_KEY_SECRET.isNotBlank(),
 )
@@ -98,7 +99,7 @@ class ConversationViewModel @Inject constructor(
                 selectedWorkflow = workflow,
                 modelMenuOpen = false,
                 message = if (sourceIncompatible) {
-                    ConversationCopy.MODEL_CANNOT_EDIT_ACTIVE_IMAGE
+                    ConversationText.Resource(R.string.message_model_cannot_edit_active_image)
                 } else null,
             )
         }
@@ -113,12 +114,16 @@ class ConversationViewModel @Inject constructor(
     }
 
     fun attachSource(label: String) = mutableState.update {
-        it.copy(activeSourceId = "local-source", activeSourceLabel = label, message = ConversationCopy.REFERENCE_IMAGE_ATTACHED)
+        it.copy(
+            activeSourceId = LOCAL_SOURCE_ID,
+            activeSourceLabel = ConversationText.Dynamic(label),
+            message = ConversationText.Resource(R.string.message_reference_image_attached),
+        )
     }
 
     fun detachSource() {
         mutableState.update {
-            it.copy(activeSourceId = null, activeSourceLabel = null, message = ConversationCopy.FRESH_GENERATION_STARTED)
+            it.copy(activeSourceId = null, activeSourceLabel = null, message = ConversationText.Resource(R.string.message_fresh_generation_started))
         }
         conversationId?.let { id -> viewModelScope.launch { persistence.selectActiveSource(id, null) } }
     }
@@ -128,7 +133,7 @@ class ConversationViewModel @Inject constructor(
             it.copy(
                 activeSourceId = item.id,
                 activeSourceLabel = item.outputLabel,
-                message = ConversationCopy.OLDER_OUTPUT_SELECTED,
+                message = ConversationText.Resource(R.string.message_older_output_selected),
             )
         }
         conversationId?.let { id ->
@@ -139,27 +144,27 @@ class ConversationViewModel @Inject constructor(
     fun addDemoResult() {
         var created: TimelineItem? = null
         mutableState.update { current ->
-            if (current.prompt.isBlank()) return@update current.copy(message = ConversationCopy.WRITE_INSTRUCTION_FIRST)
+            if (current.prompt.isBlank()) return@update current.copy(message = ConversationText.Resource(R.string.message_write_instruction_first))
             val workflow = current.selectedWorkflow
-                ?: return@update current.copy(message = ConversationCopy.CHOOSE_MODEL_FIRST)
+                ?: return@update current.copy(message = ConversationText.Resource(R.string.message_choose_model_first))
             val incompatible = current.activeSourceId != null && current.mediaKind == MediaKind.IMAGE &&
                 WorkflowCapability.IMAGE_TO_IMAGE !in workflow.capabilities
             if (incompatible) {
-                return@update current.copy(message = ConversationCopy.CHOOSE_COMPATIBLE_EDITOR)
+                return@update current.copy(message = ConversationText.Resource(R.string.message_choose_compatible_editor))
             }
-            val id = "demo-${current.timeline.size + 1}"
-            val label = if (current.mediaKind == MediaKind.IMAGE) {
-                "Demo image ${current.timeline.size + 1}"
-            } else {
-                "Demo video ${current.timeline.size + 1}"
-            }
+            val itemNumber = current.timeline.size + 1
+            val id = "$DEMO_GENERATION_PREFIX$itemNumber"
+            val label = ConversationText.Resource(
+                if (current.mediaKind == MediaKind.IMAGE) R.string.demo_image else R.string.demo_video,
+                listOf(itemNumber),
+            )
             val item = TimelineItem(
                 id = id,
                 prompt = current.prompt.trim(),
                 modelName = workflow.displayName,
-                stateLabel = "Completed · local demo",
+                stateLabel = ConversationText.Resource(R.string.status_completed_local_demo),
                 outputLabel = label,
-                sourceOutputId = id + "-output",
+                sourceOutputId = "$id$OUTPUT_SUFFIX",
                 parentId = current.activeSourceId,
             )
             created = item
@@ -168,7 +173,7 @@ class ConversationViewModel @Inject constructor(
                 timeline = current.timeline + item,
                 activeSourceId = if (current.mediaKind == MediaKind.IMAGE) id else current.activeSourceId,
                 activeSourceLabel = if (current.mediaKind == MediaKind.IMAGE) label else current.activeSourceLabel,
-                message = ConversationCopy.DEMO_ONLY,
+                message = ConversationText.Resource(R.string.message_demo_only),
             )
         }
         val item = created ?: return
@@ -196,11 +201,16 @@ class ConversationViewModel @Inject constructor(
                     prompt = item.prompt,
                     modelName = WorkflowRegistry.find(item.workflowId)?.displayName ?: item.workflowId.value,
                     stateLabel = when (item.status) {
-                        PersistedGenerationStatus.COMPLETED -> "Completed · restored"
-                        else -> item.status.name.lowercase().replace('_', ' ')
+                        PersistedGenerationStatus.COMPLETED -> ConversationText.Resource(R.string.status_completed_restored)
+                        else -> ConversationText.Resource(
+                            R.string.status_label,
+                            listOf(item.status.name.lowercase().replace('_', ' ')),
+                        )
                     },
                     outputLabel = item.outputId?.let {
-                        if (item.outputKind == MediaKind.IMAGE) "Restored image" else "Restored video"
+                        ConversationText.Resource(
+                            if (item.outputKind == MediaKind.IMAGE) R.string.restored_image else R.string.restored_video,
+                        )
                     },
                     sourceOutputId = item.outputId,
                     parentId = item.parentId,
@@ -217,9 +227,15 @@ class ConversationViewModel @Inject constructor(
                 activeSourceId = activeGeneration?.id,
                 activeSourceLabel = activeGeneration?.outputLabel,
                 message = if (snapshot.requiresSourceSelection) {
-                    ConversationCopy.SELECT_OUTPUT_BEFORE_CONTINUING
+                    ConversationText.Resource(R.string.message_select_output_before_continuing)
                 } else current.message,
             )
         }
+    }
+
+    private companion object {
+        const val LOCAL_SOURCE_ID = "local-source"
+        const val DEMO_GENERATION_PREFIX = "demo-"
+        const val OUTPUT_SUFFIX = "-output"
     }
 }

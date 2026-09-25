@@ -8,5 +8,9 @@ data class ApiCredentials(
     val isConfigured: Boolean get() = keyId.isNotBlank() && secret.isNotBlank()
 
     fun authorizationValue(): String? =
-        if (isConfigured) "Key $keyId:$secret" else null
+        if (isConfigured) "$AUTHORIZATION_PREFIX$keyId:$secret" else null
+
+    private companion object {
+        const val AUTHORIZATION_PREFIX = "Key "
+    }
 }

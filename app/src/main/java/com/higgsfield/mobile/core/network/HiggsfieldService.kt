@@ -9,15 +9,15 @@ import retrofit2.http.Url
 
 @Serializable
 data class UploadUrlRequest(
-    @SerialName("content_type") val contentType: String,
+    @SerialName(CONTENT_TYPE_FIELD) val contentType: String,
 )
 
 @Serializable
 data class UploadUrlResponse(
-    @SerialName("public_url") val publicUrl: String,
-    @SerialName("upload_url") val uploadUrl: String,
-    @SerialName("content_type") val contentType: String,
-    @SerialName("upload_headers") val uploadHeaders: Map<String, String>,
+    @SerialName(PUBLIC_URL_FIELD) val publicUrl: String,
+    @SerialName(UPLOAD_URL_FIELD) val uploadUrl: String,
+    @SerialName(CONTENT_TYPE_FIELD) val contentType: String,
+    @SerialName(UPLOAD_HEADERS_FIELD) val uploadHeaders: Map<String, String>,
 )
 
 @Serializable
@@ -26,9 +26,9 @@ data class RemoteMediaOutput(val url: String)
 @Serializable
 data class RemoteRequestStatus(
     val status: String,
-    @SerialName("request_id") val requestId: String,
-    @SerialName("status_url") val statusUrl: String? = null,
-    @SerialName("cancel_url") val cancelUrl: String? = null,
+    @SerialName(REQUEST_ID_FIELD) val requestId: String,
+    @SerialName(STATUS_URL_FIELD) val statusUrl: String? = null,
+    @SerialName(CANCEL_URL_FIELD) val cancelUrl: String? = null,
     val error: String? = null,
     val images: List<RemoteMediaOutput> = emptyList(),
     val video: RemoteMediaOutput? = null,
@@ -38,7 +38,7 @@ data class RemoteRequestStatus(
 
 /** API operations whose schemas are shared and documented independently of any model adapter. */
 interface HiggsfieldService {
-    @POST("files/generate-upload-url")
+    @POST(UPLOAD_URL_ROUTE)
     suspend fun generateUploadUrl(@Body request: UploadUrlRequest): UploadUrlResponse
 
     @GET
@@ -47,3 +47,12 @@ interface HiggsfieldService {
     @POST
     suspend fun cancelRequest(@Url cancelUrl: String)
 }
+
+private const val CONTENT_TYPE_FIELD = "content_type"
+private const val PUBLIC_URL_FIELD = "public_url"
+private const val UPLOAD_URL_FIELD = "upload_url"
+private const val UPLOAD_HEADERS_FIELD = "upload_headers"
+private const val REQUEST_ID_FIELD = "request_id"
+private const val STATUS_URL_FIELD = "status_url"
+private const val CANCEL_URL_FIELD = "cancel_url"
+private const val UPLOAD_URL_ROUTE = "files/generate-upload-url"

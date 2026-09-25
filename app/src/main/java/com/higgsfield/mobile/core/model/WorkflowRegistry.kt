@@ -1,6 +1,8 @@
 package com.higgsfield.mobile.core.model
 
 object WorkflowRegistry {
+    private const val PRIME_TIER = "Prime"
+    private val PRICING_FACTORS = listOf("resolution", "duration", "model options")
     private val imageEdit = setOf(WorkflowCapability.TEXT_TO_IMAGE, WorkflowCapability.IMAGE_TO_IMAGE, WorkflowCapability.REFERENCE_IMAGE)
     private val videoCreate = setOf(WorkflowCapability.TEXT_TO_VIDEO, WorkflowCapability.IMAGE_TO_VIDEO, WorkflowCapability.REFERENCE_IMAGE)
     private val sourceImageRequired = listOf(MediaRequirement(MediaRole.SOURCE, MediaKind.IMAGE, minimumCount = 1))
@@ -28,7 +30,7 @@ object WorkflowRegistry {
         video(WorkflowCatalog.WAN_2_6, WorkflowFamily.WAN),
         video(WorkflowCatalog.WAN_2_7, WorkflowFamily.WAN),
         video(WorkflowCatalog.WAN_3, WorkflowFamily.WAN),
-        video(WorkflowCatalog.WAN_3_PRIME, WorkflowFamily.WAN, tier = "Prime"),
+        video(WorkflowCatalog.WAN_3_PRIME, WorkflowFamily.WAN, tier = PRIME_TIER),
     )
 
     fun forKind(kind: MediaKind) = all.filter { it.mediaKind == kind }
@@ -48,7 +50,7 @@ object WorkflowRegistry {
         WorkflowDescriptor(
             id = key.id, displayName = key.displayName, family = family, mediaKind = kind,
             tier = tier, capabilities = capabilities, mediaRequirements = required, endpointPath = null,
-            pricingFactors = listOf("resolution", "duration", "model options"),
+            pricingFactors = PRICING_FACTORS,
             documentationUrl = WorkflowCatalog.DOCUMENTATION_URL, schemaVerifiedOn = null, isSubmissionEnabled = false,
         )
 }

@@ -21,10 +21,11 @@ object HiggsfieldNetwork {
         return Retrofit.Builder()
             .baseUrl(baseUrl)
             .client(client)
-            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .addConverterFactory(json.asConverterFactory(JSON_MEDIA_TYPE.toMediaType()))
             .build()
             .create(HiggsfieldService::class.java)
     }
 
     private val json = Json { ignoreUnknownKeys = true }
+    private const val JSON_MEDIA_TYPE = "application/json"
 }
