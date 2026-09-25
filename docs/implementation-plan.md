@@ -30,6 +30,22 @@ Higgsfield Mobile is a personal-use Android client for creating images and video
 
 Each model is visible through the registry, but a workflow is enabled for real submission only after its current API schema, endpoint, estimate body, and fixture tests have been verified against the official workflow page. Soul ID training is excluded.
 
+### Slice 10 scope and sequencing
+
+Slice 10 is an umbrella hardening and product-readiness phase. It is intentionally split into the following smaller implementation slices so each change remains reviewable and verifiable:
+
+1. Repository integration hardening: in-memory Room and MockWebServer coverage, draft reconstruction, attachment restoration, accepted-request recovery, and unknown-submission handling.
+2. Real generation lifecycle UI: queued, generating, completed, failed, moderated, canceled, retry, and unknown-submission states with actionable feedback.
+3. Output handling: remote image/video/audio rendering, Storage Access Framework downloads, Media3 playback, retention handling, and output errors.
+4. Model-aware controls: capability-driven aspect ratio, resolution, duration, seed, reference, audio, negative-prompt controls, and static estimate metadata.
+5. Locked workspace redesign: compact top bar, model/estimate strip, details sheet, composer hierarchy, output cards, action visibility, and functional motion.
+6. Accessibility and performance: large text, reduced motion, contrast, semantics, adaptive widths, IME behavior, recomposition profiling, and device-focused verification.
+7. Real-device/API verification: add secrets last, submit one controlled request, verify the actual status lifecycle, test media permissions, process death, and 16 KB compatibility.
+
+#### Temporary Slice 10 test rule
+
+This rule applies only to the Slice 10 list above and does not change the repository-wide engineering rules: skip writing new UI/Compose tests during Slice 10; fix edge-case tests affected by each change, and add a new non-UI test only when the changed behavior genuinely requires coverage. Existing UI tests remain untouched unless a change breaks them.
+
 ## Experience
 
 Home presents Image and Video cards. Selecting either opens a persistent chat workspace. The workspace contains conversation history, model selection, a pinned Creative Brief, attachments, advanced options, an estimate state, generation results, and a composer.

@@ -25,7 +25,16 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 | 7. Local media-role assignment | Complete | The conversation UI derives attachment slots from the selected workflow, lets users assign picked images/videos to source, motion-reference, or image-reference roles, and removes slots that a newly selected model does not support. Picked device URIs remain local until the secure upload lifecycle supplies public URLs. |
 | 8. Secure attachment upload bridge | Complete | Picked `content://` URIs and media roles flow into `GenerationDraft`. The upload coordinator validates MIME/kind compatibility, obtains a documented upload ticket, enforces HTTPS ticket/public URLs, streams through the unauthenticated presigned client, reuses already uploaded media, and returns centralized failures. No real network request was made during verification. |
 | 9. Repository submission | Complete | `RoomGenerationRepository` persists a draft before network work, uploads local attachments, maps a verified schema only after public URLs exist, submits once, validates and persists accepted request metadata, then performs status-only reconciliation. The composer now invokes this path rather than the local demo. |
-| 10+. Hardening and redesigned workspace | Not started | Continue downloads, accessibility, profiling, Compose coverage, and the locked UI redesign. |
+| 10. Slice 10 umbrella | Planned | Split into seven reviewable slices: repository integration hardening; real generation lifecycle UI; output handling; model-aware controls and static estimates; locked workspace redesign; accessibility/performance; and final real-device/API verification. |
+| 10.1 Repository integration hardening | Not started | Add in-memory Room and MockWebServer coverage, draft/attachment reconstruction, accepted-request recovery, and unknown-submission verification. |
+| 10.2 Generation lifecycle UI | Not started | Render queued, generating, completed, failed, moderated, canceled, retry, and unknown-submission states with actionable feedback. |
+| 10.3 Output handling | Not started | Render remote image/video/audio output, add Storage Access Framework downloads, Media3 playback, retention handling, and output errors. |
+| 10.4 Model-aware controls | Not started | Add capability-driven options and static estimate metadata without inventing unsupported controls or prices. |
+| 10.5 Locked workspace redesign | Not started | Implement the compact top bar, model/estimate strip, details sheet, composer hierarchy, output cards, action visibility, and functional motion. |
+| 10.6 Accessibility and performance | Not started | Cover large text, reduced motion, contrast, semantics, adaptive widths, IME behavior, recomposition profiling, and device-focused verification. |
+| 10.7 Real-device/API verification | Not started | Add secrets last, submit one controlled request, verify status lifecycle, media permissions, process death, and 16 KB compatibility. |
+
+Slice 10 temporary test rule: skip new UI/Compose tests for this phase; fix only edge-case tests affected by each change and add a new non-UI test only when the changed behavior genuinely requires coverage. This scope does not alter the repository-wide testing rules outside Slice 10.
 
 ## Latest verification
 
