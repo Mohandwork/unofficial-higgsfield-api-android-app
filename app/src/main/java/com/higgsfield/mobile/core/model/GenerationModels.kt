@@ -1,6 +1,7 @@
 package com.higgsfield.mobile.core.model
 
 import kotlinx.serialization.Serializable
+import com.higgsfield.mobile.core.error.AppError
 
 @JvmInline
 @Serializable
@@ -12,6 +13,16 @@ enum class WorkflowCapability {
     TEXT_TO_IMAGE, IMAGE_TO_IMAGE, TEXT_TO_VIDEO, IMAGE_TO_VIDEO,
     REFERENCE_IMAGE, NEGATIVE_PROMPT, SEED, AUDIO,
 }
+
+enum class WorkflowOption { ASPECT_RATIO, RESOLUTION, DURATION, SEED, NEGATIVE_PROMPT }
+
+data class StaticEstimateMetadata(
+    val fromPrice: String? = null,
+    val creditGuidance: String? = null,
+    val expectedLatency: String? = null,
+    val sourceUrl: String,
+    val verifiedOn: String,
+)
 
 enum class MediaRole { SOURCE, START_FRAME, END_FRAME, REFERENCE, MOTION_REFERENCE, AUDIO }
 
@@ -32,6 +43,8 @@ data class WorkflowDescriptor(
     val mediaRequirements: List<MediaRequirement> = emptyList(),
     val endpointPath: String? = null,
     val pricingFactors: List<String> = emptyList(),
+    val supportedOptions: Set<WorkflowOption> = emptySet(),
+    val staticEstimate: StaticEstimateMetadata? = null,
     val documentationUrl: String,
     val schemaVerifiedOn: String? = null,
     val isSubmissionEnabled: Boolean = false,
@@ -51,12 +64,13 @@ data class GenerationAttachment(
     val id: String,
     val uri: String,
     val kind: MediaKind,
+    val role: MediaRole = MediaRole.REFERENCE,
     val remoteUrl: String? = null,
     val isGeneratedOutput: Boolean = false,
 )
 
 data class GenerationOptions(
-    val aspectRatio: String = "1:1",
+    val aspectRatio: String = DEFAULT_ASPECT_RATIO,
     val resolution: String? = null,
     val durationSeconds: Int? = null,
     val seed: Long? = null,
@@ -78,6 +92,7 @@ sealed interface GenerationStatus {
     data class InProgress(val progress: Float? = null) : GenerationStatus
     data class Completed(val outputs: List<GenerationOutput>) : GenerationStatus
     data class Failed(val userMessage: String, val retryable: Boolean) : GenerationStatus
+    data class UnknownSubmissionOutcome(val userMessage: String) : GenerationStatus
     data class Nsfw(val userMessage: String) : GenerationStatus
     data object Canceled : GenerationStatus
 }
@@ -95,6 +110,7 @@ data class GenerationRecord(
     val branchRootId: String = id,
     val draft: GenerationDraft,
     val status: GenerationStatus,
+    val errorCode: String? = null,
 )
 
 sealed interface EstimateState {
@@ -105,7 +121,7 @@ sealed interface EstimateState {
 }
 
 data class DraftValidation(
-    val errors: List<String> = emptyList(),
+    val errors: List<AppError> = emptyList(),
     val compatibleAlternatives: List<WorkflowId> = emptyList(),
 ) { val isValid: Boolean get() = errors.isEmpty() }
 
@@ -114,3 +130,5 @@ interface WorkflowAdapter<Request : Any> {
     fun validate(draft: GenerationDraft): DraftValidation
     fun toRequest(draft: GenerationDraft): Request
 }
+
+private const val DEFAULT_ASPECT_RATIO = "1:1"

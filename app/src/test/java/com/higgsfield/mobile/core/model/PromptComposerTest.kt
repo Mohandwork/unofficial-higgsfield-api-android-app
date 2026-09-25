@@ -15,10 +15,13 @@ class PromptComposerTest {
             exclusions = "text",
         )
 
-        val prompt = PromptComposer.compose(brief, "  Make it red  ")
+        val prompt = PromptComposer.compose(
+            brief,
+            "  Change only the apple skin from green to red; preserve the composition, lighting, background, and single-object framing  ",
+        )
 
         assertEquals(
-            "Subject: a green apple\nStyle: product photography\nRequirements: single object\nMake it red",
+            "Subject: a green apple\nStyle: product photography\nRequirements: single object\nChange only the apple skin from green to red; preserve the composition, lighting, background, and single-object framing",
             prompt,
         )
         assertFalse(prompt.contains("Exclusions"))
@@ -26,6 +29,12 @@ class PromptComposerTest {
 
     @Test
     fun `empty brief returns only current instruction`() {
-        assertEquals("Create an apple", PromptComposer.compose(CreativeBrief(), " Create an apple "))
+        assertEquals(
+            "Studio product photo of one ripe green apple centered on a matte cream background, soft daylight, no text",
+            PromptComposer.compose(
+                CreativeBrief(),
+                " Studio product photo of one ripe green apple centered on a matte cream background, soft daylight, no text ",
+            ),
+        )
     }
 }

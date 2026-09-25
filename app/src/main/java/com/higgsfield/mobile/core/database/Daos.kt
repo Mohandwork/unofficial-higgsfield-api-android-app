@@ -62,6 +62,10 @@ interface GenerationDao {
     @Query("SELECT * FROM generations WHERE conversationId = :conversationId ORDER BY createdAtEpochMillis")
     fun observeWithOutputs(conversationId: String): Flow<List<GenerationWithOutputs>>
 
+    @Transaction
+    @Query("SELECT * FROM generations WHERE conversationId = :conversationId ORDER BY createdAtEpochMillis")
+    fun observeWithMedia(conversationId: String): Flow<List<GenerationWithMedia>>
+
     @Query("SELECT * FROM generations WHERE id = :id")
     suspend fun get(id: String): GenerationEntity?
 
@@ -112,10 +116,21 @@ interface MediaDao {
 
     @Query("SELECT * FROM outputs WHERE id = :outputId")
     suspend fun getOutput(outputId: String): OutputEntity?
+
+    @Query("UPDATE outputs SET localUri = :localUri WHERE id = :outputId")
+    suspend fun setOutputLocalUri(outputId: String, localUri: String): Int
 }
 
 data class GenerationWithOutputs(
     @Embedded val generation: GenerationEntity,
+    @Relation(parentColumn = "id", entityColumn = "generationId")
+    val outputs: List<OutputEntity>,
+)
+
+data class GenerationWithMedia(
+    @Embedded val generation: GenerationEntity,
+    @Relation(parentColumn = "id", entityColumn = "generationId")
+    val attachments: List<AttachmentEntity>,
     @Relation(parentColumn = "id", entityColumn = "generationId")
     val outputs: List<OutputEntity>,
 )

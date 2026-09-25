@@ -13,7 +13,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 
-private val Context.userPreferences by preferencesDataStore(name = "user_preferences")
+private val Context.userPreferences by preferencesDataStore(name = USER_PREFERENCES_NAME)
+private const val USER_PREFERENCES_NAME = "user_preferences"
 
 enum class ThemePreference { SYSTEM, LIGHT, DARK }
 

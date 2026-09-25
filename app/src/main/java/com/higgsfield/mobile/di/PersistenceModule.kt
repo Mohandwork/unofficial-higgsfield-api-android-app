@@ -2,10 +2,14 @@ package com.higgsfield.mobile.di
 
 import android.content.Context
 import androidx.room.Room
+import com.higgsfield.mobile.core.connectivity.AndroidConnectivityStatusProvider
+import com.higgsfield.mobile.core.connectivity.ConnectivityStatusProvider
 import com.higgsfield.mobile.core.database.ConversationDao
 import com.higgsfield.mobile.core.database.GenerationDao
 import com.higgsfield.mobile.core.database.HiggsfieldDatabase
 import com.higgsfield.mobile.core.database.MediaDao
+import com.higgsfield.mobile.core.data.GenerationRepository
+import com.higgsfield.mobile.core.data.RoomGenerationRepository
 import dagger.Module
 import dagger.Binds
 import dagger.Provides
@@ -20,7 +24,7 @@ object PersistenceModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): HiggsfieldDatabase =
-        Room.databaseBuilder(context, HiggsfieldDatabase::class.java, "higgsfield.db").build()
+        Room.databaseBuilder(context, HiggsfieldDatabase::class.java, DATABASE_NAME).build()
 
     @Provides fun provideConversationDao(database: HiggsfieldDatabase): ConversationDao = database.conversationDao()
     @Provides fun provideGenerationDao(database: HiggsfieldDatabase): GenerationDao = database.generationDao()
@@ -35,4 +39,18 @@ abstract class PersistenceBindings {
     abstract fun bindConversationPersistence(
         implementation: com.higgsfield.mobile.core.database.RoomConversationPersistence,
     ): com.higgsfield.mobile.core.database.ConversationPersistence
+
+    @Binds
+    @Singleton
+    abstract fun bindConnectivityStatusProvider(
+        implementation: AndroidConnectivityStatusProvider,
+    ): ConnectivityStatusProvider
+
+    @Binds
+    @Singleton
+    abstract fun bindGenerationRepository(
+        implementation: RoomGenerationRepository,
+    ): GenerationRepository
 }
+
+private const val DATABASE_NAME = "higgsfield.db"

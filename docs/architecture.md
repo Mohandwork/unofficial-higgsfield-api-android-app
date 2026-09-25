@@ -26,20 +26,47 @@ com.higgsfield.mobile
 
 UI reads immutable state and emits events to ViewModels. ViewModels call repository contracts. Repositories coordinate local and remote data sources and expose domain models; Composables do not know Retrofit or Room types.
 
+## Code and UI text conventions
+
+- Domain and data code must not repeat meaningful string literals. Define constants for stable values such as persistence keys, API fields, status codes, MIME types, and workflow-independent messages.
+- Keep constants as narrow as possible: a value used only by one file belongs in that file as a private constant; promote it to a feature or shared contract only when it has multiple consumers.
+- UI code must use Android resource IDs for user-visible copy rather than hardcoded text. UI state and events should carry a `@StringRes` identifier (and formatting arguments when needed) where copy must cross a layer boundary; Compose resolves it with `stringResource`.
+- Do not introduce a global constants dump. Constants are grouped with the feature or data boundary that owns their meaning.
+
+## Error boundary
+
+`core/error` is the single boundary for application errors. `ErrorMapper` converts network, storage, validation, and unexpected failures into a closed `AppError` contract containing a stable error code, a user-facing string resource ID, retry guidance, and an optional safe diagnostic message.
+
+The Android build also verifies native dependency compatibility. Compose's transitive `androidx.graphics:graphics-path` is pinned through the version catalog to the 16 KB-compatible `1.1.0` artifact; packaged native libraries are checked with 16 KB ZIP alignment during release verification.
+
+Repositories persist the stable code and safe diagnostic message for generation history, then return the mapped `AppError` to callers. UI renders only the resource-backed message and allowed action; it never displays raw exceptions, HTTP bodies, credentials, signed URLs, or unfiltered server diagnostics. This keeps errors consistent across foreground work, polling, and WorkManager recovery while retaining useful, non-secret history for support and retry decisions.
+
+## Model submission schemas
+
+`core/network/SchemaWorkflowAdapter` is the only model-adapter implementation. Each verified catalog model contributes a `WorkflowRequestSchema` to `WorkflowRequestSchemas`, which maps a `GenerationDraft` to a JSON request body for the generic Retrofit submission method. Do not add a model-specific adapter class or placeholder schema. Add a route and schema only after the model-specific Higgsfield documentation confirms both. Extend shared request values when a documented route needs a new input type, rather than creating a per-model mapper.
+
 ## Core contracts
 
 - `WorkflowId` is the stable local catalog identity. `WorkflowDescriptor.endpointPath` remains null until the exact API endpoint is verified; adapters cannot submit without it.
 - `WorkflowDescriptor` describes family, media kind, tier, capabilities, required media, parameters, documentation, implementation state, and schema verification date.
 - `GenerationDraft` contains the current instruction, pinned Creative Brief, workflow, attachments, and options.
-- `WorkflowAdapter<Request>` validates a draft and converts it to one endpoint-specific typed request DTO.
+- `WorkflowAdapter<Request>` validates a draft and converts it to a verified request shape. The shared schema adapter emits a JSON object for the generic submission boundary.
 - `GenerationRepository` owns estimates, uploads, submission, cancellation, observation, persistence, and error mapping.
 - `GenerationStatus` is a closed representation of queued, in-progress, completed, failed, NSFW, and canceled.
 
-Adapters are grouped by family but never share an untyped parameter map at the HTTP boundary. Common lifecycle envelopes may be shared; request bodies may not.
+Schemas are grouped in one registry rather than adapter classes. Common lifecycle envelopes and the generic JSON boundary are shared; each enabled model still owns its verified route and field configuration.
+
+The conversation state derives local attachment slots from the selected workflow. A user assigns each picked item to the declared media role (for example, a source image or motion-reference video); changing models discards slots unsupported by the new workflow. These are local draft references until the existing secure upload lifecycle produces public URLs, so the UI never treats a picked device URI as remotely submittable media.
 
 ## Request composition
 
 Higgsfield is stateless. `PromptComposer` deterministically joins non-empty Creative Brief fields and the current instruction. When supported, exclusions are mapped to the DTO's `negative_prompt`; they are not duplicated into hidden history. The exact composed draft and option snapshot are persisted with every generation.
+
+## Attachment upload boundary
+
+The conversation draft retains each picked `content://` URI with its explicit media role. `SecureAttachmentUploader` resolves its MIME type through `ContentResolver`, validates that it matches the declared image/video/audio kind, requests a Higgsfield upload ticket, and streams the content to the presigned URL without buffering the complete file. Both the presigned URL and returned public URL must use HTTPS, and the ticket may not change the requested MIME type.
+
+Storage uploads pass through the dedicated unauthenticated client, which strips any authorization header. The uploader returns either attachments containing public URLs or a centralized `AppError`; it never exposes provider errors directly to Compose. Existing valid HTTPS remote attachments are reused without reading local content or uploading again.
 
 ## Iteration and lineage
 
@@ -62,7 +89,7 @@ Polling starts at two seconds and grows toward ten seconds with jitter. Terminal
 
 ## Security boundary
 
-`secrets.properties` is ignored and loaded into local `BuildConfig` values. Missing values are valid build configuration and disable API actions. The authorization interceptor combines key ID and secret only in memory. HTTP logging is limited to safe metadata and redacts authorization; request/response bodies, signed URLs, and credentials are never logged.
+`app/secrets/secrets.properties` is ignored and loaded into local `BuildConfig` values. Missing values are valid build configuration and disable API actions. The authorization interceptor combines key ID and secret only in memory. HTTP logging is limited to safe metadata and redacts authorization; request/response bodies, signed URLs, and credentials are never logged.
 
 All traffic is HTTPS. Presigned upload requests use a separate unauthenticated client so Higgsfield credentials cannot reach the storage host. Android backups are disabled. Only the launcher Activity is exported. This design is explicitly for a private personal build: secrets embedded in an APK remain extractable.
 
@@ -82,9 +109,38 @@ The system Storage Access Framework selects a folder and grants persistable URI 
 
 - Fake repository and deterministic clock/random sources for UI and polling tests.
 - Pure prompt composition, compatibility, lineage, and adapter validation.
-- Serialized DTO golden tests per workflow adapter.
+- Serialized request tests for the shared schema adapter and each enabled workflow shape.
 - MockWebServer for authentication redaction, exact paths/bodies, status retries, and no-POST-retry behavior.
 - In-memory Room plus migration tests.
 - Compose tests across compact/expanded widths, light/dark themes, large font, offline and terminal states.
 
 Real API calls are never part of automated verification and require explicit billable-operation approval.
+## Production generation submission boundary
+
+`RoomGenerationRepository` is the single production path for a deliberate Generate tap. It persists a draft and local attachment metadata first, uploads only attachments that lack a verified HTTPS public URL, maps the uploaded draft with the selected verified schema, and makes exactly one generation POST. An accepted response must contain a Higgsfield HTTPS status URL and request ID before it is marked queued; the existing status synchronizer then reconciles status without repeating the POST. Authentication is deliberately not pre-checked: a build without local credentials reaches the real API boundary on a user tap and records the returned authentication failure. No submission, upload, or estimate runs automatically.
+
+Debug builds add a verbose, sanitized OkHttp interceptor for the authenticated API client. It logs method, host/path, query parameters, ordinary headers, status, timing, and JSON request/response bodies so manual failures can be diagnosed. Authorization/secret headers, signed query values, and private media URL fields are redacted. The separate presigned upload client retains route/status-only logging and never logs binary media or signing values. Release builds have no network logging interceptor.
+
+## Repository restoration and accepted-request boundary
+
+`RoomGenerationRepository` observes the persisted conversation together with generation media relations, so restored domain records retain the Creative Brief, generation options, attachments, and completed outputs rather than rebuilding a partial draft. `UNKNOWN_SUBMISSION_OUTCOME` has a distinct domain state: it records an ambiguous generation POST without retrying it. The repository depends on the narrow `GenerationRequestSynchronizer` interface; production binds it to `RequestStatusSynchronizer`, while integration tests can isolate the one-shot POST from status polling safely.
+
+## Generation lifecycle presentation
+
+The conversation timeline is a projection of observed `GenerationRecord`s, not a local optimistic demo. It presents queued, generating, completed, failed, moderated, canceled, and unknown-submission states from their domain status. A foreground `RequestStatusPoller` starts only for accepted or restored queued/in-progress records and stops at a terminal state; it makes status-only requests. Completed outputs can become the active editing source, retry is exposed only for retryable failures, and cancellation is exposed only while a request is queued.
+
+## Output rendering and retention
+
+Completed cards render the actual persisted `GenerationOutput`: Coil loads images and Media3 plays video or audio. Remote outputs are visibly temporary. Download uses the system create-document flow, streams a validated HTTPS output to the user-selected URI, and records that URI in Room only after the write completes. The next observed record uses the local copy; a failed download leaves the remote output intact and reports the centralized error.
+
+## Model-aware settings and estimates
+
+`WorkflowDescriptor` declares its verified adjustable options and static estimate metadata. The conversation stores those selected options in `GenerationDraft` and clears only options unsupported by a newly selected workflow. The settings sheet renders no unsupported controls. Prices, credits, and latency remain unavailable until manually entered with a documentation URL and verification date; the UI never treats them as live values or manufactures a cost.
+
+## Workspace composition
+
+The workspace uses a compact identity and connection top bar. A single strip directly below owns model selection and the static estimate entry point. Its modal details sheet blocks interaction behind it. The composer exposes media and settings only when the selected workflow supports them, keeps the Creative Brief as a secondary action, and uses one primary Generate action. Attachment visibility and composer size animate functionally; active requests use real indeterminate or determinate progress rather than demo loading copy.
+
+## Accessibility and performance
+
+The conversation workspace labels connection state and generation cards for accessibility services and marks workspace identity as a heading. It remains adaptive at compact and expanded widths, retains IME padding on the composer, and uses keyed/content-typed timeline items. Functional attachment/composer motion observes the system animator setting: with animations disabled, the same state updates occur immediately without spatial transitions. Media players are scoped to each output and released through Compose disposal.
