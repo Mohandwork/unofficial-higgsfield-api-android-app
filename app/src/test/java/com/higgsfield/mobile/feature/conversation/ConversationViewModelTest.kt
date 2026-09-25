@@ -2,6 +2,7 @@ package com.higgsfield.mobile.feature.conversation
 
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.WorkflowCatalog
+import com.higgsfield.mobile.core.model.WorkflowId
 import com.higgsfield.mobile.core.model.WorkflowRegistry
 import com.higgsfield.mobile.core.database.ConversationPersistence
 import com.higgsfield.mobile.core.database.PersistedConversationSnapshot
