@@ -37,8 +37,9 @@
     <string name="media_role_end_frame">End frame</string>
     <string name="media_role_audio">Audio reference</string>
     <string name="advanced_options_description">Advanced options</string>
-    <string name="preview_locally">Preview locally</string>
-    <string name="api_disabled_preview">API disabled: add local credentials. Preview locally never calls the API.</string>
+    <string name="generate">Generate</string>
+    <string name="generating">Generating…</string>
+    <string name="api_credentials_not_configured">Credentials are not configured. Generate will reach Higgsfield and return an authentication error.</string>
     <string name="start_with_clear_idea">Start with a clear idea</string>
     <string name="empty_image_conversation">Create an image, then make the next edit from its visible active source.</string>
     <string name="empty_video_conversation">Create a video from text or attach a compatible reference image.</string>

@@ -8,12 +8,20 @@ import com.higgsfield.mobile.core.model.WorkflowCatalog
 import com.higgsfield.mobile.core.model.WorkflowId
 import com.higgsfield.mobile.core.model.WorkflowRegistry
 import com.higgsfield.mobile.core.database.ConversationPersistence
+import com.higgsfield.mobile.core.data.GenerationRepository
+import com.higgsfield.mobile.core.data.GenerationSubmissionException
+import com.higgsfield.mobile.core.error.ErrorMapper
 import com.higgsfield.mobile.core.database.PersistedConversationSnapshot
 import com.higgsfield.mobile.core.model.CreativeBrief
+import com.higgsfield.mobile.core.model.EstimateState
+import com.higgsfield.mobile.core.model.GenerationDraft
+import com.higgsfield.mobile.core.model.GenerationRecord
+import com.higgsfield.mobile.core.model.GenerationStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -42,7 +50,7 @@ class ConversationViewModelTest {
     fun `successful image demo becomes active source for next instruction`() {
         val viewModel = ConversationViewModel(FakeConversationPersistence())
         viewModel.initialize(MediaKind.IMAGE)
-        viewModel.updatePrompt("Create an apple")
+        viewModel.updatePrompt("Studio product photo of one ripe green apple centered on a matte cream background, soft daylight, no text")
 
         viewModel.addDemoResult()
 
@@ -57,7 +65,7 @@ class ConversationViewModelTest {
     fun `detaching source starts a fresh generation without deleting history`() {
         val viewModel = ConversationViewModel(FakeConversationPersistence())
         viewModel.initialize(MediaKind.IMAGE)
-        viewModel.updatePrompt("Create an apple")
+        viewModel.updatePrompt("Studio product photo of one ripe green apple centered on a matte cream background, soft daylight, no text")
         viewModel.addDemoResult()
 
         viewModel.detachSource()
@@ -119,6 +127,27 @@ class ConversationViewModelTest {
         assertEquals(MediaRole.SOURCE, draft.attachments.first().role)
         assertEquals("content://draft/motion", draft.attachments.last().uri)
     }
+
+    @Test
+    fun `generate submits the selected draft and shows the centralized authentication error`() {
+        val repository = FakeGenerationRepository(Result.failure(GenerationSubmissionException(ErrorMapper.credentialsRejected())))
+        val viewModel = ConversationViewModel(
+            persistence = FakeConversationPersistence(),
+            generationRepository = repository,
+        )
+        viewModel.initialize(MediaKind.IMAGE)
+        viewModel.updatePrompt("Studio product photo of one ripe green apple centered on a matte cream background, soft daylight, no text")
+
+        viewModel.submitGeneration()
+
+        assertEquals("image-default", repository.conversationId)
+        assertEquals(WorkflowCatalog.SOUL.id, repository.draft?.workflowId)
+        assertEquals(
+            ConversationText.Resource(R.string.error_credentials_rejected),
+            viewModel.state.value.message,
+        )
+        assertTrue(!viewModel.state.value.isSubmitting)
+    }
 }
 
 private class FakeConnectivityStatusProvider(isOnline: Boolean) : ConnectivityStatusProvider {
@@ -145,4 +174,21 @@ private class FakeConversationPersistence : ConversationPersistence {
         outputKind: MediaKind,
     ) = Unit
     override suspend fun selectActiveSource(conversationId: String, outputId: String?) = Unit
+}
+
+private class FakeGenerationRepository(
+    private val submitResult: Result<GenerationRecord>,
+) : GenerationRepository {
+    var conversationId: String? = null
+    var draft: GenerationDraft? = null
+
+    override fun observeConversation(conversationId: String) = emptyFlow<List<GenerationRecord>>()
+    override suspend fun estimate(draft: GenerationDraft) = EstimateState.Idle
+    override suspend fun submit(conversationId: String, draft: GenerationDraft): Result<GenerationRecord> {
+        this.conversationId = conversationId
+        this.draft = draft
+        return submitResult
+    }
+    override suspend fun cancel(generationId: String): Result<Unit> = Result.success(Unit)
+    override suspend fun resumeAcceptedRequests() = Unit
 }

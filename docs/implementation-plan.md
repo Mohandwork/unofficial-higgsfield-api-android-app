@@ -34,7 +34,7 @@ Each model is visible through the registry, but a workflow is enabled for real s
 
 Home presents Image and Video cards. Selecting either opens a persistent chat workspace. The workspace contains conversation history, model selection, a pinned Creative Brief, attachments, advanced options, an estimate state, generation results, and a composer.
 
-The latest successful image is automatically displayed in a large **Editing this image** card above the composer. A follow-up such as “Make it red” sends that image to a compatible edit workflow. Failed, canceled, or moderated attempts never replace it. Selecting an older result creates a branch; detaching starts fresh. Multiple-image responses require the user to choose the next active source.
+The latest successful image is automatically displayed in a large **Editing this image** card above the composer. A scoped follow-up such as “Change only the apple skin from green to red; preserve the composition, lighting, background, and single-object framing” sends that image to a compatible edit workflow. Failed, canceled, or moderated attempts never replace it. Selecting an older result creates a branch; detaching starts fresh. Multiple-image responses require the user to choose the next active source.
 
 Requests are stateless. The app sends a deterministic composition of the current instruction and Creative Brief, not hidden chat history. Reuse actions explicitly carry prompts, options, seeds, attachments, or outputs forward.
 
@@ -69,7 +69,7 @@ The conversation workspace will be redesigned with a compact top bar that contai
 
 ### Improvements backlog
 
-- Connect the completed secure attachment-upload bridge to production repository submission and persistence.
+- Add repository-level persistence/network integration coverage with in-memory Room and MockWebServer before the first credentialed manual call.
 - Add live model estimates after authenticated estimate bodies are verified and billable operation approval is granted.
 - Add Compose screenshot coverage for compact, expanded, dark-theme, large-font, and reduced-motion states.
 - Complete downloads, accessibility audit, and performance profiling.
@@ -99,7 +99,7 @@ The registry records capabilities, required media, pricing factors, implementati
 
 ## Acceptance and verification
 
-- “Create an apple” followed by “Make it red” uses the latest successful apple as the editing source.
+- “Studio product photo of one ripe green apple centered on a matte cream background, soft daylight, no text” followed by “Change only the apple skin from green to red; preserve the composition, lighting, background, and single-object framing” uses the latest successful apple as the editing source.
 - Accepted pending requests survive restart and resume status retrieval after connectivity returns.
 - Unsupported inputs and options are rejected before submission with compatible alternatives.
 - Expected API, moderation, credit, storage, and connectivity failures appear as actionable states and do not crash the app.

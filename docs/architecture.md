@@ -115,3 +115,6 @@ The system Storage Access Framework selects a folder and grants persistable URI 
 - Compose tests across compact/expanded widths, light/dark themes, large font, offline and terminal states.
 
 Real API calls are never part of automated verification and require explicit billable-operation approval.
+## Production generation submission boundary
+
+`RoomGenerationRepository` is the single production path for a deliberate Generate tap. It persists a draft and local attachment metadata first, uploads only attachments that lack a verified HTTPS public URL, maps the uploaded draft with the selected verified schema, and makes exactly one generation POST. An accepted response must contain a Higgsfield HTTPS status URL and request ID before it is marked queued; the existing status synchronizer then reconciles status without repeating the POST. Authentication is deliberately not pre-checked: a build without local credentials reaches the real API boundary on a user tap and records the returned authentication failure. No submission, upload, or estimate runs automatically.

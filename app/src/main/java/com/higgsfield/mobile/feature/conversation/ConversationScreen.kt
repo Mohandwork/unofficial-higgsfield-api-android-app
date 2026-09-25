@@ -123,7 +123,7 @@ fun ConversationRoute(
         onRemoveMedia = viewModel::removeMedia,
         onDetachSource = viewModel::detachSource,
         onUseOutput = viewModel::useOutput,
-        onAddDemoResult = viewModel::addDemoResult,
+        onGenerate = viewModel::submitGeneration,
     )
 }
 
@@ -143,7 +143,7 @@ private fun ConversationScreen(
     onRemoveMedia: (MediaRole) -> Unit,
     onDetachSource: () -> Unit,
     onUseOutput: (TimelineItem) -> Unit,
-    onAddDemoResult: () -> Unit,
+    onGenerate: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -177,10 +177,10 @@ private fun ConversationScreen(
                 Row(Modifier.fillMaxSize()) {
                     ConversationRail(state, Modifier.width(280.dp).fillMaxHeight())
                     HorizontalDivider(Modifier.fillMaxHeight().width(1.dp))
-                    Workspace(state, onPromptChange, onToggleModelMenu, onSelectWorkflow, onShowInfo, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onAddDemoResult, Modifier.weight(1f))
+                    Workspace(state, onPromptChange, onToggleModelMenu, onSelectWorkflow, onShowInfo, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, Modifier.weight(1f))
                 }
             } else {
-                Workspace(state, onPromptChange, onToggleModelMenu, onSelectWorkflow, onShowInfo, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onAddDemoResult, Modifier.fillMaxSize())
+                Workspace(state, onPromptChange, onToggleModelMenu, onSelectWorkflow, onShowInfo, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, Modifier.fillMaxSize())
             }
         }
     }
@@ -222,7 +222,7 @@ private fun Workspace(
     onRemoveMedia: (MediaRole) -> Unit,
     onDetachSource: () -> Unit,
     onUseOutput: (TimelineItem) -> Unit,
-    onAddDemoResult: () -> Unit,
+    onGenerate: () -> Unit,
     modifier: Modifier,
 ) {
     var attachmentMenuOpen by remember { mutableStateOf(false) }
@@ -314,13 +314,13 @@ private fun Workspace(
                 }
                 IconButton(onClick = { onShowOptions(true) }) { Icon(Icons.Rounded.Tune, stringResource(R.string.advanced_options_description)) }
                 Spacer(Modifier.weight(1f))
-                Button(onClick = onAddDemoResult, enabled = state.prompt.isNotBlank()) {
+                Button(onClick = onGenerate, enabled = state.prompt.isNotBlank() && state.isOnline && !state.isSubmitting) {
                     Icon(Icons.Rounded.AutoAwesome, contentDescription = null)
-                    Text(stringResource(R.string.preview_locally), Modifier.padding(start = 8.dp))
+                    Text(stringResource(if (state.isSubmitting) R.string.generating else R.string.generate), Modifier.padding(start = 8.dp))
                 }
             }
             if (!state.credentialsConfigured) {
-                Text(stringResource(R.string.api_disabled_preview), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.api_credentials_not_configured), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

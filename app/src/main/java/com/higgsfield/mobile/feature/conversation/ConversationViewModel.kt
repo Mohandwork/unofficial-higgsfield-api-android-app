@@ -9,6 +9,8 @@ import com.higgsfield.mobile.core.connectivity.ConnectivityStatusProvider
 import com.higgsfield.mobile.core.database.ConversationPersistence
 import com.higgsfield.mobile.core.database.PersistedConversationSnapshot
 import com.higgsfield.mobile.core.database.PersistedGenerationStatus
+import com.higgsfield.mobile.core.data.GenerationRepository
+import com.higgsfield.mobile.core.data.GenerationSubmissionException
 import com.higgsfield.mobile.core.model.CreativeBrief
 import com.higgsfield.mobile.core.model.GenerationAttachment
 import com.higgsfield.mobile.core.model.GenerationDraft
@@ -60,6 +62,7 @@ data class ConversationUiState(
     val briefOpen: Boolean = false,
     val optionsOpen: Boolean = false,
     val message: ConversationText? = null,
+    val isSubmitting: Boolean = false,
     val isOnline: Boolean = true,
     val credentialsConfigured: Boolean = BuildConfig.HF_KEY_ID.isNotBlank() && BuildConfig.HF_KEY_SECRET.isNotBlank(),
 )
@@ -68,6 +71,7 @@ data class ConversationUiState(
 class ConversationViewModel @Inject constructor(
     private val persistence: ConversationPersistence,
     private val connectivity: ConnectivityStatusProvider = AlwaysOnlineConnectivityStatusProvider,
+    private val generationRepository: GenerationRepository? = null,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ConversationUiState())
     val state: StateFlow<ConversationUiState> = mutableState.asStateFlow()
@@ -165,6 +169,26 @@ class ConversationViewModel @Inject constructor(
     fun updateBrief(brief: CreativeBrief) {
         mutableState.update { it.copy(brief = brief, briefOpen = false) }
         conversationId?.let { id -> viewModelScope.launch { persistence.saveBrief(id, brief) } }
+    }
+
+    fun submitGeneration() {
+        val id = conversationId ?: return
+        val draft = currentDraft()
+            ?: return mutableState.update { it.copy(message = ConversationText.Resource(R.string.message_choose_model_first)) }
+        val repository = generationRepository
+            ?: return mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
+        if (!mutableState.value.isOnline || mutableState.value.isSubmitting) return
+        mutableState.update { it.copy(isSubmitting = true, message = null) }
+        viewModelScope.launch {
+            val result = repository.submit(id, draft)
+            mutableState.update { current ->
+                current.copy(
+                    prompt = if (result.isSuccess) "" else current.prompt,
+                    isSubmitting = false,
+                    message = result.exceptionOrNull()?.toConversationText(),
+                )
+            }
+        }
     }
 
     fun attachSource(label: String) = mutableState.update {
@@ -306,4 +330,9 @@ class ConversationViewModel @Inject constructor(
         const val OUTPUT_SUFFIX = "-output"
         const val LOCAL_ATTACHMENT_ID_PREFIX = "local-attachment-"
     }
+}
+
+private fun Throwable.toConversationText(): ConversationText = when (this) {
+    is GenerationSubmissionException -> ConversationText.Resource(appError.messageResId)
+    else -> ConversationText.Resource(R.string.error_unknown)
 }
