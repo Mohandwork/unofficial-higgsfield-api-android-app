@@ -1,5 +1,6 @@
 package com.higgsfield.mobile.core.network
 
+import com.higgsfield.mobile.BuildConfig
 import java.io.IOException
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -33,9 +34,12 @@ class PresignedUploadClient(
     }
 
     companion object {
-        fun unauthenticatedClient(): OkHttpClient = OkHttpClient.Builder()
-            .addInterceptor(RemoveAuthorizationHeaderInterceptor)
-            .build()
+        fun unauthenticatedClient(): OkHttpClient {
+            val builder = OkHttpClient.Builder()
+                .addInterceptor(RemoveAuthorizationHeaderInterceptor)
+            if (BuildConfig.DEBUG) builder.addInterceptor(SafeNetworkLoggingInterceptor())
+            return builder.build()
+        }
 
         fun body(bytes: ByteArray, contentType: String): RequestBody =
             bytes.toRequestBody(contentType.toMediaType())

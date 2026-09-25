@@ -5,6 +5,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
+import com.higgsfield.mobile.BuildConfig
 
 object HiggsfieldNetwork {
     const val API_HOST = "api.higgsfield.ai"
@@ -15,9 +16,10 @@ object HiggsfieldNetwork {
         baseUrl: String = BASE_URL,
         authorizedHosts: Set<String> = setOf(API_HOST),
     ): HiggsfieldService {
-        val client = OkHttpClient.Builder()
+        val clientBuilder = OkHttpClient.Builder()
             .addInterceptor(HiggsfieldAuthorizationInterceptor(credentials, authorizedHosts))
-            .build()
+        if (BuildConfig.DEBUG) clientBuilder.addInterceptor(DebugApiLoggingInterceptor().interceptor())
+        val client = clientBuilder.build()
         return Retrofit.Builder()
             .baseUrl(baseUrl)
             .client(client)

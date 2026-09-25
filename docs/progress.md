@@ -35,6 +35,7 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 - `zipalign -c -P 16 -v 4 app/build/outputs/apk/debug/app-debug.apk`: passed for all packaged native libraries, including `libandroidx.graphics.path.so`.
 - Lint: zero errors; 23 dependency-version, plural, and resource suggestions remain.
 - APK: debug assembly succeeded.
+- Debug API networking now logs sanitized OkHttp method/host-path/query/ordinary headers/status/timing and JSON request/response bodies; authorization/secret headers, signed query values, private media URL fields, and presigned binary payloads remain excluded.
 
 ## Known follow-up
 
