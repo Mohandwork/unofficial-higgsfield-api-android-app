@@ -2,6 +2,10 @@ package com.higgsfield.mobile.core.model
 
 object WorkflowRegistry {
     private const val PRIME_TIER = "Prime"
+    private const val SOUL_STANDARD_ENDPOINT = "higgsfield-ai/soul/standard"
+    internal const val SOUL_V2_STANDARD_ENDPOINT = "higgsfield-ai/soul/v2/standard"
+    private const val SOUL_STANDARD_SCHEMA_VERIFIED_ON = "2026-09-25"
+    private const val SOUL_V2_SCHEMA_VERIFIED_ON = "2026-09-25"
     private val PRICING_FACTORS = listOf("resolution", "duration", "model options")
     private val imageEdit = setOf(WorkflowCapability.TEXT_TO_IMAGE, WorkflowCapability.IMAGE_TO_IMAGE, WorkflowCapability.REFERENCE_IMAGE)
     private val videoCreate = setOf(WorkflowCapability.TEXT_TO_VIDEO, WorkflowCapability.IMAGE_TO_VIDEO, WorkflowCapability.REFERENCE_IMAGE)
@@ -9,8 +13,20 @@ object WorkflowRegistry {
     private val motionReferenceRequired = listOf(MediaRequirement(MediaRole.MOTION_REFERENCE, MediaKind.IMAGE, minimumCount = 1))
 
     val all: List<WorkflowDescriptor> = listOf(
-        image(WorkflowCatalog.SOUL, WorkflowFamily.SOUL, setOf(WorkflowCapability.TEXT_TO_IMAGE)),
-        image(WorkflowCatalog.SOUL_V2, WorkflowFamily.SOUL, setOf(WorkflowCapability.TEXT_TO_IMAGE)),
+        image(
+            WorkflowCatalog.SOUL,
+            WorkflowFamily.SOUL,
+            setOf(WorkflowCapability.TEXT_TO_IMAGE),
+            endpointPath = SOUL_STANDARD_ENDPOINT,
+            schemaVerifiedOn = SOUL_STANDARD_SCHEMA_VERIFIED_ON,
+        ),
+        image(
+            WorkflowCatalog.SOUL_V2,
+            WorkflowFamily.SOUL,
+            setOf(WorkflowCapability.TEXT_TO_IMAGE),
+            endpointPath = SOUL_V2_STANDARD_ENDPOINT,
+            schemaVerifiedOn = SOUL_STANDARD_SCHEMA_VERIFIED_ON,
+        ),
         image(WorkflowCatalog.SOUL_CINEMA, WorkflowFamily.SOUL, setOf(WorkflowCapability.TEXT_TO_IMAGE)),
         image(WorkflowCatalog.MARKETING_STUDIO_2_ALPHA, WorkflowFamily.MARKETING_STUDIO, imageEdit),
         image(WorkflowCatalog.MARKETING_STUDIO_2_5_FLARE, WorkflowFamily.MARKETING_STUDIO, imageEdit),
@@ -40,17 +56,34 @@ object WorkflowRegistry {
             (!submissionReadyOnly || it.isSubmissionEnabled)
     }
 
-    private fun image(key: WorkflowKey, family: WorkflowFamily, capabilities: Set<WorkflowCapability>, required: List<MediaRequirement> = emptyList()) =
-        descriptor(key, family, MediaKind.IMAGE, capabilities, required)
+    private fun image(
+        key: WorkflowKey,
+        family: WorkflowFamily,
+        capabilities: Set<WorkflowCapability>,
+        required: List<MediaRequirement> = emptyList(),
+        endpointPath: String? = null,
+        schemaVerifiedOn: String? = null,
+    ) = descriptor(key, family, MediaKind.IMAGE, capabilities, required, endpointPath = endpointPath, schemaVerifiedOn = schemaVerifiedOn)
 
     private fun video(key: WorkflowKey, family: WorkflowFamily, required: List<MediaRequirement> = emptyList(), tier: String? = null, capabilities: Set<WorkflowCapability> = videoCreate) =
         descriptor(key, family, MediaKind.VIDEO, capabilities, required, tier)
 
-    private fun descriptor(key: WorkflowKey, family: WorkflowFamily, kind: MediaKind, capabilities: Set<WorkflowCapability>, required: List<MediaRequirement>, tier: String? = null) =
+    private fun descriptor(
+        key: WorkflowKey,
+        family: WorkflowFamily,
+        kind: MediaKind,
+        capabilities: Set<WorkflowCapability>,
+        required: List<MediaRequirement>,
+        tier: String? = null,
+        endpointPath: String? = null,
+        schemaVerifiedOn: String? = null,
+    ) =
         WorkflowDescriptor(
             id = key.id, displayName = key.displayName, family = family, mediaKind = kind,
-            tier = tier, capabilities = capabilities, mediaRequirements = required, endpointPath = null,
+            tier = tier, capabilities = capabilities, mediaRequirements = required, endpointPath = endpointPath,
             pricingFactors = PRICING_FACTORS,
-            documentationUrl = WorkflowCatalog.DOCUMENTATION_URL, schemaVerifiedOn = null, isSubmissionEnabled = false,
+            documentationUrl = WorkflowCatalog.DOCUMENTATION_URL,
+            schemaVerifiedOn = schemaVerifiedOn,
+            isSubmissionEnabled = endpointPath != null,
         )
 }

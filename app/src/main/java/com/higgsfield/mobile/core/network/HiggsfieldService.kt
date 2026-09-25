@@ -2,6 +2,7 @@ package com.higgsfield.mobile.core.network
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
@@ -40,6 +41,9 @@ data class RemoteRequestStatus(
 interface HiggsfieldService {
     @POST(UPLOAD_URL_ROUTE)
     suspend fun generateUploadUrl(@Body request: UploadUrlRequest): UploadUrlResponse
+
+    @POST
+    suspend fun submitWorkflow(@Url endpointPath: String, @Body request: JsonObject): RemoteRequestStatus
 
     @GET
     suspend fun getRequestStatus(@Url statusUrl: String): RemoteRequestStatus

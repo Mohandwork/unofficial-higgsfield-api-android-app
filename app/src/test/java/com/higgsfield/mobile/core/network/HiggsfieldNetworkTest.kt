@@ -1,6 +1,10 @@
 package com.higgsfield.mobile.core.network
 
 import kotlin.random.Random
+import com.higgsfield.mobile.core.model.CreativeBrief
+import com.higgsfield.mobile.core.model.GenerationDraft
+import com.higgsfield.mobile.core.model.WorkflowCatalog
+import com.higgsfield.mobile.core.model.WorkflowRegistry
 import kotlinx.coroutines.test.runTest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -41,6 +45,41 @@ class HiggsfieldNetworkTest {
 
         assertEquals("https://cdn.example.test/input.jpg", response.publicUrl)
         server.takeRequest().assertUploadUrlRequest()
+    }
+
+    @Test
+    fun `soul v2 standard request uses documented route body and authorization`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""
+            {"status":"queued","request_id":"request-1","status_url":"https://api.higgsfield.ai/requests/request-1/status","cancel_url":"https://api.higgsfield.ai/requests/request-1/cancel"}
+        """))
+        val service = HiggsfieldNetwork.createService(
+            credentials = ApiCredentials("key-id", "secret-value"),
+            baseUrl = server.url("/").toString(),
+            authorizedHosts = setOf(server.hostName),
+        )
+
+        val adapter = SchemaWorkflowAdapter(
+            descriptor = WorkflowRegistry.find(WorkflowCatalog.SOUL_V2.id)!!,
+            schema = WorkflowRequestSchemas.soulV2Standard,
+        )
+        val response = service.submitWorkflow(
+            endpointPath = adapter.descriptor.endpointPath!!,
+            request = adapter.toRequest(
+                GenerationDraft(
+                    instruction = "A ceramic bird",
+                    creativeBrief = CreativeBrief(),
+                    workflowId = WorkflowCatalog.SOUL_V2.id,
+                ),
+            ),
+        )
+
+        assertEquals("queued", response.status)
+        assertEquals("request-1", response.requestId)
+        val request = server.takeRequest()
+        assertEquals("POST", request.method)
+        assertEquals("/higgsfield-ai/soul/v2/standard", request.path)
+        assertEquals("Key key-id:secret-value", request.getHeader("Authorization"))
+        assertEquals("{\"prompt\":\"A ceramic bird\"}", request.body.readUtf8())
     }
 
     @Test

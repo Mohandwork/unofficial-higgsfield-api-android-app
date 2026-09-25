@@ -1,6 +1,7 @@
 package com.higgsfield.mobile.core.model
 
 import kotlinx.serialization.Serializable
+import com.higgsfield.mobile.core.error.AppError
 
 @JvmInline
 @Serializable
@@ -105,7 +106,7 @@ sealed interface EstimateState {
 }
 
 data class DraftValidation(
-    val errors: List<String> = emptyList(),
+    val errors: List<AppError> = emptyList(),
     val compatibleAlternatives: List<WorkflowId> = emptyList(),
 ) { val isValid: Boolean get() = errors.isEmpty() }
 

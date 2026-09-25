@@ -220,7 +220,13 @@ private fun Workspace(
                             text = {
                                 Column {
                                     Text(workflow.displayName)
-                                    Text(stringResource(R.string.adapter_verification_pending), style = MaterialTheme.typography.labelSmall)
+                                    Text(
+                                        stringResource(
+                                            if (workflow.isSubmissionEnabled) R.string.adapter_verified
+                                            else R.string.adapter_verification_pending,
+                                        ),
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
                                 }
                             },
                             onClick = { onSelectWorkflow(workflow) },

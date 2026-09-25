@@ -13,6 +13,12 @@ data class AppError(
 )
 
 object ErrorMapper {
+    fun instructionRequired() = AppError(
+        code = CODE_INSTRUCTION_REQUIRED,
+        messageResId = R.string.error_instruction_required,
+        retryable = false,
+    )
+
     fun credentialsRejected() = AppError(
         code = CODE_CREDENTIALS_REJECTED,
         messageResId = R.string.error_credentials_rejected,
@@ -59,6 +65,7 @@ object ErrorMapper {
     private const val HTTP_UNAUTHORIZED = 401
     private const val HTTP_NOT_FOUND = 404
     private const val HTTP_SERVER_ERROR = 500
+    private const val CODE_INSTRUCTION_REQUIRED = "instruction_required"
     private const val CODE_CREDENTIALS_REJECTED = "credentials_rejected"
     private const val CODE_REQUEST_NOT_FOUND = "request_not_found"
     private const val CODE_REMOTE_PROTOCOL = "remote_protocol"

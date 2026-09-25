@@ -39,16 +39,20 @@ UI reads immutable state and emits events to ViewModels. ViewModels call reposit
 
 Repositories persist the stable code and safe diagnostic message for generation history, then return the mapped `AppError` to callers. UI renders only the resource-backed message and allowed action; it never displays raw exceptions, HTTP bodies, credentials, signed URLs, or unfiltered server diagnostics. This keeps errors consistent across foreground work, polling, and WorkManager recovery while retaining useful, non-secret history for support and retry decisions.
 
+## Model submission schemas
+
+`core/network/SchemaWorkflowAdapter` is the only model-adapter implementation. Each verified catalog model contributes a `WorkflowRequestSchema` to `WorkflowRequestSchemas`, which maps a `GenerationDraft` to a JSON request body for the generic Retrofit submission method. Do not add a model-specific adapter class. Add a route and schema only after the model-specific Higgsfield documentation confirms both; other catalog entries remain visible but submission-disabled.
+
 ## Core contracts
 
 - `WorkflowId` is the stable local catalog identity. `WorkflowDescriptor.endpointPath` remains null until the exact API endpoint is verified; adapters cannot submit without it.
 - `WorkflowDescriptor` describes family, media kind, tier, capabilities, required media, parameters, documentation, implementation state, and schema verification date.
 - `GenerationDraft` contains the current instruction, pinned Creative Brief, workflow, attachments, and options.
-- `WorkflowAdapter<Request>` validates a draft and converts it to one endpoint-specific typed request DTO.
+- `WorkflowAdapter<Request>` validates a draft and converts it to a verified request shape. The shared schema adapter emits a JSON object for the generic submission boundary.
 - `GenerationRepository` owns estimates, uploads, submission, cancellation, observation, persistence, and error mapping.
 - `GenerationStatus` is a closed representation of queued, in-progress, completed, failed, NSFW, and canceled.
 
-Adapters are grouped by family but never share an untyped parameter map at the HTTP boundary. Common lifecycle envelopes may be shared; request bodies may not.
+Schemas are grouped in one registry rather than adapter classes. Common lifecycle envelopes and the generic JSON boundary are shared; each enabled model still owns its verified route and field configuration.
 
 ## Request composition
 
