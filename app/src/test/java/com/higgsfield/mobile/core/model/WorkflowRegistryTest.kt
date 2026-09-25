@@ -1,21 +1,18 @@
 package com.higgsfield.mobile.core.model
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WorkflowRegistryTest {
     @Test
-    fun `only verified workflows can be submitted`() {
+    fun `every catalog workflow has a verified endpoint configuration`() {
         assertTrue(WorkflowRegistry.all.isNotEmpty())
         WorkflowRegistry.all
-            .filterNot { it.id in setOf(WorkflowCatalog.SOUL.id, WorkflowCatalog.SOUL_V2.id) }
             .forEach { workflow ->
-            assertFalse(workflow.isSubmissionEnabled)
-            assertNull(workflow.endpointPath)
-            assertNull(workflow.schemaVerifiedOn)
+                assertTrue(workflow.isSubmissionEnabled)
+                assertTrue(workflow.endpointPath.orEmpty().isNotBlank())
+                assertEquals("2026-09-25", workflow.schemaVerifiedOn)
         }
     }
 
@@ -49,7 +46,7 @@ class WorkflowRegistryTest {
 
     @Test
     fun `submission-ready editor search never offers catalog-only models`() {
-        assertTrue(WorkflowRegistry.compatibleEditors(MediaKind.IMAGE).isEmpty())
-        assertTrue(WorkflowRegistry.compatibleEditors(MediaKind.IMAGE, submissionReadyOnly = false).isNotEmpty())
+        assertTrue(WorkflowRegistry.compatibleEditors(MediaKind.IMAGE).isNotEmpty())
+        assertTrue(WorkflowRegistry.compatibleEditors(MediaKind.IMAGE).all { it.isSubmissionEnabled })
     }
 }

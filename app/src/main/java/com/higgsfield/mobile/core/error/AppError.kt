@@ -19,6 +19,24 @@ object ErrorMapper {
         retryable = false,
     )
 
+    fun referenceImageRequired() = AppError(
+        code = CODE_REFERENCE_IMAGE_REQUIRED,
+        messageResId = R.string.error_reference_image_required,
+        retryable = false,
+    )
+
+    fun referenceVideoRequired() = AppError(
+        code = CODE_REFERENCE_VIDEO_REQUIRED,
+        messageResId = R.string.error_reference_video_required,
+        retryable = false,
+    )
+
+    fun referenceImageLimit() = AppError(
+        code = CODE_REFERENCE_IMAGE_LIMIT,
+        messageResId = R.string.error_reference_image_limit,
+        retryable = false,
+    )
+
     fun credentialsRejected() = AppError(
         code = CODE_CREDENTIALS_REJECTED,
         messageResId = R.string.error_credentials_rejected,
@@ -66,6 +84,9 @@ object ErrorMapper {
     private const val HTTP_NOT_FOUND = 404
     private const val HTTP_SERVER_ERROR = 500
     private const val CODE_INSTRUCTION_REQUIRED = "instruction_required"
+    private const val CODE_REFERENCE_IMAGE_REQUIRED = "reference_image_required"
+    private const val CODE_REFERENCE_VIDEO_REQUIRED = "reference_video_required"
+    private const val CODE_REFERENCE_IMAGE_LIMIT = "reference_image_limit"
     private const val CODE_CREDENTIALS_REJECTED = "credentials_rejected"
     private const val CODE_REQUEST_NOT_FOUND = "request_not_found"
     private const val CODE_REMOTE_PROTOCOL = "remote_protocol"

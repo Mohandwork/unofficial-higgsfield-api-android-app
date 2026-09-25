@@ -37,11 +37,13 @@ UI reads immutable state and emits events to ViewModels. ViewModels call reposit
 
 `core/error` is the single boundary for application errors. `ErrorMapper` converts network, storage, validation, and unexpected failures into a closed `AppError` contract containing a stable error code, a user-facing string resource ID, retry guidance, and an optional safe diagnostic message.
 
+The Android build also verifies native dependency compatibility. Compose's transitive `androidx.graphics:graphics-path` is pinned through the version catalog to the 16 KB-compatible `1.1.0` artifact; packaged native libraries are checked with 16 KB ZIP alignment during release verification.
+
 Repositories persist the stable code and safe diagnostic message for generation history, then return the mapped `AppError` to callers. UI renders only the resource-backed message and allowed action; it never displays raw exceptions, HTTP bodies, credentials, signed URLs, or unfiltered server diagnostics. This keeps errors consistent across foreground work, polling, and WorkManager recovery while retaining useful, non-secret history for support and retry decisions.
 
 ## Model submission schemas
 
-`core/network/SchemaWorkflowAdapter` is the only model-adapter implementation. Each verified catalog model contributes a `WorkflowRequestSchema` to `WorkflowRequestSchemas`, which maps a `GenerationDraft` to a JSON request body for the generic Retrofit submission method. Do not add a model-specific adapter class. Add a route and schema only after the model-specific Higgsfield documentation confirms both; other catalog entries remain visible but submission-disabled.
+`core/network/SchemaWorkflowAdapter` is the only model-adapter implementation. Each verified catalog model contributes a `WorkflowRequestSchema` to `WorkflowRequestSchemas`, which maps a `GenerationDraft` to a JSON request body for the generic Retrofit submission method. Do not add a model-specific adapter class or placeholder schema. Add a route and schema only after the model-specific Higgsfield documentation confirms both. Extend shared request values when a documented route needs a new input type, rather than creating a per-model mapper.
 
 ## Core contracts
 
@@ -99,7 +101,7 @@ The system Storage Access Framework selects a folder and grants persistable URI 
 
 - Fake repository and deterministic clock/random sources for UI and polling tests.
 - Pure prompt composition, compatibility, lineage, and adapter validation.
-- Serialized DTO golden tests per workflow adapter.
+- Serialized request tests for the shared schema adapter and each enabled workflow shape.
 - MockWebServer for authentication redaction, exact paths/bodies, status retries, and no-POST-retry behavior.
 - In-memory Room plus migration tests.
 - Compose tests across compact/expanded widths, light/dark themes, large font, offline and terminal states.

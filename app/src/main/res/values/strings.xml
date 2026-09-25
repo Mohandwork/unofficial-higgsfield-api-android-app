@@ -72,6 +72,9 @@
     <string name="message_select_output_before_continuing">Choose one of the latest images before continuing.</string>
     <string name="error_credentials_rejected">Your Higgsfield credentials were rejected.</string>
     <string name="error_instruction_required">Write an instruction before generating.</string>
+    <string name="error_reference_image_required">Add an uploaded reference image before generating.</string>
+    <string name="error_reference_video_required">Add an uploaded motion-reference video before generating.</string>
+    <string name="error_reference_image_limit">This model accepts fewer reference images. Remove an image and try again.</string>
     <string name="error_request_not_found">Higgsfield could not find this request.</string>
     <string name="error_remote_protocol">The generation response could not be processed safely.</string>
     <string name="error_generation_failed">The generation failed. Update the request and try again.</string>
