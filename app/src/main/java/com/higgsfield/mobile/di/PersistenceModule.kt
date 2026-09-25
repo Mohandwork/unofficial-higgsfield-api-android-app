@@ -2,6 +2,8 @@ package com.higgsfield.mobile.di
 
 import android.content.Context
 import androidx.room.Room
+import com.higgsfield.mobile.core.connectivity.AndroidConnectivityStatusProvider
+import com.higgsfield.mobile.core.connectivity.ConnectivityStatusProvider
 import com.higgsfield.mobile.core.database.ConversationDao
 import com.higgsfield.mobile.core.database.GenerationDao
 import com.higgsfield.mobile.core.database.HiggsfieldDatabase
@@ -35,4 +37,10 @@ abstract class PersistenceBindings {
     abstract fun bindConversationPersistence(
         implementation: com.higgsfield.mobile.core.database.RoomConversationPersistence,
     ): com.higgsfield.mobile.core.database.ConversationPersistence
+
+    @Binds
+    @Singleton
+    abstract fun bindConnectivityStatusProvider(
+        implementation: AndroidConnectivityStatusProvider,
+    ): ConnectivityStatusProvider
 }

@@ -1,6 +1,7 @@
 package com.higgsfield.mobile.feature.conversation
 
 import com.higgsfield.mobile.core.model.MediaKind
+import com.higgsfield.mobile.core.connectivity.ConnectivityStatusProvider
 import com.higgsfield.mobile.core.model.WorkflowCatalog
 import com.higgsfield.mobile.core.model.WorkflowId
 import com.higgsfield.mobile.core.model.WorkflowRegistry
@@ -82,6 +83,27 @@ class ConversationViewModelTest {
 
         val branch = viewModel.state.value.timeline.last()
         assertEquals(first.id, branch.parentId)
+    }
+
+    @Test
+    fun `validated connectivity updates the workspace state`() {
+        val connectivity = FakeConnectivityStatusProvider(isOnline = false)
+        val viewModel = ConversationViewModel(FakeConversationPersistence(), connectivity)
+
+        viewModel.initialize(MediaKind.IMAGE)
+        assertEquals(false, viewModel.state.value.isOnline)
+
+        connectivity.setOnline(true)
+        assertEquals(true, viewModel.state.value.isOnline)
+    }
+}
+
+private class FakeConnectivityStatusProvider(isOnline: Boolean) : ConnectivityStatusProvider {
+    private val mutableOnline = MutableStateFlow(isOnline)
+    override val isOnline = mutableOnline
+
+    fun setOnline(value: Boolean) {
+        mutableOnline.value = value
     }
 }
 

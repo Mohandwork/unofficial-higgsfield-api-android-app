@@ -3,6 +3,8 @@ package com.higgsfield.mobile.feature.conversation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.higgsfield.mobile.BuildConfig
+import com.higgsfield.mobile.core.connectivity.AlwaysOnlineConnectivityStatusProvider
+import com.higgsfield.mobile.core.connectivity.ConnectivityStatusProvider
 import com.higgsfield.mobile.core.database.ConversationPersistence
 import com.higgsfield.mobile.core.database.PersistedConversationSnapshot
 import com.higgsfield.mobile.core.database.PersistedGenerationStatus
@@ -51,11 +53,13 @@ data class ConversationUiState(
 @HiltViewModel
 class ConversationViewModel @Inject constructor(
     private val persistence: ConversationPersistence,
+    private val connectivity: ConnectivityStatusProvider = AlwaysOnlineConnectivityStatusProvider,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ConversationUiState())
     val state: StateFlow<ConversationUiState> = mutableState.asStateFlow()
     private var conversationId: String? = null
     private var observation: Job? = null
+    private var connectivityObservation: Job? = null
 
     fun initialize(kind: MediaKind) {
         if (mutableState.value.workflows.isNotEmpty() && mutableState.value.mediaKind == kind) return
@@ -68,6 +72,12 @@ class ConversationViewModel @Inject constructor(
         val id = kind.name.lowercase() + "-default"
         conversationId = id
         observation?.cancel()
+        connectivityObservation?.cancel()
+        connectivityObservation = viewModelScope.launch {
+            connectivity.isOnline.collect { online ->
+                mutableState.update { it.copy(isOnline = online) }
+            }
+        }
         observation = viewModelScope.launch {
             persistence.ensureConversation(id, kind, workflows.firstOrNull()?.id)
             persistence.observe(id).collect(::restoreSnapshot)
