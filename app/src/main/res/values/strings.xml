@@ -87,6 +87,7 @@
     <string name="retry">Retry</string>
     <string name="cancel_generation">Cancel generation</string>
     <string name="generated_image">Generated image</string>
+    <string name="generation_status_content_description">%1$s. %2$s</string>
     <string name="download">Download</string>
     <string name="aspect_ratio">Aspect ratio</string>
     <string name="resolution">Resolution</string>

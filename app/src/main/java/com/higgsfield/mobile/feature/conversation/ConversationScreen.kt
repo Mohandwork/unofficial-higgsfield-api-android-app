@@ -1,12 +1,16 @@
 package com.higgsfield.mobile.feature.conversation
 
 import android.net.Uri
+import android.animation.ValueAnimator
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.GetContent
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
 import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -48,7 +52,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -67,6 +73,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -173,10 +182,10 @@ private fun ConversationScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text(stringResource(if (state.mediaKind == MediaKind.IMAGE) R.string.image_studio else R.string.video_studio))
-                        Text(stringResource(R.string.draft_saved_locally), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    Text(
+                        stringResource(if (state.mediaKind == MediaKind.IMAGE) R.string.image_studio else R.string.video_studio),
+                        modifier = Modifier.semantics { heading() },
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.back)) }
@@ -184,13 +193,8 @@ private fun ConversationScreen(
                 actions = {
                     Icon(
                         if (state.isOnline) Icons.Rounded.CloudDone else Icons.Rounded.CloudOff,
-                        contentDescription = null,
+                        contentDescription = stringResource(if (state.isOnline) R.string.online else R.string.offline),
                         tint = if (state.isOnline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                    )
-                    Text(
-                        stringResource(if (state.isOnline) R.string.online else R.string.offline),
-                        style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(horizontal = 12.dp),
                     )
                 },
             )
@@ -253,9 +257,10 @@ private fun Workspace(
     modifier: Modifier,
 ) {
     var attachmentMenuOpen by remember { mutableStateOf(false) }
+    val motionEnabled = remember { Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled() }
     Column(modifier) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -281,14 +286,10 @@ private fun Workspace(
                     }
                 }
             }
-            FilledTonalIconButton(onClick = { onShowInfo(true) }) { Icon(Icons.Rounded.Info, stringResource(R.string.model_details_and_cost)) }
-            AssistChip(onClick = { onShowBrief(true) }, label = { Text(stringResource(R.string.creative_brief)) })
             Spacer(Modifier.weight(1f))
-            Text(
-                state.selectedWorkflow?.staticEstimate?.fromPrice?.let { stringResource(R.string.estimate_from, it) }
-                    ?: stringResource(R.string.pricing_unavailable),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            AssistChip(
+                onClick = { onShowInfo(true) },
+                label = { Text(state.selectedWorkflow?.staticEstimate?.fromPrice?.let { stringResource(R.string.estimate_from, it) } ?: stringResource(R.string.pricing_unavailable)) },
             )
         }
         HorizontalDivider()
@@ -302,12 +303,13 @@ private fun Workspace(
                     EmptyConversation(state.mediaKind)
                 }
             }
-            items(state.timeline, key = { it.id }) { item ->
+            items(state.timeline, key = { it.id }, contentType = { it.lifecycle?.javaClass?.simpleName }) { item ->
                 TimelineCard(item, item.id == state.activeSourceId, onUseOutput, onRetryGeneration, onCancelGeneration, onDownloadOutput)
             }
         }
         Column(
-            Modifier.fillMaxWidth().imePadding().padding(12.dp),
+            (if (motionEnabled) Modifier.animateContentSize() else Modifier)
+                .fillMaxWidth().imePadding().padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             state.message?.let { message ->
@@ -316,9 +318,9 @@ private fun Workspace(
                 }
             }
             if (state.activeSourceId != null) ActiveSourceCard(state.activeSourceLabel?.resolve().orEmpty(), onDetachSource)
-            state.attachments.forEach { attachment ->
-                DraftAttachmentCard(attachment, onRemoveMedia)
-            }
+            if (motionEnabled) {
+                AnimatedVisibility(state.attachments.isNotEmpty()) { AttachmentList(state.attachments, onRemoveMedia) }
+            } else if (state.attachments.isNotEmpty()) AttachmentList(state.attachments, onRemoveMedia)
             OutlinedTextField(
                 value = state.prompt,
                 onValueChange = onPromptChange,
@@ -328,7 +330,7 @@ private fun Workspace(
                 placeholder = { Text(stringResource(if (state.activeSourceId != null) R.string.describe_change else R.string.describe_creation)) },
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box {
+                if (state.attachmentSlots.isNotEmpty()) Box {
                     IconButton(onClick = { attachmentMenuOpen = true }) {
                         Icon(Icons.Rounded.AddPhotoAlternate, stringResource(R.string.attach_media))
                     }
@@ -344,7 +346,8 @@ private fun Workspace(
                         }
                     }
                 }
-                IconButton(onClick = { onShowOptions(true) }) { Icon(Icons.Rounded.Tune, stringResource(R.string.advanced_options_description)) }
+                if (state.selectedWorkflow?.supportedOptions?.isNotEmpty() == true) IconButton(onClick = { onShowOptions(true) }) { Icon(Icons.Rounded.Tune, stringResource(R.string.advanced_options_description)) }
+                IconButton(onClick = { onShowBrief(true) }) { Icon(Icons.Rounded.Info, stringResource(R.string.creative_brief)) }
                 Spacer(Modifier.weight(1f))
                 Button(onClick = onGenerate, enabled = state.prompt.isNotBlank() && state.isOnline && !state.isSubmitting) {
                     Icon(Icons.Rounded.AutoAwesome, contentDescription = null)
@@ -370,6 +373,13 @@ private fun DraftAttachmentCard(attachment: DraftMediaAttachment, onRemove: (Med
                 Icon(Icons.Rounded.Close, stringResource(R.string.remove_attachment))
             }
         }
+    }
+}
+
+@Composable
+private fun AttachmentList(attachments: List<DraftMediaAttachment>, onRemove: (MediaRole) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        attachments.forEach { attachment -> DraftAttachmentCard(attachment, onRemove) }
     }
 }
 
@@ -410,11 +420,16 @@ private fun TimelineCard(
     val hasOutput = item.lifecycle is GenerationStatus.Completed && item.outputLabel != null
     val isFailure = item.lifecycle is GenerationStatus.Failed ||
         item.lifecycle is GenerationStatus.Nsfw || item.lifecycle is GenerationStatus.UnknownSubmissionOutcome
+    val statusDescription = stringResource(R.string.generation_status_content_description, item.modelName, item.stateLabel.resolve())
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.align(Alignment.End)) {
             Text(item.prompt, Modifier.padding(14.dp))
         }
-        Card(modifier = Modifier.fillMaxWidth()) {
+        Card(
+            modifier = Modifier.fillMaxWidth().semantics {
+                contentDescription = statusDescription
+            },
+        ) {
             Box(
                 Modifier.fillMaxWidth().height(if (hasOutput) 180.dp else 104.dp).background(
                     Brush.linearGradient(
@@ -432,6 +447,11 @@ private fun TimelineCard(
                 } else {
                     Text(item.stateLabel.resolve(), style = MaterialTheme.typography.titleLarge)
                 }
+            }
+            if (item.lifecycle is GenerationStatus.InProgress) {
+                val progress = (item.lifecycle as GenerationStatus.InProgress).progress
+                if (progress == null) LinearProgressIndicator(Modifier.fillMaxWidth())
+                else LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
             }
             Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -503,28 +523,25 @@ private fun ActiveSourceCard(label: String, onDetach: () -> Unit) {
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun ModelInfoDialog(workflow: WorkflowDescriptor?, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) } },
-        title = { Text(workflow?.displayName ?: stringResource(R.string.model)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val capabilities = workflow?.capabilities?.joinToString { it.name.lowercase().replace('_', ' ') }
-                    ?: stringResource(R.string.unknown)
-                Text(stringResource(R.string.capabilities, capabilities))
-                val estimate = workflow?.staticEstimate
-                Text(estimate?.fromPrice?.let { stringResource(R.string.estimate_from, it) } ?: stringResource(R.string.pricing_unavailable))
-                Text(estimate?.creditGuidance ?: stringResource(R.string.estimate_credits_unavailable))
-                Text(estimate?.expectedLatency ?: stringResource(R.string.estimate_latency_unavailable))
-                estimate?.let {
-                    Text(stringResource(R.string.estimate_verified, it.verifiedOn), style = MaterialTheme.typography.labelSmall)
-                    Text(stringResource(R.string.estimate_source, it.sourceUrl), style = MaterialTheme.typography.labelSmall)
-                }
-                if (workflow?.isSubmissionEnabled == false) Text(stringResource(R.string.adapter_not_enabled), color = MaterialTheme.colorScheme.error)
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(workflow?.displayName ?: stringResource(R.string.model), style = MaterialTheme.typography.titleLarge)
+            val capabilities = workflow?.capabilities?.joinToString { it.name.lowercase().replace('_', ' ') } ?: stringResource(R.string.unknown)
+            Text(stringResource(R.string.capabilities, capabilities))
+            val estimate = workflow?.staticEstimate
+            Text(estimate?.fromPrice?.let { stringResource(R.string.estimate_from, it) } ?: stringResource(R.string.pricing_unavailable), style = MaterialTheme.typography.titleMedium)
+            Text(estimate?.creditGuidance ?: stringResource(R.string.estimate_credits_unavailable))
+            Text(estimate?.expectedLatency ?: stringResource(R.string.estimate_latency_unavailable))
+            estimate?.let {
+                Text(stringResource(R.string.estimate_verified, it.verifiedOn), style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.estimate_source, it.sourceUrl), style = MaterialTheme.typography.labelSmall)
             }
-        },
-    )
+            if (workflow?.isSubmissionEnabled == false) Text(stringResource(R.string.adapter_not_enabled), color = MaterialTheme.colorScheme.error)
+            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.done)) }
+        }
+    }
 }
 
 @Composable

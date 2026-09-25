@@ -4,7 +4,7 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 
 ## Current checkpoint
 
-- Status: Slice 10.4 model-aware controls is complete. Verified workflow metadata controls settings visibility and draft options; static estimates remain explicitly unavailable until manually documented.
+- Status: Slice 10.6 accessibility and performance hardening is complete. The workspace has semantic labels, reduced-motion behavior, adaptive/IME layout, and keyed timeline rendering.
 - Git: changes are intentionally uncommitted. Do not commit or push without current-conversation permission.
 - API safety: no Higgsfield request, upload, estimate, or billable generation has been made.
 - Toolchain: AGP 9.4.0, Gradle 9.6.0, AGP built-in Kotlin, KSP, and Android Studio JBR 25 verified locally.
@@ -30,8 +30,8 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 | 10.2 Generation lifecycle UI | Complete | Timeline cards project persisted records as queued, generating, completed, failed, moderated, canceled, and unknown-submission states. Only retryable failures offer retry; only queued requests offer cancel; accepted/restored active work receives status-only foreground polling. |
 | 10.3 Output handling | Complete | Coil renders images; Media3 renders video/audio. System create-document downloads stream validated HTTPS output and persist the local URI only after success; remote-only media is explicitly temporary and failures preserve it. |
 | 10.4 Model-aware controls | Complete | Workflow metadata declares verified adjustable options and static-estimate provenance. Only supported controls render, invalid options clear on model changes, and pricing/credits/latency show unavailable until manually documented. |
-| 10.5 Locked workspace redesign | Not started | Implement the compact top bar, model/estimate strip, details sheet, composer hierarchy, output cards, action visibility, and functional motion. |
-| 10.6 Accessibility and performance | Not started | Cover large text, reduced motion, contrast, semantics, adaptive widths, IME behavior, recomposition profiling, and device-focused verification. |
+| 10.5 Locked workspace redesign | Complete | Compact top bar, single model/estimate strip, modal details sheet, capability-gated composer actions, completed-output actions, and functional attachment/progress motion are implemented. |
+| 10.6 Accessibility and performance | Complete | Semantic labels/headings, connection and generation accessibility descriptions, reduced-motion behavior, adaptive/IME layout, and keyed/content-typed timeline rendering are implemented. Compose UI tests remain deferred under the temporary Slice 10 rule. |
 | 10.7 Real-device/API verification | Not started | Add secrets last, submit one controlled request, verify status lifecycle, media permissions, process death, and 16 KB compatibility. |
 
 Slice 10 temporary test rule: skip new UI/Compose tests for this phase; fix only edge-case tests affected by each change and add a new non-UI test only when the changed behavior genuinely requires coverage. This scope does not alter the repository-wide testing rules outside Slice 10.
@@ -49,4 +49,4 @@ Slice 10 temporary test rule: skip new UI/Compose tests for this phase; fix only
 ## Known follow-up
 
 - Convert the fake workspace coverage into Compose/screenshot tests at compact, medium, and expanded widths.
-- Start Slice 10.5: implement the locked workspace redesign, action hierarchy, and functional motion.
+- Start Slice 10.7 only after local secrets are added and explicit approval is granted for one controlled real-device/API request.

@@ -136,3 +136,11 @@ Completed cards render the actual persisted `GenerationOutput`: Coil loads image
 ## Model-aware settings and estimates
 
 `WorkflowDescriptor` declares its verified adjustable options and static estimate metadata. The conversation stores those selected options in `GenerationDraft` and clears only options unsupported by a newly selected workflow. The settings sheet renders no unsupported controls. Prices, credits, and latency remain unavailable until manually entered with a documentation URL and verification date; the UI never treats them as live values or manufactures a cost.
+
+## Workspace composition
+
+The workspace uses a compact identity and connection top bar. A single strip directly below owns model selection and the static estimate entry point. Its modal details sheet blocks interaction behind it. The composer exposes media and settings only when the selected workflow supports them, keeps the Creative Brief as a secondary action, and uses one primary Generate action. Attachment visibility and composer size animate functionally; active requests use real indeterminate or determinate progress rather than demo loading copy.
+
+## Accessibility and performance
+
+The conversation workspace labels connection state and generation cards for accessibility services and marks workspace identity as a heading. It remains adaptive at compact and expanded widths, retains IME padding on the composer, and uses keyed/content-typed timeline items. Functional attachment/composer motion observes the system animator setting: with animations disabled, the same state updates occur immediately without spatial transitions. Media players are scoped to each output and released through Compose disposal.
