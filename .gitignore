@@ -23,6 +23,7 @@ captures/
 .DS_Store
 Thumbs.db
 secrets.properties
+app/secrets
 gradle/gradle-daemon-jvm.properties
 
 # Compiled class file

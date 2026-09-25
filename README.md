@@ -2,7 +2,7 @@
 
 An Android client for exploring Higgsfield’s image and video generation models through a native conversational interface.
 
-The app is intended for personal, local use while the Higgsfield API integration is developed. It will provide a focused workspace for writing prompts, refining results, reusing generated media, and comparing creative iterations across model families.
+The app is intended for personal, local use while the Higgsfield API integration is validated. It provides a focused workspace for writing prompts, refining results, and comparing creative iterations across model families.
 
 ## Vision
 
@@ -17,7 +17,7 @@ Higgsfield Mobile will make model-based image and video generation feel like an 
 
 The API is stateless, so the app will explicitly compose context from the conversation’s creative brief, prompt history, selected source media, and compatible model options. It will never silently assume that the server remembers previous messages.
 
-## Planned capabilities
+## Current capabilities
 
 ### Image generation
 
@@ -25,7 +25,7 @@ The API is stateless, so the app will explicitly compose context from the conver
 - Marketing Studio image workflows
 - Qwen Image 3 generation and editing
 - Reference-image and image-editing workflows where supported
-- Reusable prompts, settings, and source images
+- Reusable prompts, settings, and source images where the selected workflow supports them
 
 ### Video generation
 
@@ -41,17 +41,31 @@ The API is stateless, so the app will explicitly compose context from the conver
 - Persistent creative brief for subject, style, mood, camera direction, requirements, exclusions, and output goal
 - Active-source card showing which image will be used for the next edit
 - Versions, comparisons, branches, and parent-child generation lineage
-- Model capability and cost information beside model selection
+- Capability-driven settings and static estimate metadata beside model selection
 - Compatibility checks for attachments, parameters, and editing workflows
 
 ### Local media and resilience
 
-- Save generated images and videos to a user-selected folder
+- Render remote images with Coil and remote video/audio with Media3
+- Save generated images, videos, and audio to a user-selected location
 - Remember folder access using Android’s Storage Access Framework
 - Keep generation history and metadata locally
 - Show offline state without crashing or automatically submitting drafts
 - Resume polling for accepted requests after connectivity returns or the app restarts
 - Explain authentication, validation, moderation, quota, upload, download, and connectivity failures in the UI
+
+## Implemented product state
+
+Slices 1–9 and Slice 10.1–10.6 are implemented. The app currently includes:
+
+- Room-backed generation records with draft, attachment, output, lineage, and lifecycle restoration.
+- Real endpoint-specific request schemas behind a shared adapter for the catalogued model families.
+- Secure local-media upload handling, authenticated API requests, status polling, cancellation, WorkManager recovery, and sanitized debug HTTP logging.
+- Queued, generating, completed, failed, moderated, canceled, and ambiguous-submission UI states with retry/cancel actions.
+- Actual output rendering, Media3 playback, system save-document downloads, temporary remote-output labeling, and persisted local download URIs.
+- A compact workspace redesign with model-aware controls, estimate/details sheet, capability-gated composer actions, reduced-motion behavior, and accessibility semantics.
+
+Slice 10.7 is ready but intentionally not run yet. It requires one explicitly approved real-device/API request using the local credentials, followed by status-lifecycle, restart recovery, media download, and 16 KB compatibility verification.
 
 ## Architecture direction
 
@@ -79,13 +93,13 @@ See the project documents for the detailed plan:
 
 Higgsfield credentials are local-only configuration. Do not commit real credentials, paste them into chat, or distribute builds containing them.
 
-Use the ignored `secrets.properties` file locally and the tracked [`secrets.properties.example`](secrets.properties.example) as a template. The app is not intended to be a production-distributed client while credentials are used directly from the mobile application, because values embedded in an APK can be extracted.
+Use the ignored `app/secrets/secrets.properties` file locally with the same `HF_KEY_ID` and `HF_KEY_SECRET` entries shown in [`secrets.properties.example`](secrets.properties.example). The app is not intended to be a production-distributed client while credentials are used directly from the mobile application, because values embedded in an APK can be extracted.
 
 The project will not make billable Higgsfield requests automatically. Real API testing requires explicit approval.
 
 ## Development status
 
-The project foundation, adaptive Compose shell, fake-backed conversation experience, model catalog, persistence layer, and documentation are being built incrementally. Real endpoint schemas remain gated until they are verified against the current Higgsfield documentation.
+The project is at the final pre-live verification stage. Automated verification currently passes with 38 unit tests, zero lint errors, and a successful debug APK build. New Compose/UI tests are intentionally deferred under the temporary Slice 10 test rule; affected non-UI tests continue to be maintained.
 
 Current delivery progress is tracked in [`docs/progress.md`](docs/progress.md).
 

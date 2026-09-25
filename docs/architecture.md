@@ -89,7 +89,7 @@ Polling starts at two seconds and grows toward ten seconds with jitter. Terminal
 
 ## Security boundary
 
-`secrets.properties` is ignored and loaded into local `BuildConfig` values. Missing values are valid build configuration and disable API actions. The authorization interceptor combines key ID and secret only in memory. HTTP logging is limited to safe metadata and redacts authorization; request/response bodies, signed URLs, and credentials are never logged.
+`app/secrets/secrets.properties` is ignored and loaded into local `BuildConfig` values. Missing values are valid build configuration and disable API actions. The authorization interceptor combines key ID and secret only in memory. HTTP logging is limited to safe metadata and redacts authorization; request/response bodies, signed URLs, and credentials are never logged.
 
 All traffic is HTTPS. Presigned upload requests use a separate unauthenticated client so Higgsfield credentials cannot reach the storage host. Android backups are disabled. Only the launcher Activity is exported. This design is explicitly for a private personal build: secrets embedded in an APK remain extractable.
 

@@ -9,7 +9,7 @@ plugins {
 }
 
 val localSecrets = Properties().apply {
-    val secretsFile = rootProject.file("secrets.properties")
+    val secretsFile = rootProject.file("app/secrets/secrets.properties")
     if (secretsFile.exists()) {
         secretsFile.inputStream().use(::load)
     }

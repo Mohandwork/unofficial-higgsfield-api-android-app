@@ -6,7 +6,7 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 
 - Status: Slice 10.6 accessibility and performance hardening is complete. The workspace has semantic labels, reduced-motion behavior, adaptive/IME layout, and keyed timeline rendering.
 - Git: changes are intentionally uncommitted. Do not commit or push without current-conversation permission.
-- API safety: no Higgsfield request, upload, estimate, or billable generation has been made.
+- API safety: credentials are present only in ignored `app/secrets/secrets.properties`; no Higgsfield request, upload, estimate, or billable generation has been made.
 - Toolchain: AGP 9.4.0, Gradle 9.6.0, AGP built-in Kotlin, KSP, and Android Studio JBR 25 verified locally.
 - Build conventions: `gradle/libs.versions.toml` is the source of truth for project plugin and dependency versions.
 - Code conventions: production domain/data literals are locally scoped constants; UI state carries resource-backed text; `core/error` owns persisted safe error mapping.
@@ -32,7 +32,7 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 | 10.4 Model-aware controls | Complete | Workflow metadata declares verified adjustable options and static-estimate provenance. Only supported controls render, invalid options clear on model changes, and pricing/credits/latency show unavailable until manually documented. |
 | 10.5 Locked workspace redesign | Complete | Compact top bar, single model/estimate strip, modal details sheet, capability-gated composer actions, completed-output actions, and functional attachment/progress motion are implemented. |
 | 10.6 Accessibility and performance | Complete | Semantic labels/headings, connection and generation accessibility descriptions, reduced-motion behavior, adaptive/IME layout, and keyed/content-typed timeline rendering are implemented. Compose UI tests remain deferred under the temporary Slice 10 rule. |
-| 10.7 Real-device/API verification | Not started | Add secrets last, submit one controlled request, verify status lifecycle, media permissions, process death, and 16 KB compatibility. |
+| 10.7 Real-device/API verification | Ready, not started | `app/secrets/secrets.properties` is detected and ignored. Awaiting explicit approval for one controlled request, then verify status lifecycle, media permissions, process death, and 16 KB compatibility. |
 
 Slice 10 temporary test rule: skip new UI/Compose tests for this phase; fix only edge-case tests affected by each change and add a new non-UI test only when the changed behavior genuinely requires coverage. This scope does not alter the repository-wide testing rules outside Slice 10.
 
@@ -49,4 +49,4 @@ Slice 10 temporary test rule: skip new UI/Compose tests for this phase; fix only
 ## Known follow-up
 
 - Convert the fake workspace coverage into Compose/screenshot tests at compact, medium, and expanded widths.
-- Start Slice 10.7 only after local secrets are added and explicit approval is granted for one controlled real-device/API request.
+- Slice 10.7 is ready to begin once explicit approval is granted for one controlled real-device/API request.
