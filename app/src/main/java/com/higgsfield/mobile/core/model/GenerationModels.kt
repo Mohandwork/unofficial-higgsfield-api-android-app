@@ -14,6 +14,16 @@ enum class WorkflowCapability {
     REFERENCE_IMAGE, NEGATIVE_PROMPT, SEED, AUDIO,
 }
 
+enum class WorkflowOption { ASPECT_RATIO, RESOLUTION, DURATION, SEED, NEGATIVE_PROMPT }
+
+data class StaticEstimateMetadata(
+    val fromPrice: String? = null,
+    val creditGuidance: String? = null,
+    val expectedLatency: String? = null,
+    val sourceUrl: String,
+    val verifiedOn: String,
+)
+
 enum class MediaRole { SOURCE, START_FRAME, END_FRAME, REFERENCE, MOTION_REFERENCE, AUDIO }
 
 data class MediaRequirement(
@@ -33,6 +43,8 @@ data class WorkflowDescriptor(
     val mediaRequirements: List<MediaRequirement> = emptyList(),
     val endpointPath: String? = null,
     val pricingFactors: List<String> = emptyList(),
+    val supportedOptions: Set<WorkflowOption> = emptySet(),
+    val staticEstimate: StaticEstimateMetadata? = null,
     val documentationUrl: String,
     val schemaVerifiedOn: String? = null,
     val isSubmissionEnabled: Boolean = false,
@@ -80,6 +92,7 @@ sealed interface GenerationStatus {
     data class InProgress(val progress: Float? = null) : GenerationStatus
     data class Completed(val outputs: List<GenerationOutput>) : GenerationStatus
     data class Failed(val userMessage: String, val retryable: Boolean) : GenerationStatus
+    data class UnknownSubmissionOutcome(val userMessage: String) : GenerationStatus
     data class Nsfw(val userMessage: String) : GenerationStatus
     data object Canceled : GenerationStatus
 }
@@ -97,6 +110,7 @@ data class GenerationRecord(
     val branchRootId: String = id,
     val draft: GenerationDraft,
     val status: GenerationStatus,
+    val errorCode: String? = null,
 )
 
 sealed interface EstimateState {

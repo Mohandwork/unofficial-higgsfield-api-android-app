@@ -15,6 +15,7 @@ import com.higgsfield.mobile.core.database.PersistedConversationSnapshot
 import com.higgsfield.mobile.core.model.CreativeBrief
 import com.higgsfield.mobile.core.model.EstimateState
 import com.higgsfield.mobile.core.model.GenerationDraft
+import com.higgsfield.mobile.core.model.GenerationOutput
 import com.higgsfield.mobile.core.model.GenerationRecord
 import com.higgsfield.mobile.core.model.GenerationStatus
 import kotlinx.coroutines.Dispatchers
@@ -190,5 +191,6 @@ private class FakeGenerationRepository(
         return submitResult
     }
     override suspend fun cancel(generationId: String): Result<Unit> = Result.success(Unit)
+    override suspend fun downloadOutput(output: GenerationOutput, destinationUri: String): Result<Unit> = Result.success(Unit)
     override suspend fun resumeAcceptedRequests() = Unit
 }

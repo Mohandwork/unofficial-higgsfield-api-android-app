@@ -13,6 +13,25 @@ data class AppError(
 )
 
 object ErrorMapper {
+    fun messageResIdFor(code: String?): Int? = when (code) {
+        CODE_INSTRUCTION_REQUIRED -> R.string.error_instruction_required
+        CODE_REFERENCE_IMAGE_REQUIRED -> R.string.error_reference_image_required
+        CODE_REFERENCE_VIDEO_REQUIRED -> R.string.error_reference_video_required
+        CODE_ATTACHMENT_UNREADABLE -> R.string.error_attachment_unreadable
+        CODE_ATTACHMENT_TYPE_UNSUPPORTED -> R.string.error_attachment_type_unsupported
+        CODE_REFERENCE_IMAGE_LIMIT -> R.string.error_reference_image_limit
+        CODE_CREDENTIALS_REJECTED -> R.string.error_credentials_rejected
+        CODE_REQUEST_NOT_FOUND -> R.string.error_request_not_found
+        CODE_REMOTE_PROTOCOL -> R.string.error_remote_protocol
+        CODE_REMOTE_FAILED -> R.string.error_generation_failed
+        CODE_MODERATED -> R.string.error_generation_moderated
+        CODE_NETWORK -> R.string.error_network_unavailable
+        CODE_HTTP, CODE_UNKNOWN -> R.string.error_unknown
+        else -> null
+    }
+
+    fun isRetryable(code: String?): Boolean = code in setOf(CODE_NETWORK, CODE_HTTP)
+
     fun instructionRequired() = AppError(
         code = CODE_INSTRUCTION_REQUIRED,
         messageResId = R.string.error_instruction_required,

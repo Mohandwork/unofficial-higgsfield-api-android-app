@@ -11,15 +11,22 @@ import com.higgsfield.mobile.core.database.PersistedConversationSnapshot
 import com.higgsfield.mobile.core.database.PersistedGenerationStatus
 import com.higgsfield.mobile.core.data.GenerationRepository
 import com.higgsfield.mobile.core.data.GenerationSubmissionException
+import com.higgsfield.mobile.core.error.ErrorMapper
 import com.higgsfield.mobile.core.model.CreativeBrief
 import com.higgsfield.mobile.core.model.GenerationAttachment
 import com.higgsfield.mobile.core.model.GenerationDraft
+import com.higgsfield.mobile.core.model.GenerationOutput
+import com.higgsfield.mobile.core.model.GenerationOptions
+import com.higgsfield.mobile.core.model.GenerationRecord
+import com.higgsfield.mobile.core.model.GenerationStatus
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.MediaRequirement
 import com.higgsfield.mobile.core.model.MediaRole
 import com.higgsfield.mobile.core.model.WorkflowCapability
 import com.higgsfield.mobile.core.model.WorkflowDescriptor
+import com.higgsfield.mobile.core.model.WorkflowOption
 import com.higgsfield.mobile.core.model.WorkflowRegistry
+import com.higgsfield.mobile.core.network.RequestStatusPoller
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -35,8 +42,14 @@ data class TimelineItem(
     val modelName: String,
     val stateLabel: ConversationText,
     val outputLabel: ConversationText? = null,
+    val output: GenerationOutput? = null,
     val sourceOutputId: String? = null,
     val parentId: String? = null,
+    val lifecycle: GenerationStatus? = null,
+    val record: GenerationRecord? = null,
+    val errorText: ConversationText? = null,
+    val canRetry: Boolean = false,
+    val canCancel: Boolean = false,
 )
 
 data class DraftMediaAttachment(
@@ -57,6 +70,7 @@ data class ConversationUiState(
     val activeSourceLabel: ConversationText? = null,
     val attachmentSlots: List<MediaRequirement> = emptyList(),
     val attachments: List<DraftMediaAttachment> = emptyList(),
+    val options: GenerationOptions = GenerationOptions(),
     val modelMenuOpen: Boolean = false,
     val infoOpen: Boolean = false,
     val briefOpen: Boolean = false,
@@ -72,12 +86,15 @@ class ConversationViewModel @Inject constructor(
     private val persistence: ConversationPersistence,
     private val connectivity: ConnectivityStatusProvider = AlwaysOnlineConnectivityStatusProvider,
     private val generationRepository: GenerationRepository? = null,
+    private val statusPoller: RequestStatusPoller? = null,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ConversationUiState())
     val state: StateFlow<ConversationUiState> = mutableState.asStateFlow()
     private var conversationId: String? = null
     private var observation: Job? = null
+    private var generationObservation: Job? = null
     private var connectivityObservation: Job? = null
+    private val statusPollingJobs = mutableMapOf<String, Job>()
 
     fun initialize(kind: MediaKind) {
         if (mutableState.value.workflows.isNotEmpty() && mutableState.value.mediaKind == kind) return
@@ -91,7 +108,10 @@ class ConversationViewModel @Inject constructor(
         val id = kind.name.lowercase() + "-default"
         conversationId = id
         observation?.cancel()
+        generationObservation?.cancel()
         connectivityObservation?.cancel()
+        statusPollingJobs.values.forEach(Job::cancel)
+        statusPollingJobs.clear()
         connectivityObservation = viewModelScope.launch {
             connectivity.isOnline.collect { online ->
                 mutableState.update { it.copy(isOnline = online) }
@@ -100,6 +120,11 @@ class ConversationViewModel @Inject constructor(
         observation = viewModelScope.launch {
             persistence.ensureConversation(id, kind, workflows.firstOrNull()?.id)
             persistence.observe(id).collect(::restoreSnapshot)
+        }
+        generationObservation = generationRepository?.let { repository ->
+            viewModelScope.launch {
+                repository.observeConversation(id).collect(::restoreGenerationRecords)
+            }
         }
     }
 
@@ -121,6 +146,7 @@ class ConversationViewModel @Inject constructor(
                         slot.role == attachment.role && slot.kind == attachment.kind
                     }
                 },
+                options = current.options.retainFor(workflow),
                 modelMenuOpen = false,
                 message = if (sourceIncompatible) {
                     ConversationText.Resource(R.string.message_model_cannot_edit_active_image)
@@ -147,6 +173,10 @@ class ConversationViewModel @Inject constructor(
         current.copy(attachments = current.attachments.filterNot { it.role == role })
     }
 
+    fun updateOptions(options: GenerationOptions) = mutableState.update { current ->
+        current.copy(options = options.retainFor(current.selectedWorkflow))
+    }
+
     fun currentDraft(): GenerationDraft? {
         val current = mutableState.value
         val workflow = current.selectedWorkflow ?: return null
@@ -163,6 +193,7 @@ class ConversationViewModel @Inject constructor(
                 )
             },
             activeSourceId = current.activeSourceId,
+            options = current.options,
         )
     }
 
@@ -175,19 +206,56 @@ class ConversationViewModel @Inject constructor(
         val id = conversationId ?: return
         val draft = currentDraft()
             ?: return mutableState.update { it.copy(message = ConversationText.Resource(R.string.message_choose_model_first)) }
+        submitDraft(id, draft, clearPromptOnSuccess = true)
+    }
+
+    fun retryGeneration(item: TimelineItem) {
+        val id = conversationId ?: return
+        val record = item.record ?: return
+        if (!item.canRetry) return
+        submitDraft(id, record.draft, clearPromptOnSuccess = false)
+    }
+
+    fun cancelGeneration(item: TimelineItem) {
+        val repository = generationRepository ?: return
+        if (!item.canCancel) return
+        viewModelScope.launch {
+            val result = repository.cancel(item.id)
+            mutableState.update { current ->
+                current.copy(message = result.exceptionOrNull()?.toConversationText())
+            }
+        }
+    }
+
+    fun downloadOutput(item: TimelineItem, destinationUri: String) {
+        val output = item.output ?: return
+        val repository = generationRepository ?: return
+        viewModelScope.launch {
+            val result = repository.downloadOutput(output, destinationUri)
+            mutableState.update {
+                it.copy(
+                    message = result.exceptionOrNull()?.toConversationText()
+                        ?: ConversationText.Resource(R.string.message_download_saved),
+                )
+            }
+        }
+    }
+
+    private fun submitDraft(conversationId: String, draft: GenerationDraft, clearPromptOnSuccess: Boolean) {
         val repository = generationRepository
             ?: return mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
         if (!mutableState.value.isOnline || mutableState.value.isSubmitting) return
         mutableState.update { it.copy(isSubmitting = true, message = null) }
         viewModelScope.launch {
-            val result = repository.submit(id, draft)
+            val result = repository.submit(conversationId, draft)
             mutableState.update { current ->
                 current.copy(
-                    prompt = if (result.isSuccess) "" else current.prompt,
+                    prompt = if (result.isSuccess && clearPromptOnSuccess) "" else current.prompt,
                     isSubmitting = false,
                     message = result.exceptionOrNull()?.toConversationText(),
                 )
             }
+            result.getOrNull()?.let(::startStatusPollingIfNeeded)
         }
     }
 
@@ -273,7 +341,7 @@ class ConversationViewModel @Inject constructor(
     private fun restoreSnapshot(snapshot: PersistedConversationSnapshot?) {
         if (snapshot == null) return
         mutableState.update { current ->
-            val timeline = snapshot.timeline.map { item ->
+            val timeline = if (generationRepository == null) snapshot.timeline.map { item ->
                 TimelineItem(
                     id = item.id,
                     prompt = item.prompt,
@@ -292,8 +360,9 @@ class ConversationViewModel @Inject constructor(
                     },
                     sourceOutputId = item.outputId,
                     parentId = item.parentId,
+                    lifecycle = item.status.toLifecycle(),
                 )
-            }
+            } else current.timeline
             val activeGeneration = timeline.firstOrNull {
                 it.sourceOutputId == snapshot.activeSourceOutputId
             }
@@ -308,6 +377,25 @@ class ConversationViewModel @Inject constructor(
                     ConversationText.Resource(R.string.message_select_output_before_continuing)
                 } else current.message,
             )
+        }
+    }
+
+    private fun restoreGenerationRecords(records: List<GenerationRecord>) {
+        records.forEach(::startStatusPollingIfNeeded)
+        mutableState.update { current ->
+            current.copy(timeline = records.map(GenerationRecord::toTimelineItem))
+        }
+    }
+
+    private fun startStatusPollingIfNeeded(record: GenerationRecord) {
+        if (record.status !is GenerationStatus.Queued && record.status !is GenerationStatus.InProgress) return
+        if (statusPollingJobs[record.id]?.isActive == true) return
+        statusPollingJobs[record.id] = viewModelScope.launch {
+            try {
+                statusPoller?.pollUntilTerminal(record.id)
+            } finally {
+                statusPollingJobs.remove(record.id)
+            }
         }
     }
 
@@ -335,4 +423,59 @@ class ConversationViewModel @Inject constructor(
 private fun Throwable.toConversationText(): ConversationText = when (this) {
     is GenerationSubmissionException -> ConversationText.Resource(appError.messageResId)
     else -> ConversationText.Resource(R.string.error_unknown)
+}
+
+private fun GenerationRecord.toTimelineItem(): TimelineItem {
+    val outputs = (status as? GenerationStatus.Completed)?.outputs.orEmpty()
+    val output = outputs.firstOrNull()
+    return TimelineItem(
+        id = id,
+        prompt = draft.instruction,
+        modelName = WorkflowRegistry.find(draft.workflowId)?.displayName ?: draft.workflowId.value,
+        stateLabel = status.toStateText(),
+        outputLabel = output?.let { ConversationText.Resource(if (it.kind == MediaKind.IMAGE) R.string.restored_image else R.string.restored_video) },
+        output = output,
+        sourceOutputId = output?.id,
+        parentId = parentGenerationId,
+        lifecycle = status,
+        record = this,
+        errorText = ErrorMapper.messageResIdFor(errorCode)?.let(ConversationText::Resource),
+        canRetry = (status as? GenerationStatus.Failed)?.retryable == true,
+        canCancel = status is GenerationStatus.Queued,
+    )
+}
+
+private fun GenerationStatus.toStateText(): ConversationText = ConversationText.Resource(
+    when (this) {
+        GenerationStatus.Draft -> R.string.status_draft
+        GenerationStatus.Queued -> R.string.status_queued
+        is GenerationStatus.InProgress -> R.string.status_generating
+        is GenerationStatus.Completed -> R.string.status_completed
+        is GenerationStatus.Failed -> R.string.status_failed
+        is GenerationStatus.UnknownSubmissionOutcome -> R.string.status_submission_unknown
+        is GenerationStatus.Nsfw -> R.string.status_moderated
+        GenerationStatus.Canceled -> R.string.status_canceled
+    },
+)
+
+private fun GenerationOptions.retainFor(workflow: WorkflowDescriptor?): GenerationOptions {
+    val supported = workflow?.supportedOptions.orEmpty()
+    return copy(
+        aspectRatio = if (WorkflowOption.ASPECT_RATIO in supported) aspectRatio else GenerationOptions().aspectRatio,
+        resolution = resolution?.takeIf { WorkflowOption.RESOLUTION in supported },
+        durationSeconds = durationSeconds?.takeIf { WorkflowOption.DURATION in supported },
+        seed = seed?.takeIf { WorkflowOption.SEED in supported },
+        negativePrompt = negativePrompt?.takeIf { WorkflowOption.NEGATIVE_PROMPT in supported },
+    )
+}
+
+private fun PersistedGenerationStatus.toLifecycle(): GenerationStatus = when (this) {
+    PersistedGenerationStatus.DRAFT -> GenerationStatus.Draft
+    PersistedGenerationStatus.QUEUED -> GenerationStatus.Queued
+    PersistedGenerationStatus.IN_PROGRESS -> GenerationStatus.InProgress()
+    PersistedGenerationStatus.COMPLETED -> GenerationStatus.Completed(emptyList())
+    PersistedGenerationStatus.FAILED -> GenerationStatus.Failed("", retryable = false)
+    PersistedGenerationStatus.UNKNOWN_SUBMISSION_OUTCOME -> GenerationStatus.UnknownSubmissionOutcome("")
+    PersistedGenerationStatus.NSFW -> GenerationStatus.Nsfw("")
+    PersistedGenerationStatus.CANCELED -> GenerationStatus.Canceled
 }

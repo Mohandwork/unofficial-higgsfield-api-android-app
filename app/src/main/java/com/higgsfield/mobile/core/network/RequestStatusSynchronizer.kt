@@ -13,20 +13,26 @@ import javax.inject.Singleton
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import retrofit2.HttpException
 
+interface GenerationRequestSynchronizer {
+    suspend fun refreshAcceptedRequests(): Boolean
+    suspend fun refresh(generationId: String)
+    suspend fun cancel(generationId: String)
+}
+
 /** Applies a verified remote status response to an already accepted local generation. */
 @Singleton
 class RequestStatusSynchronizer @Inject constructor(
     private val service: HiggsfieldService,
     private val generationDao: GenerationDao,
     private val localStore: LocalGenerationStore,
-) {
-    suspend fun refreshAcceptedRequests(): Boolean {
+) : GenerationRequestSynchronizer {
+    override suspend fun refreshAcceptedRequests(): Boolean {
         val pending = localStore.acceptedPending()
         for (generation in pending) refresh(generation)
         return pending.isNotEmpty()
     }
 
-    suspend fun refresh(generationId: String) {
+    override suspend fun refresh(generationId: String) {
         generationDao.get(generationId)?.let { generation -> refresh(generation) }
     }
 
@@ -60,7 +66,7 @@ class RequestStatusSynchronizer @Inject constructor(
         }
     }
 
-    suspend fun cancel(generationId: String) {
+    override suspend fun cancel(generationId: String) {
         val generation = generationDao.get(generationId) ?: return
         require(generation.status == PersistedGenerationStatus.QUEUED) { ONLY_QUEUED_CANCELLATION_MESSAGE }
         val cancellationUrl = generation.cancellationUrl

@@ -9,6 +9,8 @@ import com.higgsfield.mobile.core.network.ContentResolverAttachmentSource
 import com.higgsfield.mobile.core.network.AttachmentBinaryUploader
 import com.higgsfield.mobile.core.network.PresignedUploadClient
 import com.higgsfield.mobile.core.network.PresignedAttachmentBinaryUploader
+import com.higgsfield.mobile.core.network.GenerationRequestSynchronizer
+import com.higgsfield.mobile.core.network.RequestStatusSynchronizer
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -51,4 +53,10 @@ abstract class NetworkBindings {
     abstract fun bindAttachmentBinaryUploader(
         implementation: PresignedAttachmentBinaryUploader,
     ): AttachmentBinaryUploader
+
+    @Binds
+    @Singleton
+    abstract fun bindGenerationRequestSynchronizer(
+        implementation: RequestStatusSynchronizer,
+    ): GenerationRequestSynchronizer
 }

@@ -31,6 +31,9 @@ object WorkflowRegistry {
     private val textToVideo = setOf(WorkflowCapability.TEXT_TO_VIDEO)
     private val motionControl = setOf(WorkflowCapability.IMAGE_TO_VIDEO)
     private val imageReferenceVideo = setOf(WorkflowCapability.TEXT_TO_VIDEO, WorkflowCapability.REFERENCE_IMAGE)
+    private val imageOptions = setOf(WorkflowOption.ASPECT_RATIO, WorkflowOption.RESOLUTION)
+    private val imageOptionsWithSeed = imageOptions + WorkflowOption.SEED
+    private val qwenOptions = imageOptionsWithSeed + WorkflowOption.NEGATIVE_PROMPT
     private val sourceImageRequired = listOf(MediaRequirement(MediaRole.SOURCE, MediaKind.IMAGE, minimumCount = 1))
     private val motionControlRequired = listOf(
         MediaRequirement(MediaRole.SOURCE, MediaKind.IMAGE, minimumCount = 1),
@@ -52,12 +55,12 @@ object WorkflowRegistry {
             endpointPath = SOUL_V2_STANDARD_ENDPOINT,
             schemaVerifiedOn = SOUL_STANDARD_SCHEMA_VERIFIED_ON,
         ),
-        image(WorkflowCatalog.SOUL_CINEMA, WorkflowFamily.SOUL, setOf(WorkflowCapability.TEXT_TO_IMAGE), endpointPath = SOUL_CINEMA_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        image(WorkflowCatalog.MARKETING_STUDIO_2_ALPHA, WorkflowFamily.MARKETING_STUDIO, imageEdit, endpointPath = MARKETING_STUDIO_ALPHA_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        image(WorkflowCatalog.MARKETING_STUDIO_2_5_FLARE, WorkflowFamily.MARKETING_STUDIO, imageEdit, endpointPath = MARKETING_STUDIO_FLARE_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        image(WorkflowCatalog.MARKETING_STUDIO_2_5_SUNBURST, WorkflowFamily.MARKETING_STUDIO, imageEdit, endpointPath = MARKETING_STUDIO_SUNBURST_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        image(WorkflowCatalog.QWEN_IMAGE_3, WorkflowFamily.QWEN, imageEdit + WorkflowCapability.NEGATIVE_PROMPT, endpointPath = QWEN_IMAGE_3_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        image(WorkflowCatalog.QWEN_IMAGE_3_EDIT, WorkflowFamily.QWEN, imageEdit, sourceImageRequired, endpointPath = QWEN_IMAGE_3_EDIT_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+        image(WorkflowCatalog.SOUL_CINEMA, WorkflowFamily.SOUL, setOf(WorkflowCapability.TEXT_TO_IMAGE), options = imageOptionsWithSeed, endpointPath = SOUL_CINEMA_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+        image(WorkflowCatalog.MARKETING_STUDIO_2_ALPHA, WorkflowFamily.MARKETING_STUDIO, imageEdit, options = imageOptions, endpointPath = MARKETING_STUDIO_ALPHA_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+        image(WorkflowCatalog.MARKETING_STUDIO_2_5_FLARE, WorkflowFamily.MARKETING_STUDIO, imageEdit, options = imageOptions, endpointPath = MARKETING_STUDIO_FLARE_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+        image(WorkflowCatalog.MARKETING_STUDIO_2_5_SUNBURST, WorkflowFamily.MARKETING_STUDIO, imageEdit, options = imageOptions, endpointPath = MARKETING_STUDIO_SUNBURST_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+        image(WorkflowCatalog.QWEN_IMAGE_3, WorkflowFamily.QWEN, imageEdit + WorkflowCapability.NEGATIVE_PROMPT, options = qwenOptions, endpointPath = QWEN_IMAGE_3_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+        image(WorkflowCatalog.QWEN_IMAGE_3_EDIT, WorkflowFamily.QWEN, imageEdit, sourceImageRequired, options = qwenOptions, endpointPath = QWEN_IMAGE_3_EDIT_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.SEEDANCE_2, WorkflowFamily.SEEDANCE, endpointPath = SEEDANCE_2_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.SEEDANCE_2_5, WorkflowFamily.SEEDANCE, endpointPath = SEEDANCE_2_5_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.KLING_2_5_TURBO, WorkflowFamily.KLING, endpointPath = KLING_2_5_TURBO_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
@@ -86,9 +89,10 @@ object WorkflowRegistry {
         family: WorkflowFamily,
         capabilities: Set<WorkflowCapability>,
         required: List<MediaRequirement> = emptyList(),
+        options: Set<WorkflowOption> = emptySet(),
         endpointPath: String? = null,
         schemaVerifiedOn: String? = null,
-    ) = descriptor(key, family, MediaKind.IMAGE, capabilities, required, endpointPath = endpointPath, schemaVerifiedOn = schemaVerifiedOn)
+    ) = descriptor(key, family, MediaKind.IMAGE, capabilities, required, options = options, endpointPath = endpointPath, schemaVerifiedOn = schemaVerifiedOn)
 
     private fun video(
         key: WorkflowKey,
@@ -98,7 +102,16 @@ object WorkflowRegistry {
         capabilities: Set<WorkflowCapability> = textToVideo,
         endpointPath: String? = null,
         schemaVerifiedOn: String? = null,
-    ) = descriptor(key, family, MediaKind.VIDEO, capabilities, required, tier, endpointPath, schemaVerifiedOn)
+    ) = descriptor(
+        key = key,
+        family = family,
+        kind = MediaKind.VIDEO,
+        capabilities = capabilities,
+        required = required,
+        tier = tier,
+        endpointPath = endpointPath,
+        schemaVerifiedOn = schemaVerifiedOn,
+    )
 
     private fun descriptor(
         key: WorkflowKey,
@@ -106,6 +119,7 @@ object WorkflowRegistry {
         kind: MediaKind,
         capabilities: Set<WorkflowCapability>,
         required: List<MediaRequirement>,
+        options: Set<WorkflowOption> = emptySet(),
         tier: String? = null,
         endpointPath: String? = null,
         schemaVerifiedOn: String? = null,
@@ -114,6 +128,8 @@ object WorkflowRegistry {
             id = key.id, displayName = key.displayName, family = family, mediaKind = kind,
             tier = tier, capabilities = capabilities, mediaRequirements = required, endpointPath = endpointPath,
             pricingFactors = PRICING_FACTORS,
+            supportedOptions = options,
+            staticEstimate = StaticEstimateMetadata(sourceUrl = WorkflowCatalog.DOCUMENTATION_URL, verifiedOn = schemaVerifiedOn ?: SCHEMA_VERIFIED_ON),
             documentationUrl = WorkflowCatalog.DOCUMENTATION_URL,
             schemaVerifiedOn = schemaVerifiedOn,
             isSubmissionEnabled = endpointPath != null,

@@ -4,7 +4,7 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 
 ## Current checkpoint
 
-- Status: Delivery Slice 9 is complete through the production generation-submission boundary. A deliberate Generate tap persists the draft, uploads local media, maps the selected verified schema, submits once, and records an accepted request or centralized failure.
+- Status: Slice 10.4 model-aware controls is complete. Verified workflow metadata controls settings visibility and draft options; static estimates remain explicitly unavailable until manually documented.
 - Git: changes are intentionally uncommitted. Do not commit or push without current-conversation permission.
 - API safety: no Higgsfield request, upload, estimate, or billable generation has been made.
 - Toolchain: AGP 9.4.0, Gradle 9.6.0, AGP built-in Kotlin, KSP, and Android Studio JBR 25 verified locally.
@@ -26,10 +26,10 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 | 8. Secure attachment upload bridge | Complete | Picked `content://` URIs and media roles flow into `GenerationDraft`. The upload coordinator validates MIME/kind compatibility, obtains a documented upload ticket, enforces HTTPS ticket/public URLs, streams through the unauthenticated presigned client, reuses already uploaded media, and returns centralized failures. No real network request was made during verification. |
 | 9. Repository submission | Complete | `RoomGenerationRepository` persists a draft before network work, uploads local attachments, maps a verified schema only after public URLs exist, submits once, validates and persists accepted request metadata, then performs status-only reconciliation. The composer now invokes this path rather than the local demo. |
 | 10. Slice 10 umbrella | Planned | Split into seven reviewable slices: repository integration hardening; real generation lifecycle UI; output handling; model-aware controls and static estimates; locked workspace redesign; accessibility/performance; and final real-device/API verification. |
-| 10.1 Repository integration hardening | Not started | Add in-memory Room and MockWebServer coverage, draft/attachment reconstruction, accepted-request recovery, and unknown-submission verification. |
-| 10.2 Generation lifecycle UI | Not started | Render queued, generating, completed, failed, moderated, canceled, retry, and unknown-submission states with actionable feedback. |
-| 10.3 Output handling | Not started | Render remote image/video/audio output, add Storage Access Framework downloads, Media3 playback, retention handling, and output errors. |
-| 10.4 Model-aware controls | Not started | Add capability-driven options and static estimate metadata without inventing unsupported controls or prices. |
+| 10.1 Repository integration hardening | Complete | In-memory Room + MockWebServer coverage verifies one-shot accepted submission persistence, full draft/media reconstruction, and ambiguous disconnect persistence as `UNKNOWN_SUBMISSION_OUTCOME` without a generation retry. |
+| 10.2 Generation lifecycle UI | Complete | Timeline cards project persisted records as queued, generating, completed, failed, moderated, canceled, and unknown-submission states. Only retryable failures offer retry; only queued requests offer cancel; accepted/restored active work receives status-only foreground polling. |
+| 10.3 Output handling | Complete | Coil renders images; Media3 renders video/audio. System create-document downloads stream validated HTTPS output and persist the local URI only after success; remote-only media is explicitly temporary and failures preserve it. |
+| 10.4 Model-aware controls | Complete | Workflow metadata declares verified adjustable options and static-estimate provenance. Only supported controls render, invalid options clear on model changes, and pricing/credits/latency show unavailable until manually documented. |
 | 10.5 Locked workspace redesign | Not started | Implement the compact top bar, model/estimate strip, details sheet, composer hierarchy, output cards, action visibility, and functional motion. |
 | 10.6 Accessibility and performance | Not started | Cover large text, reduced motion, contrast, semantics, adaptive widths, IME behavior, recomposition profiling, and device-focused verification. |
 | 10.7 Real-device/API verification | Not started | Add secrets last, submit one controlled request, verify status lifecycle, media permissions, process death, and 16 KB compatibility. |
@@ -38,7 +38,7 @@ Slice 10 temporary test rule: skip new UI/Compose tests for this phase; fix only
 
 ## Latest verification
 
-- `testDebugUnitTest`: 36 tests passed after the production submission boundary and Generate-action coverage were added. Kotlin incremental compilation was disabled because the local Kotlin cache was locked.
+- `testDebugUnitTest`: 38 tests passed after adding Slice 10.1 in-memory Room + MockWebServer repository integration coverage. Kotlin incremental compilation was disabled because the local Kotlin cache was locked.
 - Tests cover streaming upload preparation, MIME/kind rejection, existing remote-media reuse, role-to-draft mapping, generic schemas, registry coverage, central errors, persistence, and conversation state.
 - `lintDebug assembleDebug`: passed; lint has zero errors and 23 non-blocking version/plural/resource suggestions, and the debug APK assembled successfully.
 - `zipalign -c -P 16 -v 4 app/build/outputs/apk/debug/app-debug.apk`: passed for all packaged native libraries, including `libandroidx.graphics.path.so`.
@@ -49,4 +49,4 @@ Slice 10 temporary test rule: skip new UI/Compose tests for this phase; fix only
 ## Known follow-up
 
 - Convert the fake workspace coverage into Compose/screenshot tests at compact, medium, and expanded widths.
-- Add repository-level persistence/network integration coverage with in-memory Room and MockWebServer before the first credentialed manual call.
+- Start Slice 10.5: implement the locked workspace redesign, action hierarchy, and functional motion.

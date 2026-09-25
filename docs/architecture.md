@@ -120,3 +120,19 @@ Real API calls are never part of automated verification and require explicit bil
 `RoomGenerationRepository` is the single production path for a deliberate Generate tap. It persists a draft and local attachment metadata first, uploads only attachments that lack a verified HTTPS public URL, maps the uploaded draft with the selected verified schema, and makes exactly one generation POST. An accepted response must contain a Higgsfield HTTPS status URL and request ID before it is marked queued; the existing status synchronizer then reconciles status without repeating the POST. Authentication is deliberately not pre-checked: a build without local credentials reaches the real API boundary on a user tap and records the returned authentication failure. No submission, upload, or estimate runs automatically.
 
 Debug builds add a verbose, sanitized OkHttp interceptor for the authenticated API client. It logs method, host/path, query parameters, ordinary headers, status, timing, and JSON request/response bodies so manual failures can be diagnosed. Authorization/secret headers, signed query values, and private media URL fields are redacted. The separate presigned upload client retains route/status-only logging and never logs binary media or signing values. Release builds have no network logging interceptor.
+
+## Repository restoration and accepted-request boundary
+
+`RoomGenerationRepository` observes the persisted conversation together with generation media relations, so restored domain records retain the Creative Brief, generation options, attachments, and completed outputs rather than rebuilding a partial draft. `UNKNOWN_SUBMISSION_OUTCOME` has a distinct domain state: it records an ambiguous generation POST without retrying it. The repository depends on the narrow `GenerationRequestSynchronizer` interface; production binds it to `RequestStatusSynchronizer`, while integration tests can isolate the one-shot POST from status polling safely.
+
+## Generation lifecycle presentation
+
+The conversation timeline is a projection of observed `GenerationRecord`s, not a local optimistic demo. It presents queued, generating, completed, failed, moderated, canceled, and unknown-submission states from their domain status. A foreground `RequestStatusPoller` starts only for accepted or restored queued/in-progress records and stops at a terminal state; it makes status-only requests. Completed outputs can become the active editing source, retry is exposed only for retryable failures, and cancellation is exposed only while a request is queued.
+
+## Output rendering and retention
+
+Completed cards render the actual persisted `GenerationOutput`: Coil loads images and Media3 plays video or audio. Remote outputs are visibly temporary. Download uses the system create-document flow, streams a validated HTTPS output to the user-selected URI, and records that URI in Room only after the write completes. The next observed record uses the local copy; a failed download leaves the remote output intact and reports the centralized error.
+
+## Model-aware settings and estimates
+
+`WorkflowDescriptor` declares its verified adjustable options and static estimate metadata. The conversation stores those selected options in `GenerationDraft` and clears only options unsupported by a newly selected workflow. The settings sheet renders no unsupported controls. Prices, credits, and latency remain unavailable until manually entered with a documentation URL and verification date; the UI never treats them as live values or manufactures a cost.
