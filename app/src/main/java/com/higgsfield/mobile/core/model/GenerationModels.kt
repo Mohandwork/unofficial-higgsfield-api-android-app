@@ -52,6 +52,7 @@ data class GenerationAttachment(
     val id: String,
     val uri: String,
     val kind: MediaKind,
+    val role: MediaRole = MediaRole.REFERENCE,
     val remoteUrl: String? = null,
     val isGeneratedOutput: Boolean = false,
 )

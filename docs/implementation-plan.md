@@ -69,7 +69,7 @@ The conversation workspace will be redesigned with a compact top bar that contai
 
 ### Improvements backlog
 
-- Connect local media-role attachments to the secure upload lifecycle and public remote URLs.
+- Connect the completed secure attachment-upload bridge to production repository submission and persistence.
 - Add live model estimates after authenticated estimate bodies are verified and billable operation approval is granted.
 - Add Compose screenshot coverage for compact, expanded, dark-theme, large-font, and reduced-motion states.
 - Complete downloads, accessibility audit, and performance profiling.

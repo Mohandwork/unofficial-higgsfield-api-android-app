@@ -91,14 +91,14 @@ fun ConversationRoute(
     val imagePicker = rememberLauncherForActivityResult(PickVisualMedia()) { uri: Uri? ->
         val role = pendingRole
         if (uri != null && role != null) {
-            viewModel.attachMedia(role, MediaKind.IMAGE, uri.lastPathSegment ?: uri.toString())
+            viewModel.attachMedia(role, MediaKind.IMAGE, uri.toString(), uri.lastPathSegment ?: uri.toString())
         }
         pendingRole = null
     }
     val videoPicker = rememberLauncherForActivityResult(GetContent()) { uri: Uri? ->
         val role = pendingRole
         if (uri != null && role != null) {
-            viewModel.attachMedia(role, MediaKind.VIDEO, uri.lastPathSegment ?: uri.toString())
+            viewModel.attachMedia(role, MediaKind.VIDEO, uri.toString(), uri.lastPathSegment ?: uri.toString())
         }
         pendingRole = null
     }

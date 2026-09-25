@@ -62,6 +62,12 @@ The conversation state derives local attachment slots from the selected workflow
 
 Higgsfield is stateless. `PromptComposer` deterministically joins non-empty Creative Brief fields and the current instruction. When supported, exclusions are mapped to the DTO's `negative_prompt`; they are not duplicated into hidden history. The exact composed draft and option snapshot are persisted with every generation.
 
+## Attachment upload boundary
+
+The conversation draft retains each picked `content://` URI with its explicit media role. `SecureAttachmentUploader` resolves its MIME type through `ContentResolver`, validates that it matches the declared image/video/audio kind, requests a Higgsfield upload ticket, and streams the content to the presigned URL without buffering the complete file. Both the presigned URL and returned public URL must use HTTPS, and the ticket may not change the requested MIME type.
+
+Storage uploads pass through the dedicated unauthenticated client, which strips any authorization header. The uploader returns either attachments containing public URLs or a centralized `AppError`; it never exposes provider errors directly to Compose. Existing valid HTTPS remote attachments are reused without reading local content or uploading again.
+
 ## Iteration and lineage
 
 Every generation has an optional parent generation and branch root. A conversation has at most one active source attachment. Completion rules are explicit:

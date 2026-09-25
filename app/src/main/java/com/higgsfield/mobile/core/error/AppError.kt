@@ -31,6 +31,20 @@ object ErrorMapper {
         retryable = false,
     )
 
+    fun attachmentUnreadable(diagnosticMessage: String? = null) = AppError(
+        code = CODE_ATTACHMENT_UNREADABLE,
+        messageResId = R.string.error_attachment_unreadable,
+        retryable = false,
+        diagnosticMessage = diagnosticMessage,
+    )
+
+    fun attachmentTypeUnsupported(diagnosticMessage: String? = null) = AppError(
+        code = CODE_ATTACHMENT_TYPE_UNSUPPORTED,
+        messageResId = R.string.error_attachment_type_unsupported,
+        retryable = false,
+        diagnosticMessage = diagnosticMessage,
+    )
+
     fun referenceImageLimit() = AppError(
         code = CODE_REFERENCE_IMAGE_LIMIT,
         messageResId = R.string.error_reference_image_limit,
@@ -86,6 +100,8 @@ object ErrorMapper {
     private const val CODE_INSTRUCTION_REQUIRED = "instruction_required"
     private const val CODE_REFERENCE_IMAGE_REQUIRED = "reference_image_required"
     private const val CODE_REFERENCE_VIDEO_REQUIRED = "reference_video_required"
+    private const val CODE_ATTACHMENT_UNREADABLE = "attachment_unreadable"
+    private const val CODE_ATTACHMENT_TYPE_UNSUPPORTED = "attachment_type_unsupported"
     private const val CODE_REFERENCE_IMAGE_LIMIT = "reference_image_limit"
     private const val CODE_CREDENTIALS_REJECTED = "credentials_rejected"
     private const val CODE_REQUEST_NOT_FOUND = "request_not_found"

@@ -10,6 +10,8 @@ import com.higgsfield.mobile.core.database.ConversationPersistence
 import com.higgsfield.mobile.core.database.PersistedConversationSnapshot
 import com.higgsfield.mobile.core.database.PersistedGenerationStatus
 import com.higgsfield.mobile.core.model.CreativeBrief
+import com.higgsfield.mobile.core.model.GenerationAttachment
+import com.higgsfield.mobile.core.model.GenerationDraft
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.MediaRequirement
 import com.higgsfield.mobile.core.model.MediaRole
@@ -38,6 +40,7 @@ data class TimelineItem(
 data class DraftMediaAttachment(
     val role: MediaRole,
     val kind: MediaKind,
+    val uri: String,
     val label: String,
 )
 
@@ -125,19 +128,38 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
-    fun attachMedia(role: MediaRole, kind: MediaKind, label: String) {
+    fun attachMedia(role: MediaRole, kind: MediaKind, uri: String, label: String) {
         mutableState.update { current ->
             val slot = current.attachmentSlots.firstOrNull { it.role == role && it.kind == kind }
                 ?: return@update current
             current.copy(
                 attachments = current.attachments.filterNot { it.role == role } +
-                    DraftMediaAttachment(role, slot.kind, label),
+                    DraftMediaAttachment(role, slot.kind, uri, label),
             )
         }
     }
 
     fun removeMedia(role: MediaRole) = mutableState.update { current ->
         current.copy(attachments = current.attachments.filterNot { it.role == role })
+    }
+
+    fun currentDraft(): GenerationDraft? {
+        val current = mutableState.value
+        val workflow = current.selectedWorkflow ?: return null
+        return GenerationDraft(
+            instruction = current.prompt,
+            creativeBrief = current.brief,
+            workflowId = workflow.id,
+            attachments = current.attachments.map { attachment ->
+                GenerationAttachment(
+                    id = "$LOCAL_ATTACHMENT_ID_PREFIX${attachment.role.name.lowercase()}",
+                    uri = attachment.uri,
+                    kind = attachment.kind,
+                    role = attachment.role,
+                )
+            },
+            activeSourceId = current.activeSourceId,
+        )
     }
 
     fun updateBrief(brief: CreativeBrief) {
@@ -282,5 +304,6 @@ class ConversationViewModel @Inject constructor(
         const val LOCAL_SOURCE_ID = "local-source"
         const val DEMO_GENERATION_PREFIX = "demo-"
         const val OUTPUT_SUFFIX = "-output"
+        const val LOCAL_ATTACHMENT_ID_PREFIX = "local-attachment-"
     }
 }

@@ -105,16 +105,19 @@ class ConversationViewModelTest {
         viewModel.initialize(MediaKind.VIDEO)
         viewModel.selectWorkflow(WorkflowRegistry.find(WorkflowCatalog.KLING_2_6_MOTION.id)!!)
 
-        viewModel.attachMedia(MediaRole.SOURCE, MediaKind.IMAGE, "subject.png")
-        viewModel.attachMedia(MediaRole.MOTION_REFERENCE, MediaKind.VIDEO, "motion.mp4")
+        viewModel.attachMedia(MediaRole.SOURCE, MediaKind.IMAGE, "content://draft/subject", "subject.png")
+        viewModel.attachMedia(MediaRole.MOTION_REFERENCE, MediaKind.VIDEO, "content://draft/motion", "motion.mp4")
 
         assertEquals(
             listOf(
-                DraftMediaAttachment(MediaRole.SOURCE, MediaKind.IMAGE, "subject.png"),
-                DraftMediaAttachment(MediaRole.MOTION_REFERENCE, MediaKind.VIDEO, "motion.mp4"),
+                DraftMediaAttachment(MediaRole.SOURCE, MediaKind.IMAGE, "content://draft/subject", "subject.png"),
+                DraftMediaAttachment(MediaRole.MOTION_REFERENCE, MediaKind.VIDEO, "content://draft/motion", "motion.mp4"),
             ),
             viewModel.state.value.attachments,
         )
+        val draft = viewModel.currentDraft()!!
+        assertEquals(MediaRole.SOURCE, draft.attachments.first().role)
+        assertEquals("content://draft/motion", draft.attachments.last().uri)
     }
 }
 
