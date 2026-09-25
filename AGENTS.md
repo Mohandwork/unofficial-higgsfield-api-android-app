@@ -8,6 +8,12 @@
 
 These instructions govern work in this repository. They are intentionally opinionated about clarity and verification, while leaving room to choose the smallest design that fits the feature.
 
+## Questions versus actions
+
+- When the user presents a question, answer the question directly before doing anything else.
+- Do not run commands, edit files, launch apps, browse external services, or otherwise take action merely because an action could help answer a question.
+- Take action only when the user explicitly requests that action or clearly approves a proposed action. Read-only inspection that is necessary to answer a specifically requested review or status question is allowed.
+
 ## Product and technical baseline
 
 - Build a focused, reliable Android experience before adding breadth.
