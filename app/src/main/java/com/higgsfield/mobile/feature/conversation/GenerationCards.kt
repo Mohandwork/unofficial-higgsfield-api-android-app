@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -84,7 +85,9 @@ internal fun TimelineCard(
 
 @Composable
 private fun PromptBubble(prompt: String, modifier: Modifier = Modifier) {
-    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.secondaryContainer, modifier = modifier) { Text(prompt, Modifier.padding(14.dp)) }
+    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.secondaryContainer, modifier = modifier) {
+        SelectionContainer { Text(prompt, Modifier.padding(14.dp)) }
+    }
 }
 
 @Composable
@@ -120,10 +123,14 @@ private fun GenerationProgress(lifecycle: GenerationStatus?) {
 private fun GenerationMetadata(item: TimelineItem, hasOutput: Boolean, active: Boolean, onRetry: (TimelineItem) -> Unit, onCancel: (TimelineItem) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(item.modelName, fontWeight = FontWeight.SemiBold)
-            Text(item.stateLabel.resolve(), style = MaterialTheme.typography.bodySmall)
-            if (hasOutput && item.output?.localUri == null) Text(stringResource(R.string.output_temporary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            item.errorText?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+            SelectionContainer {
+                Column {
+                    Text(item.modelName, fontWeight = FontWeight.SemiBold)
+                    Text(item.stateLabel.resolve(), style = MaterialTheme.typography.bodySmall)
+                    if (hasOutput && item.output?.localUri == null) Text(stringResource(R.string.output_temporary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    item.errorText?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                }
+            }
         }
         when {
             hasOutput && active -> Text(stringResource(R.string.editing_source), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
