@@ -73,6 +73,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.higgsfield.mobile.R
 import com.higgsfield.mobile.core.model.CreativeBrief
+import com.higgsfield.mobile.core.model.GenerationOutput
 import com.higgsfield.mobile.core.model.GenerationOptions
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.MediaRole
@@ -95,7 +96,7 @@ fun ConversationRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var pendingRole by remember { mutableStateOf<MediaRole?>(null) }
     var pendingDownload by remember { mutableStateOf<TimelineItem?>(null) }
-    val outputDownload = rememberLauncherForActivityResult(CreateDocument(OUTPUT_DOCUMENT_MIME_TYPE)) { uri: Uri? ->
+    val outputDownload = rememberLauncherForActivityResult(CreateDocument("*/*")) { uri: Uri? ->
         pendingDownload?.let { item -> if (uri != null) viewModel.downloadOutput(item, uri.toString()) }
         pendingDownload = null
     }
@@ -146,7 +147,7 @@ fun ConversationRoute(
         onCancelGeneration = viewModel::cancelGeneration,
         onDownloadOutput = { item ->
             pendingDownload = item
-            outputDownload.launch("higgsfield-${item.id}")
+            outputDownload.launch("higgsfield-${item.id}.${item.output?.downloadExtension() ?: "bin"}")
         },
         onCopyPrompt = { item -> clipboard.setText(AnnotatedString(item.prompt)) },
         onSharePrompt = { item ->
@@ -523,7 +524,11 @@ private fun EmptyConversation(kind: MediaKind) {
     }
 }
 
-private const val OUTPUT_DOCUMENT_MIME_TYPE = "application/octet-stream"
+private fun GenerationOutput.downloadExtension(): String = when (kind) {
+    MediaKind.IMAGE -> remoteUrl.substringBefore('?').substringAfterLast('.', "jpg").takeIf { it.length in 2..5 } ?: "jpg"
+    MediaKind.VIDEO -> "mp4"
+    MediaKind.AUDIO -> "mp3"
+}
 
 private const val VIDEO_MIME_TYPE = "video/*"
 

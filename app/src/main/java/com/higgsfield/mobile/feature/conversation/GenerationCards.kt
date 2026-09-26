@@ -70,22 +70,40 @@ internal fun TimelineCard(
     onSharePrompt: (TimelineItem) -> Unit,
 ) {
     val hasOutput = item.lifecycle is GenerationStatus.Completed && item.outputLabel != null
-    val isFailure = item.lifecycle is GenerationStatus.Failed || item.lifecycle is GenerationStatus.Nsfw || item.lifecycle is GenerationStatus.UnknownSubmissionOutcome
-    val statusDescription = stringResource(R.string.generation_status_content_description, item.modelName, item.stateLabel.resolve())
+    val isFailure =
+        item.lifecycle is GenerationStatus.Failed || item.lifecycle is GenerationStatus.Nsfw || item.lifecycle is GenerationStatus.UnknownSubmissionOutcome
+    val statusDescription = stringResource(
+        R.string.generation_status_content_description,
+        item.modelName,
+        item.stateLabel.resolve()
+    )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         PromptBubble(item.prompt, Modifier.align(Alignment.End))
-        Card(modifier = Modifier.fillMaxWidth().semantics { contentDescription = statusDescription }) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .semantics { contentDescription = statusDescription }) {
             GenerationMediaSurface(item, hasOutput, isFailure)
             GenerationProgress(item.lifecycle)
             GenerationMetadata(item, hasOutput, active, onRetry, onCancel)
-            if (hasOutput) GenerationActions(item, onDownload, onSharePrompt, onCopyPrompt, onUseOutput)
+            if (hasOutput) GenerationActions(
+                item,
+                onDownload,
+                onSharePrompt,
+                onCopyPrompt,
+                onUseOutput
+            )
         }
     }
 }
 
 @Composable
 private fun PromptBubble(prompt: String, modifier: Modifier = Modifier) {
-    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.secondaryContainer, modifier = modifier) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        modifier = modifier
+    ) {
         SelectionContainer { Text(prompt, Modifier.padding(14.dp)) }
     }
 }
@@ -93,22 +111,49 @@ private fun PromptBubble(prompt: String, modifier: Modifier = Modifier) {
 @Composable
 private fun GenerationMediaSurface(item: TimelineItem, hasOutput: Boolean, isFailure: Boolean) {
     Box(
-        Modifier.fillMaxWidth().height(if (hasOutput) 220.dp else 156.dp).background(Brush.linearGradient(if (isFailure) listOf(MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.surfaceVariant) else listOf(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.primaryContainer))),
+        Modifier
+            .fillMaxWidth()
+            .height(if (hasOutput) 220.dp else 156.dp)
+            .background(
+                Brush.linearGradient(
+                    if (isFailure) listOf(
+                        MaterialTheme.colorScheme.errorContainer,
+                        MaterialTheme.colorScheme.surfaceVariant
+                    ) else listOf(
+                        MaterialTheme.colorScheme.secondaryContainer,
+                        MaterialTheme.colorScheme.primaryContainer
+                    )
+                )
+            ),
         contentAlignment = Alignment.Center,
     ) {
         if (hasOutput) item.output?.let { GenerationOutputPreview(it) } else GenerationPlaceholder(
             item.stateLabel.resolve(),
             item.lifecycle is GenerationStatus.Queued || item.lifecycle is GenerationStatus.InProgress,
         )
-        if (hasOutput && item.output == null) Text(item.outputLabel?.resolve().orEmpty(), style = MaterialTheme.typography.titleLarge)
+        if (hasOutput && item.output == null) Text(
+            item.outputLabel?.resolve().orEmpty(),
+            style = MaterialTheme.typography.titleLarge
+        )
     }
 }
 
 @Composable
 private fun GenerationPlaceholder(label: String, isLoading: Boolean) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (isLoading) CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
-        else Icon(Icons.Rounded.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (isLoading) CircularProgressIndicator(
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(32.dp)
+        )
+        else Icon(
+            Icons.Rounded.AutoAwesome,
+            null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(32.dp)
+        )
         Text(label, style = MaterialTheme.typography.titleMedium)
     }
 }
@@ -116,24 +161,53 @@ private fun GenerationPlaceholder(label: String, isLoading: Boolean) {
 @Composable
 private fun GenerationProgress(lifecycle: GenerationStatus?) {
     val inProgress = lifecycle as? GenerationStatus.InProgress ?: return
-    if (inProgress.progress == null) LinearProgressIndicator(Modifier.fillMaxWidth()) else LinearProgressIndicator(progress = { inProgress.progress }, modifier = Modifier.fillMaxWidth())
+    if (inProgress.progress == null) LinearProgressIndicator(Modifier.fillMaxWidth()) else LinearProgressIndicator(
+        progress = { inProgress.progress },
+        modifier = Modifier.fillMaxWidth()
+    )
 }
 
 @Composable
-private fun GenerationMetadata(item: TimelineItem, hasOutput: Boolean, active: Boolean, onRetry: (TimelineItem) -> Unit, onCancel: (TimelineItem) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun GenerationMetadata(
+    item: TimelineItem,
+    hasOutput: Boolean,
+    active: Boolean,
+    onRetry: (TimelineItem) -> Unit,
+    onCancel: (TimelineItem) -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Column(Modifier.weight(1f)) {
             SelectionContainer {
                 Column {
                     Text(item.modelName, fontWeight = FontWeight.SemiBold)
                     Text(item.stateLabel.resolve(), style = MaterialTheme.typography.bodySmall)
-                    if (hasOutput && item.output?.localUri == null) Text(stringResource(R.string.output_temporary), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    item.errorText?.let { Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+                    if (hasOutput && item.output?.localUri == null) Text(
+                        stringResource(R.string.output_temporary),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    item.errorText?.let {
+                        Text(
+                            it.resolve(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }
         when {
-            hasOutput && active -> Text(stringResource(R.string.editing_source), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+            hasOutput && active -> Text(
+                stringResource(R.string.editing_source),
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelLarge
+            )
+
             item.canRetry -> TextButton(onClick = { onRetry(item) }) { Text(stringResource(R.string.retry)) }
             item.canCancel -> TextButton(onClick = { onCancel(item) }) { Text(stringResource(R.string.cancel_generation)) }
         }
@@ -141,12 +215,48 @@ private fun GenerationMetadata(item: TimelineItem, hasOutput: Boolean, active: B
 }
 
 @Composable
-private fun GenerationActions(item: TimelineItem, onDownload: (TimelineItem) -> Unit, onSharePrompt: (TimelineItem) -> Unit, onCopyPrompt: (TimelineItem) -> Unit, onUseOutput: (TimelineItem) -> Unit) {
+private fun GenerationActions(
+    item: TimelineItem,
+    onDownload: (TimelineItem) -> Unit,
+    onSharePrompt: (TimelineItem) -> Unit,
+    onCopyPrompt: (TimelineItem) -> Unit,
+    onUseOutput: (TimelineItem) -> Unit
+) {
     HorizontalDivider()
-    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         TextButton(onClick = { onDownload(item) }) { Text(stringResource(R.string.download)) }
-        TextButton(onClick = { onSharePrompt(item) }, enabled = item.prompt.isNotBlank()) { Icon(Icons.Rounded.Share, null, modifier = Modifier.size(16.dp)); Text(stringResource(R.string.share), Modifier.padding(start = 4.dp)) }
-        TextButton(onClick = { onCopyPrompt(item) }, enabled = item.prompt.isNotBlank()) { Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(16.dp)); Text(stringResource(R.string.copy_prompt), Modifier.padding(start = 4.dp)) }
+        TextButton(onClick = { onSharePrompt(item) }, enabled = item.prompt.isNotBlank()) {
+            Icon(
+                Icons.Rounded.Share,
+                null,
+                modifier = Modifier.size(16.dp)
+            ); Text(stringResource(R.string.share), Modifier.padding(start = 4.dp))
+        }
+        TextButton(onClick = { onCopyPrompt(item) }, enabled = item.prompt.isNotBlank()) {
+            Icon(
+                Icons.Rounded.ContentCopy,
+                null,
+                modifier = Modifier.size(16.dp)
+            ); Text(stringResource(R.string.copy_prompt), Modifier.padding(start = 4.dp))
+        }
+
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = 4.dp,
+                vertical = 4.dp
+            ),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         TextButton(onClick = { onUseOutput(item) }) { Text(stringResource(R.string.reuse_parameters)) }
     }
 }
@@ -154,7 +264,13 @@ private fun GenerationActions(item: TimelineItem, onDownload: (TimelineItem) -> 
 @Composable
 private fun GenerationOutputPreview(output: GenerationOutput) {
     when (output.kind) {
-        MediaKind.IMAGE -> AsyncImage(model = output.localUri ?: output.remoteUrl, contentDescription = stringResource(R.string.generated_image), modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        MediaKind.IMAGE -> AsyncImage(
+            model = output.localUri ?: output.remoteUrl,
+            contentDescription = stringResource(R.string.generated_image),
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
         MediaKind.VIDEO, MediaKind.AUDIO -> MediaOutputPlayer(output)
     }
 }
@@ -162,7 +278,19 @@ private fun GenerationOutputPreview(output: GenerationOutput) {
 @Composable
 private fun MediaOutputPlayer(output: GenerationOutput) {
     val context = LocalContext.current
-    val exoPlayer = remember(output.id, output.localUri, output.remoteUrl) { ExoPlayer.Builder(context).build().apply { setMediaItem(MediaItem.fromUri(output.localUri ?: output.remoteUrl)); prepare() } }
+    val exoPlayer = remember(output.id, output.localUri, output.remoteUrl) {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(
+                MediaItem.fromUri(
+                    output.localUri ?: output.remoteUrl
+                )
+            ); prepare()
+        }
+    }
     DisposableEffect(exoPlayer) { onDispose(exoPlayer::release) }
-    AndroidView(factory = { PlayerView(it).apply { player = exoPlayer; useController = true } }, update = { it.player = exoPlayer }, modifier = Modifier.fillMaxSize())
+    AndroidView(
+        factory = { PlayerView(it).apply { player = exoPlayer; useController = true } },
+        update = { it.player = exoPlayer },
+        modifier = Modifier.fillMaxSize()
+    )
 }
