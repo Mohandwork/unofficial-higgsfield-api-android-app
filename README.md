@@ -56,7 +56,7 @@ The API is stateless, so the app will explicitly compose context from the conver
 
 ## Implemented product state
 
-Slices 1–9 and Slice 10.1–10.6 are implemented. The app currently includes:
+The implemented foundation and API lifecycle currently include:
 
 - Room-backed generation records with draft, attachment, output, lineage, and lifecycle restoration.
 - Real endpoint-specific request schemas behind a shared adapter for the catalogued model families.
@@ -65,7 +65,7 @@ Slices 1–9 and Slice 10.1–10.6 are implemented. The app currently includes:
 - Actual output rendering, Media3 playback, system save-document downloads, temporary remote-output labeling, and persisted local download URIs.
 - A compact workspace redesign with model-aware controls, estimate/details sheet, capability-gated composer actions, reduced-motion behavior, and accessibility semantics.
 
-Slice 10.7 is ready but intentionally not run yet. It requires one explicitly approved real-device/API request using the local credentials, followed by status-lifecycle, restart recovery, media download, and 16 KB compatibility verification.
+The remaining pre-live verification requires one explicitly approved real-device/API request using the local credentials, followed by status-lifecycle, restart recovery, media download, and 16 KB compatibility verification.
 
 ## Architecture direction
 
@@ -97,6 +97,6 @@ Use the ignored `app/secrets/secrets.properties` file locally with the same `HF_
 
 ## Development status
 
-The project is at the final pre-live verification stage. Automated verification currently passes with 38 unit tests, zero lint errors, and a successful debug APK build. New Compose/UI tests are intentionally deferred under the temporary Slice 10 test rule; affected non-UI tests continue to be maintained.
+The project is at the final pre-live verification stage. Automated verification currently passes with 38 unit tests, zero lint errors, and a successful debug APK build. New Compose/UI tests are intentionally deferred under the current temporary UI-test rule; affected non-UI tests continue to be maintained.
 
 Current delivery progress is tracked in [`docs/progress.md`](docs/progress.md).
