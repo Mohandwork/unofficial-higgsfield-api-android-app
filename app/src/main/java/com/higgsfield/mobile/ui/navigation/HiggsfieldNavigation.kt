@@ -10,18 +10,14 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.feature.conversation.ConversationRoute
-import com.higgsfield.mobile.feature.home.HomeScreen
 import kotlinx.serialization.Serializable
-
-@Serializable
-data object HomeKey : NavKey
 
 @Serializable
 data class ConversationKey(val mediaKind: MediaKind) : NavKey
 
 @Composable
 fun HiggsfieldApp() {
-    val backStack = rememberNavBackStack(HomeKey)
+    val backStack = rememberNavBackStack(ConversationKey(MediaKind.IMAGE))
     NavDisplay(
         backStack = backStack,
         onBack = { backStack.removeLastOrNull() },
@@ -30,12 +26,6 @@ fun HiggsfieldApp() {
             rememberViewModelStoreNavEntryDecorator(),
         ),
         entryProvider = entryProvider {
-            entry<HomeKey> {
-                HomeScreen(
-                    onOpenImages = dropUnlessResumed { backStack.add(ConversationKey(MediaKind.IMAGE)) },
-                    onOpenVideos = dropUnlessResumed { backStack.add(ConversationKey(MediaKind.VIDEO)) },
-                )
-            }
             entry<ConversationKey> { route ->
                 ConversationRoute(
                     mediaKind = route.mediaKind,
