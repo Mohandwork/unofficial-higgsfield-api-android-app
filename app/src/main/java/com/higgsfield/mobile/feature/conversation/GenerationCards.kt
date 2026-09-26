@@ -231,13 +231,6 @@ private fun GenerationActions(
         verticalAlignment = Alignment.CenterVertically
     ) {
         TextButton(onClick = { onDownload(item) }) { Text(stringResource(R.string.download)) }
-        TextButton(onClick = { onSharePrompt(item) }, enabled = item.prompt.isNotBlank()) {
-            Icon(
-                Icons.Rounded.Share,
-                null,
-                modifier = Modifier.size(16.dp)
-            ); Text(stringResource(R.string.share), Modifier.padding(start = 4.dp))
-        }
         TextButton(onClick = { onCopyPrompt(item) }, enabled = item.prompt.isNotBlank()) {
             Icon(
                 Icons.Rounded.ContentCopy,
