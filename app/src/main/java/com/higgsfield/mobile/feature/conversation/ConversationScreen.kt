@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -51,13 +52,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -193,32 +194,54 @@ private fun ConversationScreen(
     onSharePrompt: (TimelineItem) -> Unit,
 ) {
     var pendingConversation by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
+    var pendingConversationSwitch by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
+    var pendingRemoval by remember { mutableStateOf(false) }
     val requestConversationSwitch: (String, MediaKind) -> Unit = { id, kind ->
-        if (id != state.conversationId && (state.prompt.isNotBlank() || state.attachments.isNotEmpty())) {
-            pendingConversation = id to kind
-        } else onSelectConversation(id, kind)
+        if (id != state.conversationId) {
+            if (state.prompt.isNotBlank() || state.attachments.isNotEmpty()) {
+                pendingConversation = id to kind
+            } else {
+                pendingConversationSwitch = id to kind
+            }
+        }
+    }
+    val requestConversationRemoval: () -> Unit = {
+        if (!pendingRemoval) pendingRemoval = true
+    }
+    LaunchedEffect(pendingRemoval) {
+        if (pendingRemoval) {
+            // Let the confirmation dialog (and, on compact screens, the history sheet) leave
+            // composition before showing the workspace transition.
+            withFrameNanos { }
+            pendingRemoval = false
+            onRemoveConversation()
+        }
+    }
+    LaunchedEffect(pendingConversationSwitch) {
+        pendingConversationSwitch?.let { (id, kind) ->
+            // A sheet or discard dialog must be gone before the transition overlay starts.
+            withFrameNanos { }
+            pendingConversationSwitch = null
+            onSelectConversation(id, kind)
+        }
     }
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    HeaderControls(
-                        state = state,
-                        onSelectMediaKind = onSelectMediaKind,
-                        onToggleModelMenu = onToggleModelMenu,
-                        onSelectWorkflow = onSelectWorkflow,
-                        onShowInfo = { onShowInfo(true) },
-                        onCreateConversation = { onCreateConversation(state.mediaKind) },
-                        onShowHistory = { onShowHistory(true) },
-                    )
-                },
+            HeaderControls(
+                state = state,
+                onSelectMediaKind = onSelectMediaKind,
+                onToggleModelMenu = onToggleModelMenu,
+                onSelectWorkflow = onSelectWorkflow,
+                onShowInfo = { onShowInfo(true) },
+                onCreateConversation = { onCreateConversation(state.mediaKind) },
+                onShowHistory = { onShowHistory(true) },
             )
         },
     ) { padding ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
             if (maxWidth >= 840.dp) {
                 Row(Modifier.fillMaxSize()) {
-                    ConversationRail(state, requestConversationSwitch, onCreateConversation, onRenameConversation, onRemoveConversation, Modifier.width(280.dp).fillMaxHeight())
+                    ConversationRail(state, requestConversationSwitch, onCreateConversation, onRenameConversation, requestConversationRemoval, Modifier.width(280.dp).fillMaxHeight())
                     HorizontalDivider(Modifier.fillMaxHeight().width(1.dp))
                     Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
                 }
@@ -231,7 +254,22 @@ private fun ConversationScreen(
 
     if (state.infoOpen) ModelInfoDialog(state.selectedWorkflow, { onShowInfo(false) })
     if (state.optionsOpen) OptionsDialog(state.selectedWorkflow, state.options, { onShowOptions(false) }, onUpdateOptions)
-    if (state.historyOpen) ConversationHistorySheet(state, requestConversationSwitch, onCreateConversation, onRenameConversation, onRemoveConversation, { onShowHistory(false) })
+    if (state.historyOpen) {
+        ConversationHistorySheet(
+            state = state,
+            onSelectConversation = { id, kind ->
+                onShowHistory(false)
+                requestConversationSwitch(id, kind)
+            },
+            onCreateConversation = onCreateConversation,
+            onRenameConversation = onRenameConversation,
+            onRemoveConversation = {
+                onShowHistory(false)
+                requestConversationRemoval()
+            },
+            onDismiss = { onShowHistory(false) },
+        )
+    }
     if (state.briefOpen) CreativeBriefSheet(state.brief, { onShowBrief(false) }, onUpdateBrief)
     pendingConversation?.let { (id, kind) ->
         AlertDialog(
@@ -239,7 +277,12 @@ private fun ConversationScreen(
             title = { Text(stringResource(R.string.switch_chat)) },
             text = { Text(stringResource(R.string.switch_chat_discard_draft)) },
             dismissButton = { TextButton(onClick = { pendingConversation = null }) { Text(stringResource(R.string.continue_editing)) } },
-            confirmButton = { TextButton(onClick = { pendingConversation = null; onSelectConversation(id, kind) }) { Text(stringResource(R.string.switch_chat_confirm)) } },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingConversation = null
+                    pendingConversationSwitch = id to kind
+                }) { Text(stringResource(R.string.switch_chat_confirm)) }
+            },
         )
     }
 }
@@ -290,46 +333,57 @@ private fun HeaderControls(
     onCreateConversation: () -> Unit,
     onShowHistory: () -> Unit,
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        IconButton(onClick = onShowHistory) {
-            Icon(Icons.Rounded.Menu, stringResource(R.string.conversations), tint = MaterialTheme.colorScheme.primary)
-        }
-        TextButton(onClick = { onSelectMediaKind(MediaKind.IMAGE) }) {
-            Text(stringResource(R.string.image), color = if (state.mediaKind == MediaKind.IMAGE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        TextButton(onClick = { onSelectMediaKind(MediaKind.VIDEO) }) {
-            Text(stringResource(R.string.video), color = if (state.mediaKind == MediaKind.VIDEO) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Box(Modifier.weight(1f)) {
-            AssistChip(
-                onClick = onToggleModelMenu,
-                label = { Text(state.selectedWorkflow?.displayName ?: stringResource(R.string.choose_model), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            )
-            DropdownMenu(expanded = state.modelMenuOpen, onDismissRequest = onToggleModelMenu) {
-                state.workflows.forEach { workflow ->
-                    DropdownMenuItem(
-                        text = { Text(workflow.displayName) },
-                        onClick = { onSelectWorkflow(workflow) },
+    Surface(color = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 8.dp, vertical = 4.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onShowHistory) {
+                    Icon(Icons.Rounded.Menu, stringResource(R.string.conversations), tint = MaterialTheme.colorScheme.primary)
+                }
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    if (state.isOnline) Icons.Rounded.CloudDone else Icons.Rounded.CloudOff,
+                    contentDescription = stringResource(if (state.isOnline) R.string.online else R.string.offline),
+                    tint = if (state.isOnline) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(20.dp),
+                )
+                IconButton(onClick = onCreateConversation) {
+                    Icon(Icons.Rounded.Add, stringResource(R.string.new_chat), tint = MaterialTheme.colorScheme.primary)
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                TextButton(onClick = { onSelectMediaKind(MediaKind.IMAGE) }) {
+                    Text(stringResource(R.string.image), color = if (state.mediaKind == MediaKind.IMAGE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = { onSelectMediaKind(MediaKind.VIDEO) }) {
+                    Text(stringResource(R.string.video), color = if (state.mediaKind == MediaKind.VIDEO) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Box(Modifier.weight(1f)) {
+                    AssistChip(
+                        onClick = onToggleModelMenu,
+                        label = { Text(state.selectedWorkflow?.displayName ?: stringResource(R.string.choose_model), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        modifier = Modifier.fillMaxWidth(),
                     )
+                    DropdownMenu(expanded = state.modelMenuOpen, onDismissRequest = onToggleModelMenu) {
+                        state.workflows.forEach { workflow ->
+                            DropdownMenuItem(
+                                text = { Text(workflow.displayName) },
+                                onClick = { onSelectWorkflow(workflow) },
+                            )
+                        }
+                    }
+                }
+                IconButton(onClick = onShowInfo) {
+                    Icon(Icons.Rounded.Info, stringResource(R.string.model_details_and_cost), tint = MaterialTheme.colorScheme.primary)
                 }
             }
         }
-        IconButton(onClick = onShowInfo) {
-            Icon(Icons.Rounded.Info, stringResource(R.string.model_details_and_cost), tint = MaterialTheme.colorScheme.primary)
-        }
-        IconButton(onClick = onCreateConversation) {
-            Icon(Icons.Rounded.Add, stringResource(R.string.new_chat), tint = MaterialTheme.colorScheme.primary)
-        }
-        Icon(
-            if (state.isOnline) Icons.Rounded.CloudDone else Icons.Rounded.CloudOff,
-            contentDescription = stringResource(if (state.isOnline) R.string.online else R.string.offline),
-            tint = if (state.isOnline) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
-            modifier = Modifier.size(18.dp),
-        )
     }
 }
 

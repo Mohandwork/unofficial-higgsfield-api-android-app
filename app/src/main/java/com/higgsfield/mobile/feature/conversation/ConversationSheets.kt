@@ -66,9 +66,16 @@ internal fun ModelInfoDialog(workflow: WorkflowDescriptor?, onDismiss: () -> Uni
 
 @Composable
 private fun DetailRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth()) {
-        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyMedium)
+    if (value.length > 24) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(value, style = MaterialTheme.typography.bodyMedium)
+        }
+    } else {
+        Row(Modifier.fillMaxWidth()) {
+            Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            Text(value, style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }
 

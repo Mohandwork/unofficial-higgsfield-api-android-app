@@ -1,56 +1,49 @@
-# Implementation Progress
-
-This file is the running handoff record for Higgsfield Mobile. Update it at the end of every implementation slice, review cycle, or explicit stop.
+# Progress and verification
 
 ## Current checkpoint
 
-- Status: Slice 10 and the Slice 11 workspace redesign are implemented; compact/expanded real-device visual QA remains.
-- Git: changes are intentionally uncommitted. Do not commit or push without current-conversation permission.
-- API safety: credentials are present only in ignored `app/secrets/secrets.properties`; no Higgsfield request, upload, estimate, or billable generation has been made.
-- Toolchain: AGP 9.4.0, Gradle 9.6.0, AGP built-in Kotlin, KSP, and Android Studio JBR 25 verified locally.
-- Build conventions: `gradle/libs.versions.toml` is the source of truth for project plugin and dependency versions.
-- Code conventions: production domain/data literals are locally scoped constants; UI state carries resource-backed text; `core/error` owns persisted safe error mapping.
-- 16 KB compatibility: `androidx.graphics:graphics-path` is explicitly resolved to `1.1.0` because Compose's transitive `1.0.1` was the native library reported by Android compatibility tooling.
+The refined product implementation is complete in the working tree. The remaining work is verification polish and provider-dependent integration, not an unfinished core UX flow.
 
-## Delivery slices
+## Completed
 
-| Slice | State | Evidence / next work |
-|---|---|---|
-| 1. Documentation and foundation | Complete | Plan and architecture documents saved; app shell, Hilt, Navigation 3, edge-to-edge, and theme added. Independently reviewed. |
-| 2. Deterministic fake UI | Implemented | Home, Image/Video workspace, active editing source, local demo lineage, model picker, brief, and visible offline/cost states exist. Compose/screenshot accessibility coverage remains. |
-| 3. Persistence and restoration | Complete | Room schema, Room/DataStore, persisted conversation/brief/workflow/timeline, active-source policy, and in-memory SQLite tests added. Independent review completed after the latest corrections; no blocking findings. |
-| 4. Secure API lifecycle | Complete | Validated connectivity, credential-safe Retrofit service, authenticated upload-URL requests, explicitly unauthenticated presigned uploads, validated status/cancel URLs, status synchronization, backoff polling, and network-constrained WorkManager recovery added. Model-specific estimate and submission bodies remain intentionally deferred to the first verified adapter. No real request without explicit billable approval. |
-| 5. SOUL vertical slice | Complete | A generic schema-driven workflow adapter and dynamic submission boundary are verified with the SOUL V2 Standard prompt schema, fixture coverage, and MockWebServer authorization/body/route coverage. SOUL Standard is registered with the same prompt schema and its own verified route. |
-| 6. Verified family schemas | Complete | The single shared adapter now has real routes and request field configurations for every catalog entry: SOUL Cinema; Marketing Studio Alpha, Flare, and Sunburst; Qwen Image 3 and Edit; Seedance 2/2.5; all listed Kling workflows; Cinema Studio 4; and Wan 2.6, 2.7, 3, and 3 Prime. Text-to-video routes use their minimal documented prompt body; shared image/video URL values support Kling Motion; O3 and Omni use their documented image-reference routes. |
-| 7. Local media-role assignment | Complete | The conversation UI derives attachment slots from the selected workflow, lets users assign picked images/videos to source, motion-reference, or image-reference roles, and removes slots that a newly selected model does not support. Picked device URIs remain local until the secure upload lifecycle supplies public URLs. |
-| 8. Secure attachment upload bridge | Complete | Picked `content://` URIs and media roles flow into `GenerationDraft`. The upload coordinator validates MIME/kind compatibility, obtains a documented upload ticket, enforces HTTPS ticket/public URLs, streams through the unauthenticated presigned client, reuses already uploaded media, and returns centralized failures. No real network request was made during verification. |
-| 9. Repository submission | Complete | `RoomGenerationRepository` persists a draft before network work, uploads local attachments, maps a verified schema only after public URLs exist, submits once, validates and persists accepted request metadata, then performs status-only reconciliation. The composer now invokes this path rather than the local demo. |
-| 10. Slice 10 umbrella | Planned | Split into seven reviewable slices: repository integration hardening; real generation lifecycle UI; output handling; model-aware controls and static estimates; locked workspace redesign; accessibility/performance; and final real-device/API verification. |
-| 10.1 Repository integration hardening | Complete | In-memory Room + MockWebServer coverage verifies one-shot accepted submission persistence, full draft/media reconstruction, and ambiguous disconnect persistence as `UNKNOWN_SUBMISSION_OUTCOME` without a generation retry. |
-| 10.2 Generation lifecycle UI | Complete | Timeline cards project persisted records as queued, generating, completed, failed, moderated, canceled, and unknown-submission states. Only retryable failures offer retry; only queued requests offer cancel; accepted/restored active work receives status-only foreground polling. |
-| 10.3 Output handling | Complete | Coil renders images; Media3 renders video/audio. System create-document downloads stream validated HTTPS output and persist the local URI only after success; remote-only media is explicitly temporary and failures preserve it. |
-| 10.4 Model-aware controls | Complete | Workflow metadata declares verified adjustable options and static-estimate provenance. Only supported controls render, invalid options clear on model changes, and pricing/credits/latency show unavailable until manually documented. |
-| 10.5 Locked workspace redesign | Complete | Compact top bar, single model/estimate strip, modal details sheet, capability-gated composer actions, completed-output actions, and functional attachment/progress motion are implemented. |
-| 10.6 Accessibility and performance | Complete | Semantic labels/headings, connection and generation accessibility descriptions, reduced-motion behavior, adaptive/IME layout, and keyed/content-typed timeline rendering are implemented. Compose UI tests remain deferred under the temporary Slice 10 rule. |
-| 10.7 Real-device/API verification | Complete | The user completed real-device/API verification and confirmed 16 KB compatibility after removing the unused Graphics Path dependency and upgrading DataStore to `1.2.1`. `app/secrets/secrets.properties` remains detected and ignored. |
-| 11 Conversation workspace redesign | Implemented, visual QA pending | Rebuilt the Image/Video header, model details sheet entry point, media-first feed, reference-aware input dock, model-aware presets sheet, dark cyan/violet visual system, and result actions to match the supplied concept. The post-redesign backlog now includes a sectioned persistent chat history rail/sheet, new-chat and rename behavior, most-recent workspace restoration, and Creative Brief exclusion composition. Validate the visual result on compact and expanded devices. |
+- Image and Video workspaces with independent persisted state.
+- Room-backed conversation history with compact drawer and expanded rail.
+- New chat, rename, explicit chat removal confirmation, and recovery to a valid conversation.
+- Creative Brief editing, persistence, and capability-aware prompt/negative-prompt composition.
+- Reference selection with direct single-slot CTA behavior; references remain visible when a generation fails.
+- Generation timeline with queued/running/success/failure/cancelled states, progress indicators, retry, and stale-response protection.
+- Provider error detail rendered from the response body for all relevant status codes, including authentication and credit failures.
+- Static model catalog details from the supplied pricing/spec material; the bottom price chip was removed.
+- Neon-lime/cyan light and dark themes plus matching mode-aware splash artwork.
+- Loading overlays for chat creation, switching, removal, and other larger transitions.
+- Local-only drafts and credential-safe configuration.
 
-Slice 10 temporary test rule: skip new UI/Compose tests for this phase; fix only edge-case tests affected by each change and add a new non-UI test only when the changed behavior genuinely requires coverage. This scope does not alter the repository-wide testing rules outside Slice 10.
+## Verification completed
 
-## Latest verification
+The following debug checks have passed during the current implementation pass:
 
-- `testDebugUnitTest`: 38 tests passed after adding Slice 10.1 in-memory Room + MockWebServer repository integration coverage. Kotlin incremental compilation was disabled because the local Kotlin cache was locked.
-- Tests cover streaming upload preparation, MIME/kind rejection, existing remote-media reuse, role-to-draft mapping, generic schemas, registry coverage, central errors, persistence, and conversation state.
-- `lintDebug assembleDebug`: passed; lint has zero errors and 23 non-blocking version/plural/resource suggestions, and the debug APK assembled successfully.
-- `zipalign -c -P 16 -v 4 app/build/outputs/apk/debug/app-debug.apk`: passed for all packaged native libraries, including `libandroidx.graphics.path.so`.
-- Lint: zero errors; 23 dependency-version, plural, and resource suggestions remain.
-- APK: debug assembly succeeded.
-- Debug API networking now logs sanitized OkHttp method/host-path/query/ordinary headers/status/timing and JSON request/response bodies; authorization/secret headers, signed query values, private media URL fields, and presigned binary payloads remain excluded.
-- `:app:compileDebugKotlin` and `:app:assembleDebug` passed after the Slice 11 redesign.
-- `:app:testDebugUnitTest` passed after adding deterministic Creative Brief exclusion composition and persistent multi-chat history behavior.
+- `./gradlew :app:testDebugUnitTest`
+- `./gradlew :app:compileDebugKotlin`
+- `./gradlew :app:assembleDebug`
+- `git diff --check`
 
-## Known follow-up
+The debug APK has also been checked against the 16 KB page-size packaging requirement. Live provider calls remain opt-in and are not required for normal builds or tests.
 
-- Add Compose/screenshot coverage for compact, medium, expanded, large-font, and reduced-motion workspace states.
-- Perform visual QA for Slice 11 on compact and expanded devices.
-- Add live estimates only after a supported authenticated estimate body is verified and billable-operation approval is granted.
+## Known limitations / next verification steps
+
+- There are no Compose screenshot tests yet; manual compact/expanded device review is still recommended.
+- Live pricing/credit estimates are intentionally absent. They require an authenticated provider schema and explicit approval for billable requests; static catalog values remain available.
+- Provider-side conversation deletion is out of scope. “Chat removal” deletes the local conversation and its related local records.
+
+## How to reproduce the checks
+
+From the repository root:
+
+```text
+./gradlew :app:testDebugUnitTest
+./gradlew :app:compileDebugKotlin
+./gradlew :app:assembleDebug
+git diff --check
+```
+
+For a live API check, configure local secrets from `secrets.properties.example` and submit a request intentionally. Do not place credentials in source control or share unsanitized HTTP logs.

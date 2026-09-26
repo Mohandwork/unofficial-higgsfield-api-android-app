@@ -115,31 +115,45 @@ private fun PromptInput(state: ConversationUiState, onPromptChange: (String) -> 
 @Composable
 private fun ComposerActions(state: ConversationUiState, onShowBrief: (Boolean) -> Unit, onShowOptions: (Boolean) -> Unit, onPickMedia: (MediaRole, MediaKind) -> Unit) {
     var attachmentMenuOpen by remember { mutableStateOf(false) }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        when (state.attachmentSlots.size) {
-            0 -> Unit
-            1 -> {
-                val slot = state.attachmentSlots.single()
-                AssistChip(
-                    onClick = { onPickMedia(slot.role, slot.kind) },
-                    label = { Text(stringResource(R.string.add_reference)) },
-                    leadingIcon = { Icon(Icons.Rounded.AddPhotoAlternate, null) },
-                )
-            }
-            else -> Box {
-                AssistChip(onClick = { attachmentMenuOpen = true }, label = { Text(stringResource(R.string.add_reference)) }, leadingIcon = { Icon(Icons.Rounded.AddPhotoAlternate, null) })
-                DropdownMenu(expanded = attachmentMenuOpen, onDismissRequest = { attachmentMenuOpen = false }) {
-                    state.attachmentSlots.forEach { slot ->
-                        DropdownMenuItem(text = { Text(attachmentRoleText(slot.role)) }, onClick = {
-                            attachmentMenuOpen = false
-                            onPickMedia(slot.role, slot.kind)
-                        })
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            when (state.attachmentSlots.size) {
+                0 -> Unit
+                1 -> {
+                    val slot = state.attachmentSlots.single()
+                    AssistChip(
+                        onClick = { onPickMedia(slot.role, slot.kind) },
+                        label = { Text(stringResource(R.string.add_reference), maxLines = 1) },
+                        leadingIcon = { Icon(Icons.Rounded.AddPhotoAlternate, null) },
+                    )
+                }
+                else -> Box {
+                    AssistChip(onClick = { attachmentMenuOpen = true }, label = { Text(stringResource(R.string.add_reference), maxLines = 1) }, leadingIcon = { Icon(Icons.Rounded.AddPhotoAlternate, null) })
+                    DropdownMenu(expanded = attachmentMenuOpen, onDismissRequest = { attachmentMenuOpen = false }) {
+                        state.attachmentSlots.forEach { slot ->
+                            DropdownMenuItem(text = { Text(attachmentRoleText(slot.role)) }, onClick = {
+                                attachmentMenuOpen = false
+                                onPickMedia(slot.role, slot.kind)
+                            })
+                        }
                     }
                 }
             }
+            if (state.selectedWorkflow?.supportedOptions?.isNotEmpty() == true) {
+                AssistChip(onClick = { onShowOptions(true) }, label = { Text(stringResource(R.string.presets), maxLines = 1) }, leadingIcon = { Icon(Icons.Rounded.Tune, null) })
+            }
         }
-        if (state.selectedWorkflow?.supportedOptions?.isNotEmpty() == true) AssistChip(onClick = { onShowOptions(true) }, label = { Text(stringResource(R.string.presets)) }, leadingIcon = { Icon(Icons.Rounded.Tune, null) })
-        AssistChip(onClick = { onShowBrief(true) }, label = { Text(stringResource(if (state.brief == com.higgsfield.mobile.core.model.CreativeBrief()) R.string.brief_empty_summary else R.string.brief_active_summary)) })
+        AssistChip(
+            onClick = { onShowBrief(true) },
+            label = {
+                Text(
+                    stringResource(if (state.brief == com.higgsfield.mobile.core.model.CreativeBrief()) R.string.brief_empty_summary else R.string.brief_active_summary),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
