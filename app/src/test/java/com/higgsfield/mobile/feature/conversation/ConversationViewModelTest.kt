@@ -29,8 +29,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -282,6 +284,110 @@ class ConversationViewModelTest {
     }
 
     @Test
+    fun `create event emits one navigation effect after persistence succeeds`() = runTest {
+        val viewModel = ConversationViewModel(FakeConversationPersistence())
+        viewModel.initialize(MediaKind.IMAGE)
+
+        viewModel.onEvent(ConversationUiEvent.CreateConversation(MediaKind.IMAGE))
+
+        assertEquals(
+            ConversationUiEffect.NavigateToConversation("image-new", MediaKind.IMAGE),
+            viewModel.effects.first(),
+        )
+        assertTrue(viewModel.state.value.isTransitioning)
+    }
+
+    @Test
+    fun `tapping the selected media tab twice does not start a transition`() {
+        for (kind in listOf(MediaKind.IMAGE, MediaKind.VIDEO)) {
+            val persistence = FakeConversationPersistence()
+            val viewModel = ConversationViewModel(persistence)
+            val id = "${kind.name.lowercase()}-default"
+            viewModel.initialize(kind)
+            persistence.emit(PersistedConversationSnapshot(
+                id = id, title = "Current chat", mediaKind = kind,
+                brief = CreativeBrief(), selectedWorkflowId = WorkflowRegistry.forKind(kind).first().id,
+                activeSourceOutputId = null, requiresSourceSelection = false, timeline = emptyList(),
+            ))
+            assertEquals(false, viewModel.state.value.isTransitioning)
+
+            viewModel.onEvent(ConversationUiEvent.SelectMediaKind(kind))
+            viewModel.onEvent(ConversationUiEvent.SelectMediaKind(kind))
+
+            assertEquals(id, viewModel.state.value.conversationId)
+            assertEquals(false, viewModel.state.value.isTransitioning)
+        }
+    }
+
+    @Test
+    fun `navigation to the current conversation clears the transition`() {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+        persistence.emit(PersistedConversationSnapshot(
+            id = "image-default", title = "Current chat", mediaKind = MediaKind.IMAGE,
+            brief = CreativeBrief(), selectedWorkflowId = WorkflowCatalog.SOUL.id,
+            activeSourceOutputId = null, requiresSourceSelection = false, timeline = emptyList(),
+        ))
+
+        viewModel.onEvent(ConversationUiEvent.OpenConversation("image-default", MediaKind.IMAGE))
+
+        assertEquals(false, viewModel.state.value.isTransitioning)
+    }
+
+    @Test
+    fun `failed chat creation clears transition instead of trapping workspace`() {
+        val persistence = FakeConversationPersistence().apply { createFailure = IllegalStateException("disk unavailable") }
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+
+        viewModel.onEvent(ConversationUiEvent.CreateConversation(MediaKind.IMAGE))
+
+        assertEquals(false, viewModel.state.value.isTransitioning)
+        assertEquals(ConversationText.Resource(R.string.error_unknown), viewModel.state.value.message)
+    }
+
+    @Test
+    fun `failed chat removal clears transition and keeps current conversation`() {
+        val persistence = FakeConversationPersistence().apply { deleteFailure = IllegalStateException("disk unavailable") }
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+
+        viewModel.onEvent(ConversationUiEvent.RemoveConversation)
+
+        assertEquals("image-default", viewModel.state.value.conversationId)
+        assertEquals(false, viewModel.state.value.isTransitioning)
+        assertEquals(ConversationText.Resource(R.string.error_unknown), viewModel.state.value.message)
+    }
+
+    @Test
+    fun `platform action is emitted once and does not become durable state`() = runTest {
+        val viewModel = ConversationViewModel(FakeConversationPersistence())
+        viewModel.initialize(MediaKind.IMAGE)
+
+        viewModel.onEvent(ConversationUiEvent.PickMedia(MediaRole.REFERENCE, MediaKind.IMAGE))
+
+        assertEquals(
+            ConversationUiEffect.LaunchMediaPicker(MediaRole.REFERENCE, MediaKind.IMAGE),
+            viewModel.effects.first(),
+        )
+        assertNull(viewModel.state.value.message)
+    }
+
+    @Test
+    fun `accepted submission remains successful when optional title update fails`() = runTest {
+        val persistence = FakeConversationPersistence().apply { titleFailure = IllegalStateException("title write failed") }
+        val draft = GenerationDraft("A bright apple", CreativeBrief(), WorkflowCatalog.SOUL.id)
+        val record = GenerationRecord("accepted", draft = draft, status = GenerationStatus.Queued)
+        val repository = FakeGenerationRepository(Result.success(record))
+
+        val result = SubmitGenerationUseCase(repository, persistence)("image-default", draft)
+
+        assertEquals(record, result.getOrNull())
+        assertEquals(draft, repository.draft)
+    }
+
+    @Test
     fun `workspace transition ends only after its saved conversation arrives`() {
         val persistence = FakeConversationPersistence()
         val viewModel = ConversationViewModel(persistence)
@@ -412,15 +518,25 @@ private class FakeConversationPersistence : ConversationPersistence {
     private val snapshots = mutableMapOf<String, MutableStateFlow<PersistedConversationSnapshot?>>()
     val savedDrafts = mutableMapOf<String, PersistedComposerDraft>()
     var selectedSourceOutputId: String? = null
+    var createFailure: Exception? = null
+    var deleteFailure: Exception? = null
+    var titleFailure: Exception? = null
     override fun observe(conversationId: String): Flow<PersistedConversationSnapshot?> =
         snapshots.getOrPut(conversationId) { MutableStateFlow(null) }
     override fun observeConversations(): Flow<List<ConversationSummary>> = emptyFlow()
     override suspend fun ensureConversation(conversationId: String, kind: MediaKind, initialWorkflowId: WorkflowId?) = Unit
-    override suspend fun createConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String = "${kind.name.lowercase()}-new"
+    override suspend fun createConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String {
+        createFailure?.let { throw it }
+        return "${kind.name.lowercase()}-new"
+    }
     override suspend fun mostRecentConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String = "${kind.name.lowercase()}-new"
     override suspend fun renameConversation(conversationId: String, title: String) = Unit
-    override suspend fun deriveTitleFromFirstPrompt(conversationId: String, prompt: String) = Unit
-    override suspend fun deleteConversation(conversationId: String) = Unit
+    override suspend fun deriveTitleFromFirstPrompt(conversationId: String, prompt: String) {
+        titleFailure?.let { throw it }
+    }
+    override suspend fun deleteConversation(conversationId: String) {
+        deleteFailure?.let { throw it }
+    }
     override suspend fun saveBrief(conversationId: String, brief: CreativeBrief) = Unit
     override suspend fun saveDraft(conversationId: String, draft: PersistedComposerDraft) {
         savedDrafts[conversationId] = draft

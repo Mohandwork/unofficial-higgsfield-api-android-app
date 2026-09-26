@@ -26,12 +26,14 @@ internal val previewWorkflow = WorkflowDescriptor(
 )
 
 internal fun previewConversationState() = ConversationUiState(
-    mediaKind = MediaKind.IMAGE,
-    prompt = "A futuristic street market at night, neon rain, cinematic framing.",
-    workflows = listOf(previewWorkflow),
-    selectedWorkflow = previewWorkflow,
-    attachmentSlots = previewWorkflow.mediaRequirements,
-    attachments = listOf(DraftMediaAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "", "Neon-market-reference.png")),
+    chat = ChatUiState(mediaKind = MediaKind.IMAGE),
+    composer = ComposerUiState(
+        prompt = "A futuristic street market at night, neon rain, cinematic framing.",
+        workflows = listOf(previewWorkflow),
+        selectedWorkflow = previewWorkflow,
+        attachmentSlots = previewWorkflow.mediaRequirements,
+        attachments = listOf(DraftMediaAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "", "Neon-market-reference.png")),
+    ),
 )
 
 internal fun previewGenerationItem() = TimelineItem(

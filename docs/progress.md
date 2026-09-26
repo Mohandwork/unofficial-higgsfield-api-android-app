@@ -2,7 +2,15 @@
 
 ## Current checkpoint
 
-The refined product implementation is complete in the working tree. The remaining work is verification polish and provider-dependent integration, not an unfinished core UX flow.
+The product flows and the conversation-architecture refactor are implemented in the working tree. JVM verification has passed; manual UI verification remains the chosen final check.
+
+## 2026-09-26 architecture refactor checkpoint
+
+The current working tree groups `ConversationUiState` into chat, composer, and generation sections, groups `ConversationUiEvent` by the same responsibilities, and moves workspace observation, foreground polling-job ownership, source-selection persistence, and debounced per-conversation draft writes into focused feature components. Transient sheet/menu state is view-local. Existing rendering call sites use read-only state aliases; mutations target the owning section.
+
+Remaining work is Stage 1 data integrity in `next-enhancements.md`: the refactor moves visible-workspace polling ownership but does **not** make database transitions monotonic or coordinate foreground polling with app-wide recovery.
+
+No commit or push was made for this checkpoint. The staged codebase-review document predates this refactor and was not altered here.
 
 ## Completed
 
