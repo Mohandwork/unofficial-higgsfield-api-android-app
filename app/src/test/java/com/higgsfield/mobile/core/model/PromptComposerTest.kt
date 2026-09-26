@@ -21,7 +21,7 @@ class PromptComposerTest {
         )
 
         assertEquals(
-            "Subject: a green apple\nStyle: product photography\nRequirements: single object\nChange only the apple skin from green to red; preserve the composition, lighting, background, and single-object framing",
+            "Subject: a green apple\nStyle: product photography\nRequirements: single object\nAvoid: text\nChange only the apple skin from green to red; preserve the composition, lighting, background, and single-object framing",
             prompt,
         )
         assertFalse(prompt.contains("Exclusions"))
@@ -36,5 +36,12 @@ class PromptComposerTest {
                 " Studio product photo of one ripe green apple centered on a matte cream background, soft daylight, no text ",
             ),
         )
+    }
+
+    @Test
+    fun `negative-prompt workflows keep exclusions out of the composed prompt and merge them deterministically`() {
+        val brief = CreativeBrief(exclusions = "text, extra objects")
+        assertEquals("Make a mug red", PromptComposer.compose(brief, "Make a mug red", supportsNegativePrompt = true))
+        assertEquals("text, extra objects\nblur", PromptComposer.composeNegativePrompt(brief, "blur"))
     }
 }

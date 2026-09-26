@@ -3,6 +3,7 @@ package com.higgsfield.mobile.feature.conversation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
 import com.higgsfield.mobile.R
 import com.higgsfield.mobile.core.model.GenerationOptions
+import com.higgsfield.mobile.core.model.CreativeBrief
 import com.higgsfield.mobile.core.model.WorkflowDescriptor
 import com.higgsfield.mobile.core.model.WorkflowOption
 import com.higgsfield.mobile.ui.theme.HiggsfieldTheme
@@ -43,17 +45,30 @@ private fun GenerationSpecsSheetPreview() {
 @OptIn(ExperimentalMaterial3Api::class)
 internal fun ModelInfoDialog(workflow: WorkflowDescriptor?, onDismiss: () -> Unit) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(workflow?.displayName ?: stringResource(R.string.model), style = MaterialTheme.typography.titleLarge)
-            Text(stringResource(R.string.capabilities, workflow?.capabilities?.joinToString { it.name.lowercase().replace('_', ' ') } ?: stringResource(R.string.unknown)))
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(stringResource(R.string.model_details), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            Text(workflow?.displayName ?: stringResource(R.string.model), style = MaterialTheme.typography.headlineSmall)
             val estimate = workflow?.staticEstimate
-            Text(estimate?.fromPrice?.let { stringResource(R.string.estimate_from, it) } ?: stringResource(R.string.pricing_unavailable), style = MaterialTheme.typography.titleMedium)
-            Text(estimate?.creditGuidance ?: stringResource(R.string.estimate_credits_unavailable))
-            Text(estimate?.expectedLatency ?: stringResource(R.string.estimate_latency_unavailable))
-            estimate?.let { Text(stringResource(R.string.estimate_verified, it.verifiedOn), style = MaterialTheme.typography.labelSmall); Text(stringResource(R.string.estimate_source, it.sourceUrl), style = MaterialTheme.typography.labelSmall) }
+            DetailRow(stringResource(R.string.starting_price), estimate?.fromPrice ?: stringResource(R.string.pricing_unavailable))
+            estimate?.maximumResolution?.let { DetailRow(stringResource(R.string.max_resolution), it) }
+            estimate?.supportedDurations?.let { DetailRow(stringResource(R.string.supported_duration), it) }
+            DetailRow(stringResource(R.string.capabilities), workflow?.capabilities?.joinToString { it.name.lowercase().replace('_', ' ') } ?: stringResource(R.string.unknown))
+            Text(stringResource(R.string.model_price_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            estimate?.let {
+                Text(stringResource(R.string.model_source_user_provided), style = MaterialTheme.typography.labelSmall)
+                Text(stringResource(R.string.estimate_verified, it.verifiedOn), style = MaterialTheme.typography.labelSmall)
+            }
             if (workflow?.isSubmissionEnabled == false) Text(stringResource(R.string.adapter_not_enabled), color = MaterialTheme.colorScheme.error)
             TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text(stringResource(R.string.done)) }
         }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth()) {
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        Text(value, style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -75,6 +90,35 @@ internal fun OptionsDialog(workflow: WorkflowDescriptor?, initial: GenerationOpt
             if (WorkflowOption.NEGATIVE_PROMPT in supported) OutlinedTextField(negativePrompt, { negativePrompt = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.negative_prompt)) })
             if (supported.isEmpty()) Text(stringResource(R.string.no_model_settings))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = { onUpdateOptions(GenerationOptions(aspectRatio = aspectRatio, resolution = resolution.ifBlank { null }, seed = seed.toLongOrNull(), negativePrompt = negativePrompt.ifBlank { null })); onDismiss() }) { Text(stringResource(R.string.done)) } }
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+internal fun CreativeBriefSheet(initial: CreativeBrief, onDismiss: () -> Unit, onSave: (CreativeBrief) -> Unit) {
+    var subject by remember(initial) { mutableStateOf(initial.subject) }
+    var style by remember(initial) { mutableStateOf(initial.style) }
+    var mood by remember(initial) { mutableStateOf(initial.mood) }
+    var camera by remember(initial) { mutableStateOf(initial.cameraDirection) }
+    var requirements by remember(initial) { mutableStateOf(initial.requirements) }
+    var exclusions by remember(initial) { mutableStateOf(initial.exclusions) }
+    var outputGoal by remember(initial) { mutableStateOf(initial.outputGoal) }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(stringResource(R.string.prompt_settings), style = MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.brief_detail_explanation), style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(subject, { subject = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.subject)) })
+            OutlinedTextField(outputGoal, { outputGoal = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.output_goal)) })
+            OutlinedTextField(style, { style = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.style_and_mood)) })
+            OutlinedTextField(mood, { mood = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.style_and_mood)) })
+            OutlinedTextField(camera, { camera = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.camera_direction)) })
+            OutlinedTextField(requirements, { requirements = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.requirements)) })
+            OutlinedTextField(exclusions, { exclusions = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.exclusions)) })
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton(onClick = { onSave(CreativeBrief()); onDismiss() }) { Text(stringResource(R.string.clear_brief)) }
+                TextButton(onClick = { onSave(CreativeBrief(subject, style, mood, camera, requirements, exclusions, outputGoal)); onDismiss() }) { Text(stringResource(R.string.save_brief)) }
+            }
         }
     }
 }

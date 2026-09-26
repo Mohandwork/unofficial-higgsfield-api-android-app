@@ -4,6 +4,7 @@ import android.animation.ValueAnimator
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
@@ -27,19 +28,25 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -74,14 +81,16 @@ import com.higgsfield.mobile.ui.theme.HiggsfieldTheme
 @Composable
 fun ConversationRoute(
     mediaKind: MediaKind,
+    conversationId: String?,
     onBack: () -> Unit,
     onSelectMediaKind: (MediaKind) -> Unit,
+    onSelectConversation: (String, MediaKind) -> Unit,
     viewModel: ConversationViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val shareChooserTitle = stringResource(R.string.share)
-    LaunchedEffect(mediaKind) { viewModel.initialize(mediaKind) }
+    LaunchedEffect(mediaKind, conversationId) { viewModel.initialize(mediaKind, conversationId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var pendingRole by remember { mutableStateOf<MediaRole?>(null) }
     var pendingDownload by remember { mutableStateOf<TimelineItem?>(null) }
@@ -106,13 +115,18 @@ fun ConversationRoute(
     ConversationScreen(
         state = state,
         onBack = onBack,
-        onSelectMediaKind = onSelectMediaKind,
+        onSelectMediaKind = { kind -> viewModel.openMostRecentConversation(kind, onSelectConversation) },
+        onSelectConversation = { id, kind -> viewModel.openConversation(id, kind, onSelectConversation) },
+        onCreateConversation = { kind -> viewModel.createConversation(kind) { onSelectConversation(it, kind) } },
+        onRenameConversation = viewModel::renameConversation,
+        onRemoveConversation = { viewModel.removeCurrentConversation(onSelectConversation) },
         onPromptChange = viewModel::updatePrompt,
         onToggleModelMenu = viewModel::toggleModelMenu,
         onSelectWorkflow = viewModel::selectWorkflow,
         onShowInfo = viewModel::showInfo,
         onShowBrief = viewModel::showBrief,
         onShowOptions = viewModel::showOptions,
+        onShowHistory = viewModel::showHistory,
         onUpdateBrief = viewModel::updateBrief,
         onUpdateOptions = viewModel::updateOptions,
         onPickMedia = { role, kind ->
@@ -154,10 +168,15 @@ private fun ConversationScreen(
     state: ConversationUiState,
     onBack: () -> Unit,
     onSelectMediaKind: (MediaKind) -> Unit,
+    onSelectConversation: (String, MediaKind) -> Unit,
+    onCreateConversation: (MediaKind) -> Unit,
+    onRenameConversation: (String) -> Unit,
+    onRemoveConversation: () -> Unit,
     onPromptChange: (String) -> Unit,
     onToggleModelMenu: () -> Unit,
     onSelectWorkflow: (WorkflowDescriptor) -> Unit,
     onShowInfo: (Boolean) -> Unit,
+    onShowHistory: (Boolean) -> Unit,
     onShowBrief: (Boolean) -> Unit,
     onShowOptions: (Boolean) -> Unit,
     onUpdateBrief: (CreativeBrief) -> Unit,
@@ -173,6 +192,12 @@ private fun ConversationScreen(
     onCopyPrompt: (TimelineItem) -> Unit,
     onSharePrompt: (TimelineItem) -> Unit,
 ) {
+    var pendingConversation by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
+    val requestConversationSwitch: (String, MediaKind) -> Unit = { id, kind ->
+        if (id != state.conversationId && (state.prompt.isNotBlank() || state.attachments.isNotEmpty())) {
+            pendingConversation = id to kind
+        } else onSelectConversation(id, kind)
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -183,6 +208,8 @@ private fun ConversationScreen(
                         onToggleModelMenu = onToggleModelMenu,
                         onSelectWorkflow = onSelectWorkflow,
                         onShowInfo = { onShowInfo(true) },
+                        onCreateConversation = { onCreateConversation(state.mediaKind) },
+                        onShowHistory = { onShowHistory(true) },
                     )
                 },
             )
@@ -191,18 +218,66 @@ private fun ConversationScreen(
         BoxWithConstraints(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
             if (maxWidth >= 840.dp) {
                 Row(Modifier.fillMaxSize()) {
-                    ConversationRail(state, Modifier.width(280.dp).fillMaxHeight())
+                    ConversationRail(state, requestConversationSwitch, onCreateConversation, onRenameConversation, onRemoveConversation, Modifier.width(280.dp).fillMaxHeight())
                     HorizontalDivider(Modifier.fillMaxHeight().width(1.dp))
-                    Workspace(state, onPromptChange, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
+                    Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
                 }
             } else {
-                Workspace(state, onPromptChange, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.fillMaxSize())
+                Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.fillMaxSize())
             }
+            if (state.isTransitioning) WorkspaceTransitionOverlay()
         }
     }
 
     if (state.infoOpen) ModelInfoDialog(state.selectedWorkflow, { onShowInfo(false) })
     if (state.optionsOpen) OptionsDialog(state.selectedWorkflow, state.options, { onShowOptions(false) }, onUpdateOptions)
+    if (state.historyOpen) ConversationHistorySheet(state, requestConversationSwitch, onCreateConversation, onRenameConversation, onRemoveConversation, { onShowHistory(false) })
+    if (state.briefOpen) CreativeBriefSheet(state.brief, { onShowBrief(false) }, onUpdateBrief)
+    pendingConversation?.let { (id, kind) ->
+        AlertDialog(
+            onDismissRequest = { pendingConversation = null },
+            title = { Text(stringResource(R.string.switch_chat)) },
+            text = { Text(stringResource(R.string.switch_chat_discard_draft)) },
+            dismissButton = { TextButton(onClick = { pendingConversation = null }) { Text(stringResource(R.string.continue_editing)) } },
+            confirmButton = { TextButton(onClick = { pendingConversation = null; onSelectConversation(id, kind) }) { Text(stringResource(R.string.switch_chat_confirm)) } },
+        )
+    }
+}
+
+@Composable
+private fun WorkspaceTransitionOverlay() {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.56f),
+    ) {
+        Column(
+            Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+            Text(
+                stringResource(R.string.preparing_workspace),
+                color = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.padding(top = 16.dp),
+            )
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
+private fun ConversationHistorySheet(
+    state: ConversationUiState,
+    onSelectConversation: (String, MediaKind) -> Unit,
+    onCreateConversation: (MediaKind) -> Unit,
+    onRenameConversation: (String) -> Unit,
+    onRemoveConversation: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        ConversationHistoryContent(state, onSelectConversation, onCreateConversation, onRenameConversation, onRemoveConversation, Modifier.fillMaxWidth().padding(20.dp))
+    }
 }
 
 @Composable
@@ -212,12 +287,17 @@ private fun HeaderControls(
     onToggleModelMenu: () -> Unit,
     onSelectWorkflow: (WorkflowDescriptor) -> Unit,
     onShowInfo: () -> Unit,
+    onCreateConversation: () -> Unit,
+    onShowHistory: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
+        IconButton(onClick = onShowHistory) {
+            Icon(Icons.Rounded.Menu, stringResource(R.string.conversations), tint = MaterialTheme.colorScheme.primary)
+        }
         TextButton(onClick = { onSelectMediaKind(MediaKind.IMAGE) }) {
             Text(stringResource(R.string.image), color = if (state.mediaKind == MediaKind.IMAGE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -241,6 +321,9 @@ private fun HeaderControls(
         IconButton(onClick = onShowInfo) {
             Icon(Icons.Rounded.Info, stringResource(R.string.model_details_and_cost), tint = MaterialTheme.colorScheme.primary)
         }
+        IconButton(onClick = onCreateConversation) {
+            Icon(Icons.Rounded.Add, stringResource(R.string.new_chat), tint = MaterialTheme.colorScheme.primary)
+        }
         Icon(
             if (state.isOnline) Icons.Rounded.CloudDone else Icons.Rounded.CloudOff,
             contentDescription = stringResource(if (state.isOnline) R.string.online else R.string.offline),
@@ -251,21 +334,81 @@ private fun HeaderControls(
 }
 
 @Composable
-private fun ConversationRail(state: ConversationUiState, modifier: Modifier = Modifier) {
+private fun ConversationRail(
+    state: ConversationUiState,
+    onSelectConversation: (String, MediaKind) -> Unit,
+    onCreateConversation: (MediaKind) -> Unit,
+    onRenameConversation: (String) -> Unit,
+    onRemoveConversation: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Surface(modifier, color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)) {
-        Column(Modifier.padding(20.dp)) {
-            Text(stringResource(R.string.conversations), style = MaterialTheme.typography.titleLarge)
-            Text(stringResource(R.string.today), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 28.dp, bottom = 8.dp))
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(stringResource(if (state.mediaKind == MediaKind.IMAGE) R.string.image_studio else R.string.video_studio), fontWeight = FontWeight.SemiBold)
-                    Text(stringResource(R.string.current_local_draft), style = MaterialTheme.typography.bodySmall)
+        ConversationHistoryContent(state, onSelectConversation, onCreateConversation, onRenameConversation, onRemoveConversation, Modifier.padding(20.dp))
+    }
+}
+
+@Composable
+private fun ConversationHistoryContent(
+    state: ConversationUiState,
+    onSelectConversation: (String, MediaKind) -> Unit,
+    onCreateConversation: (MediaKind) -> Unit,
+    onRenameConversation: (String) -> Unit,
+    onRemoveConversation: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var renameOpen by remember { mutableStateOf(false) }
+    var removeOpen by remember { mutableStateOf(false) }
+    var renameValue by remember(state.conversationTitle) { mutableStateOf(state.conversationTitle) }
+    Column(modifier) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(R.string.conversations), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                TextButton(onClick = { onCreateConversation(state.mediaKind) }) { Text(stringResource(R.string.new_chat)) }
+            }
+            MediaKind.entries.forEach { kind ->
+                val conversations = state.conversations.filter { it.mediaKind == kind }
+                if (conversations.isEmpty()) return@forEach
+                Text(if (kind == MediaKind.IMAGE) stringResource(R.string.image) else stringResource(R.string.video), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
+                conversations.forEach { conversation ->
+                Card(
+                    onClick = { onSelectConversation(conversation.id, conversation.mediaKind) },
+                    colors = CardDefaults.cardColors(containerColor = if (conversation.id == state.conversationId) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(conversation.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            DateUtils.getRelativeTimeSpanString(conversation.updatedAtEpochMillis, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
-            Spacer(Modifier.weight(1f))
-            Text(stringResource(R.string.versions), style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(R.string.local_demo_versions, state.timeline.size), style = MaterialTheme.typography.bodySmall)
+            }
+            if (state.conversationTitle.isNotBlank()) TextButton(onClick = { renameOpen = true }) { Text(stringResource(R.string.rename_chat)) }
+            if (state.conversationTitle.isNotBlank()) {
+                Text(stringResource(R.string.chat_removal), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 20.dp))
+                Text(stringResource(R.string.remove_chat_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { removeOpen = true }) { Text(stringResource(R.string.remove_chat), color = MaterialTheme.colorScheme.error) }
+            }
         }
+    if (renameOpen) {
+        AlertDialog(
+            onDismissRequest = { renameOpen = false },
+            title = { Text(stringResource(R.string.rename_chat)) },
+            text = { OutlinedTextField(renameValue, { renameValue = it }, Modifier.fillMaxWidth()) },
+            dismissButton = { TextButton(onClick = { renameOpen = false }) { Text(stringResource(R.string.cancel)) } },
+            confirmButton = { TextButton(onClick = { onRenameConversation(renameValue); renameOpen = false }) { Text(stringResource(R.string.done)) } },
+        )
+    }
+    if (removeOpen) {
+        AlertDialog(
+            onDismissRequest = { removeOpen = false },
+            title = { Text(stringResource(R.string.remove_chat_confirm_title)) },
+            text = { Text(stringResource(R.string.remove_chat_description)) },
+            dismissButton = { TextButton(onClick = { removeOpen = false }) { Text(stringResource(R.string.cancel)) } },
+            confirmButton = { TextButton(onClick = { removeOpen = false; onRemoveConversation() }) { Text(stringResource(R.string.remove_chat_confirm), color = MaterialTheme.colorScheme.error) } },
+        )
     }
 }
 
@@ -273,6 +416,7 @@ private fun ConversationRail(state: ConversationUiState, modifier: Modifier = Mo
 private fun Workspace(
     state: ConversationUiState,
     onPromptChange: (String) -> Unit,
+    onShowBrief: (Boolean) -> Unit,
     onShowOptions: (Boolean) -> Unit,
     onPickMedia: (MediaRole, MediaKind) -> Unit,
     onRemoveMedia: (MediaRole) -> Unit,
@@ -289,7 +433,7 @@ private fun Workspace(
     val motionEnabled = remember { Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled() }
     Column(modifier) {
         WorkspaceTimeline(state, onUseOutput, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
-        ComposerDock(state, motionEnabled, onPromptChange, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onGenerate)
+        ComposerDock(state, motionEnabled, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onGenerate)
     }
 }
 
@@ -336,6 +480,7 @@ private fun ConversationWorkspacePreview() {
         Workspace(
             state = previewConversationState(),
             onPromptChange = {},
+            onShowBrief = {},
             onShowOptions = {},
             onPickMedia = { _, _ -> },
             onRemoveMedia = {},

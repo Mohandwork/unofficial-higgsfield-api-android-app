@@ -22,6 +22,7 @@ import com.higgsfield.mobile.core.model.GenerationStatus
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.PromptComposer
 import com.higgsfield.mobile.core.model.WorkflowRegistry
+import com.higgsfield.mobile.core.model.WorkflowCapability
 import com.higgsfield.mobile.core.network.AttachmentUploadResult
 import com.higgsfield.mobile.core.network.HiggsfieldService
 import com.higgsfield.mobile.core.network.HiggsfieldUrlValidator
@@ -197,7 +198,7 @@ class RoomGenerationRepository @Inject constructor(
             entity.id,
             status,
             error.code,
-            error.diagnosticMessage,
+            error.userMessage ?: error.diagnosticMessage,
             System.currentTimeMillis(),
         ) == 1)
         return Result.failure(GenerationSubmissionException(error))
@@ -237,8 +238,12 @@ private fun GenerationDraft.toEntity(
     branchRootId = parent?.branchRootId ?: generationId,
     workflowId = workflowId.value,
     instruction = instruction.trim(),
-    composedPrompt = PromptComposer.compose(creativeBrief, instruction),
-    negativePrompt = options.negativePrompt?.takeIf(String::isNotBlank),
+    composedPrompt = PromptComposer.compose(
+        creativeBrief,
+        instruction,
+        WorkflowCapability.NEGATIVE_PROMPT in WorkflowRegistry.find(workflowId)?.capabilities.orEmpty(),
+    ),
+    negativePrompt = PromptComposer.composeNegativePrompt(creativeBrief, options.negativePrompt),
     optionsSnapshotJson = options.snapshotJson(),
     createdAtEpochMillis = now,
     updatedAtEpochMillis = now,

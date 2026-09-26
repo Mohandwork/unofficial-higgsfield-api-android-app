@@ -22,6 +22,25 @@
     <string name="online">Online</string>
     <string name="offline">Offline</string>
     <string name="conversations">Conversations</string>
+    <string name="new_chat">New chat</string>
+    <string name="rename_chat">Rename chat</string>
+    <string name="chat_removal">Chat removal</string>
+    <string name="remove_chat">Remove this chat</string>
+    <string name="remove_chat_description">Permanently removes this chat and all of its saved generations from this device.</string>
+    <string name="remove_chat_confirm_title">Remove this chat?</string>
+    <string name="remove_chat_confirm">Remove chat</string>
+    <string name="switch_chat">Switch chat?</string>
+    <string name="switch_chat_discard_draft">Your unsent prompt and attachments will be discarded. Saved generations and settings are safe.</string>
+    <string name="continue_editing">Continue editing</string>
+    <string name="switch_chat_confirm">Switch chat</string>
+    <string name="prompt_settings">Prompt settings</string>
+    <string name="brief_empty_summary">No brief yet — prompts stand alone</string>
+    <string name="brief_active_summary">Brief active — applied to every generation</string>
+    <string name="brief_detail_explanation">Use this for creative direction that should stay consistent across requests. Your prompt describes what you want to do now. The brief is saved to this chat, added explicitly to future requests, and never changes earlier generations.</string>
+    <string name="output_goal">Output goal</string>
+    <string name="camera_direction">Camera direction</string>
+    <string name="requirements">Requirements</string>
+    <string name="clear_brief">Clear brief</string>
     <string name="today">Today</string>
     <string name="current_local_draft">Current local draft</string>
     <string name="versions">Versions</string>
@@ -38,6 +57,12 @@
     <string name="estimate_latency_unavailable">Expected latency unavailable</string>
     <string name="estimate_verified">Verified: %1$s</string>
     <string name="estimate_source">Source: %1$s</string>
+    <string name="model_details">Model details</string>
+    <string name="starting_price">Starting price</string>
+    <string name="max_resolution">Maximum resolution</string>
+    <string name="supported_duration">Supported duration</string>
+    <string name="model_price_note">Static reference pricing. Your actual charge depends on the submitted options and API response.</string>
+    <string name="model_source_user_provided">Source: pricing and specification screenshots supplied for this build.</string>
     <string name="describe_change">Describe what to change…</string>
     <string name="describe_creation">Describe what to create…</string>
     <string name="attach_reference_image">Attach a reference image</string>
@@ -53,6 +78,7 @@
     <string name="generation_specs">Generation specs</string>
     <string name="generate">Generate</string>
     <string name="generating">Generating…</string>
+    <string name="preparing_workspace">Preparing workspace…</string>
     <string name="api_credentials_not_configured">Credentials are not configured. Generate will reach Higgsfield and return an authentication error.</string>
     <string name="start_with_clear_idea">Start with a clear idea</string>
     <string name="empty_image_conversation">Create an image, then make the next edit from its visible active source.</string>
@@ -124,6 +150,7 @@
     <string name="error_remote_protocol">The generation response could not be processed safely.</string>
     <string name="error_generation_failed">The generation failed. Update the request and try again.</string>
     <string name="error_generation_moderated">The generation was blocked by content moderation.</string>
+    <string name="error_not_enough_credits">Not enough Higgsfield credits. Add credits, then try again.</string>
     <string name="error_network_unavailable">A network error occurred. Check your connection and try again.</string>
     <string name="error_unknown">Something went wrong. Try again.</string>
 </resources>

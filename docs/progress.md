@@ -4,7 +4,7 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 
 ## Current checkpoint
 
-- Status: Slice 10 is complete. Slice 11 conversation workspace redesign is implemented and packaged; visual QA against the supplied concept remains.
+- Status: Slice 10 and the Slice 11 workspace redesign are implemented; compact/expanded real-device visual QA remains.
 - Git: changes are intentionally uncommitted. Do not commit or push without current-conversation permission.
 - API safety: credentials are present only in ignored `app/secrets/secrets.properties`; no Higgsfield request, upload, estimate, or billable generation has been made.
 - Toolchain: AGP 9.4.0, Gradle 9.6.0, AGP built-in Kotlin, KSP, and Android Studio JBR 25 verified locally.
@@ -33,7 +33,7 @@ This file is the running handoff record for Higgsfield Mobile. Update it at the 
 | 10.5 Locked workspace redesign | Complete | Compact top bar, single model/estimate strip, modal details sheet, capability-gated composer actions, completed-output actions, and functional attachment/progress motion are implemented. |
 | 10.6 Accessibility and performance | Complete | Semantic labels/headings, connection and generation accessibility descriptions, reduced-motion behavior, adaptive/IME layout, and keyed/content-typed timeline rendering are implemented. Compose UI tests remain deferred under the temporary Slice 10 rule. |
 | 10.7 Real-device/API verification | Complete | The user completed real-device/API verification and confirmed 16 KB compatibility after removing the unused Graphics Path dependency and upgrading DataStore to `1.2.1`. `app/secrets/secrets.properties` remains detected and ignored. |
-| 11 Conversation workspace redesign | Implemented, visual QA pending | Rebuilt the Image/Video header, model details sheet entry point, media-first feed, reference-aware input dock, model-aware presets sheet, dark cyan/violet visual system, and result actions to match the supplied concept. Creative Brief and multi-chat work remain deferred. Validate the visual result on compact and expanded devices. |
+| 11 Conversation workspace redesign | Implemented, visual QA pending | Rebuilt the Image/Video header, model details sheet entry point, media-first feed, reference-aware input dock, model-aware presets sheet, dark cyan/violet visual system, and result actions to match the supplied concept. The post-redesign backlog now includes a sectioned persistent chat history rail/sheet, new-chat and rename behavior, most-recent workspace restoration, and Creative Brief exclusion composition. Validate the visual result on compact and expanded devices. |
 
 Slice 10 temporary test rule: skip new UI/Compose tests for this phase; fix only edge-case tests affected by each change and add a new non-UI test only when the changed behavior genuinely requires coverage. This scope does not alter the repository-wide testing rules outside Slice 10.
 
@@ -47,8 +47,10 @@ Slice 10 temporary test rule: skip new UI/Compose tests for this phase; fix only
 - APK: debug assembly succeeded.
 - Debug API networking now logs sanitized OkHttp method/host-path/query/ordinary headers/status/timing and JSON request/response bodies; authorization/secret headers, signed query values, private media URL fields, and presigned binary payloads remain excluded.
 - `:app:compileDebugKotlin` and `:app:assembleDebug` passed after the Slice 11 redesign.
+- `:app:testDebugUnitTest` passed after adding deterministic Creative Brief exclusion composition and persistent multi-chat history behavior.
 
 ## Known follow-up
 
-- Convert the fake workspace coverage into Compose/screenshot tests at compact, medium, and expanded widths.
-- Perform visual QA for Slice 11 on compact and expanded devices, then continue with the deferred product backlog in `docs/implementation-plan.md`.
+- Add Compose/screenshot coverage for compact, medium, expanded, large-font, and reduced-motion workspace states.
+- Perform visual QA for Slice 11 on compact and expanded devices.
+- Add live estimates only after a supported authenticated estimate body is verified and billable-operation approval is granted.

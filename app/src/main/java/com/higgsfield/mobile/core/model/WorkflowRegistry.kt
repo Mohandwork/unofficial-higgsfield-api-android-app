@@ -129,11 +129,48 @@ object WorkflowRegistry {
             tier = tier, capabilities = capabilities, mediaRequirements = required, endpointPath = endpointPath,
             pricingFactors = PRICING_FACTORS,
             supportedOptions = options,
-            staticEstimate = StaticEstimateMetadata(sourceUrl = WorkflowCatalog.DOCUMENTATION_URL, verifiedOn = schemaVerifiedOn ?: SCHEMA_VERIFIED_ON),
+            staticEstimate = staticMetadataFor(key, schemaVerifiedOn),
             documentationUrl = WorkflowCatalog.DOCUMENTATION_URL,
             schemaVerifiedOn = schemaVerifiedOn,
             isSubmissionEnabled = endpointPath != null,
         )
 
     private const val SCHEMA_VERIFIED_ON = "2026-09-25"
+
+    /** Static pricing/specification transcription supplied by the user on 2026-09-26. */
+    private fun staticMetadataFor(key: WorkflowKey, schemaVerifiedOn: String?): StaticEstimateMetadata {
+        val (price, resolution, durations) = when (key.id) {
+            WorkflowCatalog.SOUL.id -> Triple("\$0.0938/image", "Up to 1080p", null)
+            WorkflowCatalog.SOUL_V2.id -> Triple("\$0.0032/image", "Up to 1080p", null)
+            WorkflowCatalog.SOUL_CINEMA.id -> Triple("Pricing varies", null, null)
+            WorkflowCatalog.MARKETING_STUDIO_2_ALPHA.id,
+            WorkflowCatalog.MARKETING_STUDIO_2_5_FLARE.id,
+            WorkflowCatalog.MARKETING_STUDIO_2_5_SUNBURST.id -> Triple("\$0.0107/image", "Up to 4K", null)
+            WorkflowCatalog.QWEN_IMAGE_3.id,
+            WorkflowCatalog.QWEN_IMAGE_3_EDIT.id -> Triple("\$0.04/image", "Up to 2K", null)
+            WorkflowCatalog.SEEDANCE_2.id -> Triple("\$0.0985/s", "Up to 4K", "4s / 15s")
+            WorkflowCatalog.SEEDANCE_2_5.id -> Triple("\$0.144/s", "Up to 1080p", "4s / 30s")
+            WorkflowCatalog.KLING_2_5_TURBO.id -> Triple("\$0.0231/s", "Up to 1080p", "5s / 10s")
+            WorkflowCatalog.KLING_2_6.id,
+            WorkflowCatalog.KLING_2_6_MOTION.id -> Triple("\$0.0385/s", null, "1s / 5s / 10s")
+            WorkflowCatalog.KLING_3.id,
+            WorkflowCatalog.KLING_3_MOTION.id -> Triple("\$0.0462/s", "Up to 1080p", "1s / 3s / 15s")
+            WorkflowCatalog.KLING_O3.id -> Triple("\$0.0462/s", null, "1s / 3s / 5s / 10s")
+            WorkflowCatalog.KLING_OMNI.id -> Triple("\$0.0462/s", null, "1s / 3s / 5s / 10s")
+            WorkflowCatalog.CINEMA_STUDIO_4.id -> Triple("\$0.2057/s", "Up to 720p", "4s / 30s")
+            WorkflowCatalog.WAN_2_6.id -> Triple("\$0.05/s", "Up to 1080p", "5s / 10s / 15s")
+            WorkflowCatalog.WAN_2_7.id -> Triple("\$0.05/s", "Up to 1080p", "2s / 10s / 15s")
+            WorkflowCatalog.WAN_3.id -> Triple("\$0.025/s", "Up to 1080p", "2s / 30s")
+            WorkflowCatalog.WAN_3_PRIME.id -> Triple("\$0.0476/s", "Up to 1080p", "2s / 30s")
+            else -> Triple("Pricing unavailable", null, null)
+        }
+        return StaticEstimateMetadata(
+            fromPrice = price,
+            maximumResolution = resolution,
+            supportedDurations = durations,
+            sourceLabel = "User-provided Higgsfield pricing and model-specification screenshots",
+            sourceUrl = WorkflowCatalog.DOCUMENTATION_URL,
+            verifiedOn = schemaVerifiedOn ?: "2026-09-26",
+        )
+    }
 }

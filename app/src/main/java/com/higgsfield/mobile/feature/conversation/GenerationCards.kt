@@ -16,6 +16,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -92,15 +93,19 @@ private fun GenerationMediaSurface(item: TimelineItem, hasOutput: Boolean, isFai
         Modifier.fillMaxWidth().height(if (hasOutput) 220.dp else 156.dp).background(Brush.linearGradient(if (isFailure) listOf(MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.surfaceVariant) else listOf(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.primaryContainer))),
         contentAlignment = Alignment.Center,
     ) {
-        if (hasOutput) item.output?.let { GenerationOutputPreview(it) } else GenerationPlaceholder(item.stateLabel.resolve())
+        if (hasOutput) item.output?.let { GenerationOutputPreview(it) } else GenerationPlaceholder(
+            item.stateLabel.resolve(),
+            item.lifecycle is GenerationStatus.Queued || item.lifecycle is GenerationStatus.InProgress,
+        )
         if (hasOutput && item.output == null) Text(item.outputLabel?.resolve().orEmpty(), style = MaterialTheme.typography.titleLarge)
     }
 }
 
 @Composable
-private fun GenerationPlaceholder(label: String) {
+private fun GenerationPlaceholder(label: String, isLoading: Boolean) {
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Icon(Icons.Rounded.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+        if (isLoading) CircularProgressIndicator(color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+        else Icon(Icons.Rounded.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
         Text(label, style = MaterialTheme.typography.titleMedium)
     }
 }

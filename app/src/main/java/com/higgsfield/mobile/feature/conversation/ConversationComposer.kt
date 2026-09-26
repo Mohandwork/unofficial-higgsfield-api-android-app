@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -52,7 +51,7 @@ import com.higgsfield.mobile.ui.theme.HiggsfieldTheme
 @Composable
 private fun ComposerDockPreview() {
     HiggsfieldTheme {
-        ComposerDock(previewConversationState(), true, {}, {}, { _, _ -> }, {}, {}, {})
+        ComposerDock(previewConversationState(), true, {}, {}, {}, { _, _ -> }, {}, {}, {})
     }
 }
 
@@ -61,6 +60,7 @@ internal fun ComposerDock(
     state: ConversationUiState,
     motionEnabled: Boolean,
     onPromptChange: (String) -> Unit,
+    onShowBrief: (Boolean) -> Unit,
     onShowOptions: (Boolean) -> Unit,
     onPickMedia: (MediaRole, MediaKind) -> Unit,
     onRemoveMedia: (MediaRole) -> Unit,
@@ -75,7 +75,7 @@ internal fun ComposerDock(
         if (state.activeSourceId != null) ActiveSourceCard(state.activeSourceLabel?.resolve().orEmpty(), onDetachSource)
         ComposerAttachments(state.attachments, motionEnabled, onRemoveMedia)
         PromptInput(state, onPromptChange, onGenerate)
-        ComposerActions(state, onShowOptions, onPickMedia)
+        ComposerActions(state, onShowBrief, onShowOptions, onPickMedia)
         if (!state.credentialsConfigured) Text(stringResource(R.string.api_credentials_not_configured), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -113,30 +113,33 @@ private fun PromptInput(state: ConversationUiState, onPromptChange: (String) -> 
 }
 
 @Composable
-private fun ComposerActions(state: ConversationUiState, onShowOptions: (Boolean) -> Unit, onPickMedia: (MediaRole, MediaKind) -> Unit) {
+private fun ComposerActions(state: ConversationUiState, onShowBrief: (Boolean) -> Unit, onShowOptions: (Boolean) -> Unit, onPickMedia: (MediaRole, MediaKind) -> Unit) {
     var attachmentMenuOpen by remember { mutableStateOf(false) }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        if (state.attachmentSlots.isNotEmpty()) Box {
-            AssistChip(onClick = { attachmentMenuOpen = true }, label = { Text(stringResource(R.string.add_reference)) }, leadingIcon = { Icon(Icons.Rounded.AddPhotoAlternate, null) })
-            DropdownMenu(expanded = attachmentMenuOpen, onDismissRequest = { attachmentMenuOpen = false }) {
-                state.attachmentSlots.forEach { slot ->
-                    DropdownMenuItem(text = { Text(attachmentRoleText(slot.role)) }, onClick = {
-                        attachmentMenuOpen = false
-                        onPickMedia(slot.role, slot.kind)
-                    })
+        when (state.attachmentSlots.size) {
+            0 -> Unit
+            1 -> {
+                val slot = state.attachmentSlots.single()
+                AssistChip(
+                    onClick = { onPickMedia(slot.role, slot.kind) },
+                    label = { Text(stringResource(R.string.add_reference)) },
+                    leadingIcon = { Icon(Icons.Rounded.AddPhotoAlternate, null) },
+                )
+            }
+            else -> Box {
+                AssistChip(onClick = { attachmentMenuOpen = true }, label = { Text(stringResource(R.string.add_reference)) }, leadingIcon = { Icon(Icons.Rounded.AddPhotoAlternate, null) })
+                DropdownMenu(expanded = attachmentMenuOpen, onDismissRequest = { attachmentMenuOpen = false }) {
+                    state.attachmentSlots.forEach { slot ->
+                        DropdownMenuItem(text = { Text(attachmentRoleText(slot.role)) }, onClick = {
+                            attachmentMenuOpen = false
+                            onPickMedia(slot.role, slot.kind)
+                        })
+                    }
                 }
             }
         }
         if (state.selectedWorkflow?.supportedOptions?.isNotEmpty() == true) AssistChip(onClick = { onShowOptions(true) }, label = { Text(stringResource(R.string.presets)) }, leadingIcon = { Icon(Icons.Rounded.Tune, null) })
-        Spacer(Modifier.weight(1f))
-        EstimateIndicator(state.selectedWorkflow)
-    }
-}
-
-@Composable
-private fun EstimateIndicator(workflow: WorkflowDescriptor?) {
-    Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(20.dp)) {
-        Text(workflow?.staticEstimate?.fromPrice?.let { stringResource(R.string.estimate_from, it) } ?: stringResource(R.string.pricing_unavailable), Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
+        AssistChip(onClick = { onShowBrief(true) }, label = { Text(stringResource(if (state.brief == com.higgsfield.mobile.core.model.CreativeBrief()) R.string.brief_empty_summary else R.string.brief_active_summary)) })
     }
 }
 

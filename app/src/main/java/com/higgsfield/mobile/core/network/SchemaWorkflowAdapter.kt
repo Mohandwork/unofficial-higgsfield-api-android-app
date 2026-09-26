@@ -9,6 +9,7 @@ import com.higgsfield.mobile.core.model.PromptComposer
 import com.higgsfield.mobile.core.model.WorkflowAdapter
 import com.higgsfield.mobile.core.model.WorkflowDescriptor
 import com.higgsfield.mobile.core.model.WorkflowId
+import com.higgsfield.mobile.core.model.WorkflowCapability
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -40,15 +41,23 @@ class SchemaWorkflowAdapter(
     }
 
     private fun resolveFields(draft: GenerationDraft) = schema.fields.map { field ->
-        field to field.value.resolve(draft, composedPrompt(draft))
+        val prompt = composedPrompt(draft)
+        field to if (field.name == NEGATIVE_PROMPT_FIELD) {
+            PromptComposer.composeNegativePrompt(draft.creativeBrief, draft.options.negativePrompt)?.let(::JsonPrimitive)
+        } else field.value.resolve(draft, prompt)
     }
 
-    private fun composedPrompt(draft: GenerationDraft) = PromptComposer.compose(draft.creativeBrief, draft.instruction)
+    private fun composedPrompt(draft: GenerationDraft) = PromptComposer.compose(
+        draft.creativeBrief,
+        draft.instruction,
+        WorkflowCapability.NEGATIVE_PROMPT in descriptor.capabilities,
+    )
 
     private companion object {
         const val WORKFLOW_MISMATCH_MESSAGE = "The schema belongs to a different workflow."
         const val WORKFLOW_DISABLED_MESSAGE = "The workflow is not verified for submission."
         const val INVALID_DRAFT_MESSAGE = "A valid generation draft is required."
+        const val NEGATIVE_PROMPT_FIELD = "negative_prompt"
     }
 }
 

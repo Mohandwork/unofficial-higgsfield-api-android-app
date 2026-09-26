@@ -13,7 +13,7 @@ import com.higgsfield.mobile.feature.conversation.ConversationRoute
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class ConversationKey(val mediaKind: MediaKind) : NavKey
+data class ConversationKey(val mediaKind: MediaKind, val conversationId: String? = null) : NavKey
 
 @Composable
 fun HiggsfieldApp() {
@@ -29,12 +29,17 @@ fun HiggsfieldApp() {
             entry<ConversationKey> { route ->
                 ConversationRoute(
                     mediaKind = route.mediaKind,
+                    conversationId = route.conversationId,
                     onBack = dropUnlessResumed { backStack.removeLastOrNull() },
                     onSelectMediaKind = { kind ->
                         if (kind != route.mediaKind) {
                             backStack.removeLastOrNull()
                             backStack.add(ConversationKey(kind))
                         }
+                    },
+                    onSelectConversation = { id, kind ->
+                        backStack.removeLastOrNull()
+                        backStack.add(ConversationKey(kind, id))
                     },
                 )
             }

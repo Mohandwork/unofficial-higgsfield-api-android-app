@@ -8,10 +8,13 @@ import com.higgsfield.mobile.core.model.WorkflowCatalog
 import com.higgsfield.mobile.core.model.WorkflowId
 import com.higgsfield.mobile.core.model.WorkflowRegistry
 import com.higgsfield.mobile.core.database.ConversationPersistence
+import com.higgsfield.mobile.core.database.ConversationSummary
 import com.higgsfield.mobile.core.data.GenerationRepository
 import com.higgsfield.mobile.core.data.GenerationSubmissionException
 import com.higgsfield.mobile.core.error.ErrorMapper
 import com.higgsfield.mobile.core.database.PersistedConversationSnapshot
+import com.higgsfield.mobile.core.database.PersistedTimelineItem
+import com.higgsfield.mobile.core.database.PersistedGenerationStatus
 import com.higgsfield.mobile.core.model.CreativeBrief
 import com.higgsfield.mobile.core.model.EstimateState
 import com.higgsfield.mobile.core.model.GenerationDraft
@@ -75,6 +78,28 @@ class ConversationViewModelTest {
         assertNull(state.activeSourceId)
         assertEquals(1, state.timeline.size)
         assertEquals(ConversationText.Resource(R.string.message_fresh_generation_started), state.message)
+    }
+
+    @Test
+    fun `a restored failed item without output is not treated as an active source`() {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+
+        persistence.emit(
+            PersistedConversationSnapshot(
+                id = "image-default",
+                title = "Image exploration",
+                mediaKind = MediaKind.IMAGE,
+                brief = CreativeBrief(),
+                selectedWorkflowId = WorkflowCatalog.SOUL.id,
+                activeSourceOutputId = null,
+                requiresSourceSelection = false,
+                timeline = listOf(PersistedTimelineItem("failed", "Try", WorkflowCatalog.SOUL.id, PersistedGenerationStatus.FAILED, null, null, null)),
+            ),
+        )
+
+        assertNull(viewModel.state.value.activeSourceId)
     }
 
     @Test
@@ -163,7 +188,13 @@ private class FakeConnectivityStatusProvider(isOnline: Boolean) : ConnectivitySt
 private class FakeConversationPersistence : ConversationPersistence {
     private val snapshot = MutableStateFlow<PersistedConversationSnapshot?>(null)
     override fun observe(conversationId: String): Flow<PersistedConversationSnapshot?> = snapshot
+    override fun observeConversations(): Flow<List<ConversationSummary>> = emptyFlow()
     override suspend fun ensureConversation(conversationId: String, kind: MediaKind, initialWorkflowId: WorkflowId?) = Unit
+    override suspend fun createConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String = "${kind.name.lowercase()}-new"
+    override suspend fun mostRecentConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String = "${kind.name.lowercase()}-new"
+    override suspend fun renameConversation(conversationId: String, title: String) = Unit
+    override suspend fun deriveTitleFromFirstPrompt(conversationId: String, prompt: String) = Unit
+    override suspend fun deleteConversation(conversationId: String) = Unit
     override suspend fun saveBrief(conversationId: String, brief: CreativeBrief) = Unit
     override suspend fun saveSelectedWorkflow(conversationId: String, workflowId: WorkflowId) = Unit
     override suspend fun saveCompletedDemo(
@@ -175,6 +206,10 @@ private class FakeConversationPersistence : ConversationPersistence {
         outputKind: MediaKind,
     ) = Unit
     override suspend fun selectActiveSource(conversationId: String, outputId: String?) = Unit
+
+    fun emit(value: PersistedConversationSnapshot) {
+        snapshot.value = value
+    }
 }
 
 private class FakeGenerationRepository(

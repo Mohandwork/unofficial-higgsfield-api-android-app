@@ -7,6 +7,7 @@ import com.higgsfield.mobile.BuildConfig
 import com.higgsfield.mobile.core.connectivity.AlwaysOnlineConnectivityStatusProvider
 import com.higgsfield.mobile.core.connectivity.ConnectivityStatusProvider
 import com.higgsfield.mobile.core.database.ConversationPersistence
+import com.higgsfield.mobile.core.database.ConversationSummary
 import com.higgsfield.mobile.core.database.PersistedConversationSnapshot
 import com.higgsfield.mobile.core.database.PersistedGenerationStatus
 import com.higgsfield.mobile.core.data.GenerationRepository
@@ -61,6 +62,9 @@ data class DraftMediaAttachment(
 
 data class ConversationUiState(
     val mediaKind: MediaKind = MediaKind.IMAGE,
+    val conversationId: String = "",
+    val conversationTitle: String = "",
+    val conversations: List<ConversationSummary> = emptyList(),
     val prompt: String = "",
     val brief: CreativeBrief = CreativeBrief(),
     val workflows: List<WorkflowDescriptor> = emptyList(),
@@ -75,8 +79,10 @@ data class ConversationUiState(
     val infoOpen: Boolean = false,
     val briefOpen: Boolean = false,
     val optionsOpen: Boolean = false,
+    val historyOpen: Boolean = false,
     val message: ConversationText? = null,
     val isSubmitting: Boolean = false,
+    val isTransitioning: Boolean = false,
     val isOnline: Boolean = true,
     val credentialsConfigured: Boolean = BuildConfig.HF_KEY_ID.isNotBlank() && BuildConfig.HF_KEY_SECRET.isNotBlank(),
 )
@@ -93,22 +99,26 @@ class ConversationViewModel @Inject constructor(
     private var conversationId: String? = null
     private var observation: Job? = null
     private var generationObservation: Job? = null
+    private var historyObservation: Job? = null
     private var connectivityObservation: Job? = null
+    private var detachAwaitingDatabaseConfirmation = false
     private val statusPollingJobs = mutableMapOf<String, Job>()
 
-    fun initialize(kind: MediaKind) {
-        if (mutableState.value.workflows.isNotEmpty() && mutableState.value.mediaKind == kind) return
+    fun initialize(kind: MediaKind, requestedConversationId: String? = null) {
+        val id = requestedConversationId ?: kind.name.lowercase() + "-default"
+        if (conversationId == id && mutableState.value.workflows.isNotEmpty()) return
         val workflows = WorkflowRegistry.forKind(kind)
         mutableState.value = ConversationUiState(
             mediaKind = kind,
+            conversationId = id,
             workflows = workflows,
             selectedWorkflow = workflows.firstOrNull(),
             attachmentSlots = attachmentSlotsFor(workflows.firstOrNull()),
         )
-        val id = kind.name.lowercase() + "-default"
         conversationId = id
         observation?.cancel()
         generationObservation?.cancel()
+        historyObservation?.cancel()
         connectivityObservation?.cancel()
         statusPollingJobs.values.forEach(Job::cancel)
         statusPollingJobs.clear()
@@ -120,6 +130,11 @@ class ConversationViewModel @Inject constructor(
         observation = viewModelScope.launch {
             persistence.ensureConversation(id, kind, workflows.firstOrNull()?.id)
             persistence.observe(id).collect(::restoreSnapshot)
+        }
+        historyObservation = viewModelScope.launch {
+            persistence.observeConversations().collect { conversations ->
+                mutableState.update { it.copy(conversations = conversations) }
+            }
         }
         generationObservation = generationRepository?.let { repository ->
             viewModelScope.launch {
@@ -133,6 +148,41 @@ class ConversationViewModel @Inject constructor(
     fun showInfo(show: Boolean) = mutableState.update { it.copy(infoOpen = show) }
     fun showBrief(show: Boolean) = mutableState.update { it.copy(briefOpen = show) }
     fun showOptions(show: Boolean) = mutableState.update { it.copy(optionsOpen = show) }
+    fun showHistory(show: Boolean) = mutableState.update { it.copy(historyOpen = show) }
+
+    fun renameConversation(title: String) {
+        val id = conversationId ?: return
+        viewModelScope.launch { persistence.renameConversation(id, title) }
+    }
+
+    fun createConversation(kind: MediaKind, onCreated: (String) -> Unit) {
+        mutableState.update { it.copy(isTransitioning = true) }
+        viewModelScope.launch {
+            onCreated(persistence.createConversation(kind, WorkflowRegistry.forKind(kind).firstOrNull()?.id))
+        }
+    }
+
+    fun openMostRecentConversation(kind: MediaKind, onOpen: (String, MediaKind) -> Unit) {
+        mutableState.update { it.copy(isTransitioning = true) }
+        viewModelScope.launch {
+            onOpen(persistence.mostRecentConversation(kind, WorkflowRegistry.forKind(kind).firstOrNull()?.id), kind)
+        }
+    }
+
+    fun openConversation(id: String, kind: MediaKind, onOpen: (String, MediaKind) -> Unit) {
+        mutableState.update { it.copy(isTransitioning = true) }
+        onOpen(id, kind)
+    }
+
+    fun removeCurrentConversation(onOpen: (String, MediaKind) -> Unit) {
+        val id = conversationId ?: return
+        val kind = mutableState.value.mediaKind
+        mutableState.update { it.copy(isTransitioning = true) }
+        viewModelScope.launch {
+            persistence.deleteConversation(id)
+            onOpen(persistence.mostRecentConversation(kind, WorkflowRegistry.forKind(kind).firstOrNull()?.id), kind)
+        }
+    }
 
     fun selectWorkflow(workflow: WorkflowDescriptor) {
         mutableState.update { current ->
@@ -256,6 +306,7 @@ class ConversationViewModel @Inject constructor(
                 )
             }
             result.getOrNull()?.let(::startStatusPollingIfNeeded)
+            if (result.isSuccess) persistence.deriveTitleFromFirstPrompt(conversationId, draft.instruction)
         }
     }
 
@@ -268,10 +319,18 @@ class ConversationViewModel @Inject constructor(
     }
 
     fun detachSource() {
+        val id = conversationId ?: return
+        detachAwaitingDatabaseConfirmation = true
         mutableState.update {
             it.copy(activeSourceId = null, activeSourceLabel = null, message = ConversationText.Resource(R.string.message_fresh_generation_started))
         }
-        conversationId?.let { id -> viewModelScope.launch { persistence.selectActiveSource(id, null) } }
+        viewModelScope.launch {
+            runCatching { persistence.selectActiveSource(id, null) }
+                .onFailure {
+                    detachAwaitingDatabaseConfirmation = false
+                    mutableState.update { state -> state.copy(message = ConversationText.Resource(R.string.error_unknown)) }
+                }
+        }
     }
 
     fun useOutput(item: TimelineItem) {
@@ -335,6 +394,7 @@ class ConversationViewModel @Inject constructor(
                 instruction = item.prompt,
                 outputKind = current.mediaKind,
             )
+            persistence.deriveTitleFromFirstPrompt(id, item.prompt)
         }
     }
 
@@ -363,16 +423,21 @@ class ConversationViewModel @Inject constructor(
                     lifecycle = item.status.toLifecycle(),
                 )
             } else current.timeline
-            val activeGeneration = timeline.firstOrNull {
-                it.sourceOutputId == snapshot.activeSourceOutputId
+            val activeGeneration = snapshot.activeSourceOutputId?.let { activeOutputId ->
+                timeline.firstOrNull { it.sourceOutputId == activeOutputId }
+            }
+            if (detachAwaitingDatabaseConfirmation && snapshot.activeSourceOutputId == null) {
+                detachAwaitingDatabaseConfirmation = false
             }
             current.copy(
+                conversationId = snapshot.id,
+                conversationTitle = snapshot.title,
                 brief = snapshot.brief,
                 selectedWorkflow = snapshot.selectedWorkflowId?.let(WorkflowRegistry::find)
                     ?: current.selectedWorkflow,
                 timeline = timeline,
-                activeSourceId = activeGeneration?.id,
-                activeSourceLabel = activeGeneration?.outputLabel,
+                activeSourceId = if (detachAwaitingDatabaseConfirmation) null else activeGeneration?.id,
+                activeSourceLabel = if (detachAwaitingDatabaseConfirmation) null else activeGeneration?.outputLabel,
                 message = if (snapshot.requiresSourceSelection) {
                     ConversationText.Resource(R.string.message_select_output_before_continuing)
                 } else current.message,
@@ -421,7 +486,8 @@ class ConversationViewModel @Inject constructor(
 }
 
 private fun Throwable.toConversationText(): ConversationText = when (this) {
-    is GenerationSubmissionException -> ConversationText.Resource(appError.messageResId)
+    is GenerationSubmissionException -> appError.userMessage?.let(ConversationText::Dynamic)
+        ?: ConversationText.Resource(appError.messageResId)
     else -> ConversationText.Resource(R.string.error_unknown)
 }
 
@@ -439,7 +505,11 @@ private fun GenerationRecord.toTimelineItem(): TimelineItem {
         parentId = parentGenerationId,
         lifecycle = status,
         record = this,
-        errorText = ErrorMapper.messageResIdFor(errorCode)?.let(ConversationText::Resource),
+        errorText = when (status) {
+            is GenerationStatus.Failed -> status.userMessage.takeIf(String::isNotBlank)?.let(ConversationText::Dynamic)
+            is GenerationStatus.UnknownSubmissionOutcome -> status.userMessage.takeIf(String::isNotBlank)?.let(ConversationText::Dynamic)
+            else -> ErrorMapper.messageResIdFor(errorCode)?.let(ConversationText::Resource)
+        },
         canRetry = (status as? GenerationStatus.Failed)?.retryable == true,
         canCancel = status is GenerationStatus.Queued,
     )
