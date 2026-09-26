@@ -37,7 +37,7 @@ UI reads immutable state and emits events to ViewModels. ViewModels call reposit
 
 `core/error` is the single boundary for application errors. `ErrorMapper` converts network, storage, validation, and unexpected failures into a closed `AppError` contract containing a stable error code, a user-facing string resource ID, retry guidance, and an optional safe diagnostic message.
 
-The Android build also verifies native dependency compatibility. Compose's transitive `androidx.graphics:graphics-path` is pinned through the version catalog to the 16 KB-compatible `1.1.0` artifact; packaged native libraries are checked with 16 KB ZIP alignment during release verification.
+The Android build verifies native dependency compatibility. Unused native dependencies are excluded, and packaged native libraries must pass both 16 KB ZIP alignment and ELF `LOAD`/`GNU_RELRO` alignment checks during release verification.
 
 Repositories persist the stable code and safe diagnostic message for generation history, then return the mapped `AppError` to callers. UI renders only the resource-backed message and allowed action; it never displays raw exceptions, HTTP bodies, credentials, signed URLs, or unfiltered server diagnostics. This keeps errors consistent across foreground work, polling, and WorkManager recovery while retaining useful, non-secret history for support and retry decisions.
 

@@ -8,6 +8,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 
 data class PersistedTimelineItem(
     val id: String,
@@ -20,6 +21,9 @@ data class PersistedTimelineItem(
 )
 
 data class PersistedConversationSnapshot(
+    val id: String,
+    val title: String,
+    val mediaKind: MediaKind,
     val brief: CreativeBrief,
     val selectedWorkflowId: WorkflowId?,
     val activeSourceOutputId: String?,
@@ -27,9 +31,22 @@ data class PersistedConversationSnapshot(
     val timeline: List<PersistedTimelineItem>,
 )
 
+data class ConversationSummary(
+    val id: String,
+    val mediaKind: MediaKind,
+    val title: String,
+    val updatedAtEpochMillis: Long,
+)
+
 interface ConversationPersistence {
     fun observe(conversationId: String): Flow<PersistedConversationSnapshot?>
+    fun observeConversations(): Flow<List<ConversationSummary>>
     suspend fun ensureConversation(conversationId: String, kind: MediaKind, initialWorkflowId: WorkflowId?)
+    suspend fun createConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String
+    suspend fun mostRecentConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String
+    suspend fun renameConversation(conversationId: String, title: String)
+    suspend fun deriveTitleFromFirstPrompt(conversationId: String, prompt: String)
+    suspend fun deleteConversation(conversationId: String)
     suspend fun saveBrief(conversationId: String, brief: CreativeBrief)
     suspend fun saveSelectedWorkflow(conversationId: String, workflowId: WorkflowId)
     suspend fun saveCompletedDemo(
@@ -57,6 +74,9 @@ class RoomConversationPersistence @Inject constructor(
         ) { conversation, generations ->
             conversation?.let { entity ->
                 PersistedConversationSnapshot(
+                    id = entity.id,
+                    title = entity.title,
+                    mediaKind = MediaKind.valueOf(entity.mediaKind),
                     brief = entity.toBrief(),
                     selectedWorkflowId = entity.selectedWorkflowId?.let(::WorkflowId),
                     activeSourceOutputId = entity.activeSourceOutputId,
@@ -75,6 +95,11 @@ class RoomConversationPersistence @Inject constructor(
                     },
                 )
             }
+        }
+
+    override fun observeConversations(): Flow<List<ConversationSummary>> =
+        conversationDao.observeAll().map { entities ->
+            entities.map { ConversationSummary(it.id, MediaKind.valueOf(it.mediaKind), it.title, it.updatedAtEpochMillis) }
         }
 
     override suspend fun ensureConversation(
@@ -97,6 +122,37 @@ class RoomConversationPersistence @Inject constructor(
                 )
             }
         }
+    }
+
+    override suspend fun createConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String {
+        val id = "${kind.name.lowercase()}-${java.util.UUID.randomUUID()}"
+        val now = System.currentTimeMillis()
+        conversationDao.upsert(ConversationEntity(id, kind.name, if (kind == MediaKind.IMAGE) "New image chat" else "New video chat", selectedWorkflowId = initialWorkflowId?.value, createdAtEpochMillis = now, updatedAtEpochMillis = now))
+        return id
+    }
+
+    override suspend fun mostRecentConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String {
+        return conversationDao.mostRecentForKind(kind.name)?.id
+            ?: createConversation(kind, initialWorkflowId)
+    }
+
+    override suspend fun renameConversation(conversationId: String, title: String) {
+        val trimmed = title.trim()
+        require(trimmed.isNotEmpty()) { "A conversation title cannot be empty" }
+        check(conversationDao.rename(conversationId, trimmed, System.currentTimeMillis()) == 1) {
+            "Cannot rename a missing conversation"
+        }
+    }
+
+    override suspend fun deriveTitleFromFirstPrompt(conversationId: String, prompt: String) {
+        val conversation = conversationDao.get(conversationId) ?: return
+        if (conversation.title !in AUTO_TITLE_PLACEHOLDERS) return
+        val title = prompt.trim().replace(Regex("\\s+"), " ").take(TITLE_MAX_LENGTH)
+        if (title.isNotBlank()) renameConversation(conversationId, title)
+    }
+
+    override suspend fun deleteConversation(conversationId: String) {
+        check(conversationDao.delete(conversationId) == 1) { "Cannot remove a missing conversation" }
     }
 
     override suspend fun saveBrief(conversationId: String, brief: CreativeBrief) {
@@ -180,3 +236,5 @@ private const val CROSS_CONVERSATION_PARENT_MESSAGE = "A branch parent must exis
 private const val EMPTY_OPTIONS_SNAPSHOT = "{}"
 private const val DEMO_OUTPUT_SUFFIX = "-output"
 private const val DEMO_URL_PREFIX = "demo://"
+private val AUTO_TITLE_PLACEHOLDERS = setOf("Image exploration", "Video exploration", "New image chat", "New video chat")
+private const val TITLE_MAX_LENGTH = 48

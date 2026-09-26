@@ -20,8 +20,11 @@ data class StaticEstimateMetadata(
     val fromPrice: String? = null,
     val creditGuidance: String? = null,
     val expectedLatency: String? = null,
-    val sourceUrl: String,
-    val verifiedOn: String,
+    val maximumResolution: String? = null,
+    val supportedDurations: String? = null,
+    val sourceLabel: String? = null,
+    val sourceUrl: String = "",
+    val verifiedOn: String = "",
 )
 
 enum class MediaRole { SOURCE, START_FRAME, END_FRAME, REFERENCE, MOTION_REFERENCE, AUDIO }

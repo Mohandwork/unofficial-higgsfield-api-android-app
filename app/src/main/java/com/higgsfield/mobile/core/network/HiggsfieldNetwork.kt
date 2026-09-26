@@ -9,12 +9,13 @@ import com.higgsfield.mobile.BuildConfig
 
 object HiggsfieldNetwork {
     const val API_HOST = "api.higgsfield.ai"
+    const val PLATFORM_HOST = "platform.higgsfield.ai"
     const val BASE_URL = "https://$API_HOST/"
 
     fun createService(
         credentials: ApiCredentials,
         baseUrl: String = BASE_URL,
-        authorizedHosts: Set<String> = setOf(API_HOST),
+        authorizedHosts: Set<String> = setOf(API_HOST, PLATFORM_HOST),
     ): HiggsfieldService {
         val clientBuilder = OkHttpClient.Builder()
             .addInterceptor(HiggsfieldAuthorizationInterceptor(credentials, authorizedHosts))

@@ -10,6 +10,7 @@ data class AppError(
     @param:StringRes val messageResId: Int,
     val retryable: Boolean,
     val diagnosticMessage: String? = null,
+    val userMessage: String? = null,
 )
 
 object ErrorMapper {
@@ -25,6 +26,7 @@ object ErrorMapper {
         CODE_REMOTE_PROTOCOL -> R.string.error_remote_protocol
         CODE_REMOTE_FAILED -> R.string.error_generation_failed
         CODE_MODERATED -> R.string.error_generation_moderated
+        CODE_NOT_ENOUGH_CREDITS -> R.string.error_not_enough_credits
         CODE_NETWORK -> R.string.error_network_unavailable
         CODE_HTTP, CODE_UNKNOWN -> R.string.error_unknown
         else -> null
@@ -103,14 +105,26 @@ object ErrorMapper {
         diagnosticMessage = message,
     )
 
+    fun notEnoughCredits() = AppError(
+        code = CODE_NOT_ENOUGH_CREDITS,
+        messageResId = R.string.error_not_enough_credits,
+        retryable = false,
+    )
+
     fun from(throwable: Throwable): AppError = when (throwable) {
         is IOException -> AppError(CODE_NETWORK, R.string.error_network_unavailable, retryable = true)
-        is HttpException -> when (throwable.code()) {
-            HTTP_UNAUTHORIZED -> credentialsRejected()
-            HTTP_NOT_FOUND -> requestNotFound()
-            else -> AppError(CODE_HTTP, R.string.error_unknown, throwable.code() >= HTTP_SERVER_ERROR, throwable.message())
-        }
+        is HttpException -> httpError(throwable)
         else -> AppError(CODE_UNKNOWN, R.string.error_unknown, retryable = false, diagnosticMessage = throwable.message)
+    }
+
+    private fun httpError(error: HttpException): AppError {
+        val remoteDetail = error.response()?.errorBody()?.string()?.extractRemoteDetail()
+        val fallback = when (error.code()) {
+                HTTP_UNAUTHORIZED -> credentialsRejected()
+                HTTP_NOT_FOUND -> requestNotFound()
+                else -> AppError(CODE_HTTP, R.string.error_unknown, error.code() >= HTTP_SERVER_ERROR, error.message())
+        }
+        return remoteDetail?.let { fallback.copy(diagnosticMessage = it, userMessage = it) } ?: fallback
     }
 
     private const val HTTP_UNAUTHORIZED = 401
@@ -127,7 +141,16 @@ object ErrorMapper {
     private const val CODE_REMOTE_PROTOCOL = "remote_protocol"
     private const val CODE_REMOTE_FAILED = "remote_failed"
     private const val CODE_MODERATED = "moderated"
+    private const val CODE_NOT_ENOUGH_CREDITS = "not_enough_credits"
     private const val CODE_NETWORK = "network"
     private const val CODE_HTTP = "http"
     private const val CODE_UNKNOWN = "unknown"
+    private const val REMOTE_NOT_ENOUGH_CREDITS = "not_enough_credits"
+    private const val REMOTE_INSUFFICIENT_CREDITS = "insufficient_credits"
 }
+
+private fun String.extractRemoteDetail(): String? =
+    Regex("\\\"(?:detail|code)\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"")
+        .find(this)?.groupValues?.getOrNull(1)?.take(MAX_REMOTE_MESSAGE_LENGTH)
+
+private const val MAX_REMOTE_MESSAGE_LENGTH = 240

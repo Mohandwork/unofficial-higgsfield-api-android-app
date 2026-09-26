@@ -19,6 +19,12 @@ interface ConversationDao {
     @Query("SELECT * FROM conversations ORDER BY updatedAtEpochMillis DESC")
     fun observeAll(): Flow<List<ConversationEntity>>
 
+    @Query("SELECT * FROM conversations WHERE mediaKind = :mediaKind ORDER BY updatedAtEpochMillis DESC")
+    fun observeForKind(mediaKind: String): Flow<List<ConversationEntity>>
+
+    @Query("SELECT * FROM conversations WHERE mediaKind = :mediaKind ORDER BY updatedAtEpochMillis DESC LIMIT 1")
+    suspend fun mostRecentForKind(mediaKind: String): ConversationEntity?
+
     @Query("SELECT * FROM conversations WHERE id = :id")
     suspend fun get(id: String): ConversationEntity?
 
@@ -45,6 +51,12 @@ interface ConversationDao {
         conversationId: String, subject: String, style: String, mood: String,
         camera: String, requirements: String, exclusions: String, outputGoal: String, now: Long,
     ): Int
+
+    @Query("UPDATE conversations SET title = :title, updatedAtEpochMillis = :now WHERE id = :conversationId")
+    suspend fun rename(conversationId: String, title: String, now: Long): Int
+
+    @Query("DELETE FROM conversations WHERE id = :conversationId")
+    suspend fun delete(conversationId: String): Int
 }
 
 @Dao

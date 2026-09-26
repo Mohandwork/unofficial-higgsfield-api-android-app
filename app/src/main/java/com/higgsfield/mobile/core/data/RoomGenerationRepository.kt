@@ -22,6 +22,7 @@ import com.higgsfield.mobile.core.model.GenerationStatus
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.PromptComposer
 import com.higgsfield.mobile.core.model.WorkflowRegistry
+import com.higgsfield.mobile.core.model.WorkflowCapability
 import com.higgsfield.mobile.core.network.AttachmentUploadResult
 import com.higgsfield.mobile.core.network.HiggsfieldService
 import com.higgsfield.mobile.core.network.HiggsfieldUrlValidator
@@ -111,16 +112,20 @@ class RoomGenerationRepository @Inject constructor(
             val response = service.submitWorkflow(uploadedPlan.endpointPath, uploadedPlan.request)
             generationResponseReceived = true
             require(response.requestId.isNotBlank()) { MISSING_REQUEST_ID_MESSAGE }
-            val statusUrl = requireNotNull(response.statusUrl) { MISSING_STATUS_URL_MESSAGE }
-            require(HiggsfieldUrlValidator.isApiUrl(statusUrl)) { INVALID_STATUS_URL_MESSAGE }
-            response.cancelUrl?.let { cancelUrl ->
-                require(HiggsfieldUrlValidator.isApiUrl(cancelUrl)) { INVALID_CANCEL_URL_MESSAGE }
-            }
+            require(response.requestId.matches(REQUEST_ID_PATTERN)) { INVALID_REQUEST_ID_MESSAGE }
+
+            // A successful POST is the durable boundary. Keep its ID before any client-side
+            // interpretation or polling can fail, so a later app launch can reconcile it.
+            val statusUrl = response.statusUrl
+                ?.takeIf(HiggsfieldUrlValidator::isApiUrl)
+                ?: canonicalStatusUrl(response.requestId)
+            val cancellationUrl = response.cancelUrl
+                ?.takeIf(HiggsfieldUrlValidator::isApiUrl)
             localStore.markAccepted(
                 generationId = generationId,
                 requestId = response.requestId,
                 statusUrl = statusUrl,
-                cancellationUrl = response.cancelUrl,
+                cancellationUrl = cancellationUrl,
                 correlationId = null,
                 now = System.currentTimeMillis(),
             )
@@ -197,7 +202,7 @@ class RoomGenerationRepository @Inject constructor(
             entity.id,
             status,
             error.code,
-            error.diagnosticMessage,
+            error.userMessage ?: error.diagnosticMessage,
             System.currentTimeMillis(),
         ) == 1)
         return Result.failure(GenerationSubmissionException(error))
@@ -237,8 +242,12 @@ private fun GenerationDraft.toEntity(
     branchRootId = parent?.branchRootId ?: generationId,
     workflowId = workflowId.value,
     instruction = instruction.trim(),
-    composedPrompt = PromptComposer.compose(creativeBrief, instruction),
-    negativePrompt = options.negativePrompt?.takeIf(String::isNotBlank),
+    composedPrompt = PromptComposer.compose(
+        creativeBrief,
+        instruction,
+        WorkflowCapability.NEGATIVE_PROMPT in WorkflowRegistry.find(workflowId)?.capabilities.orEmpty(),
+    ),
+    negativePrompt = PromptComposer.composeNegativePrompt(creativeBrief, options.negativePrompt),
     optionsSnapshotJson = options.snapshotJson(),
     createdAtEpochMillis = now,
     updatedAtEpochMillis = now,
@@ -364,6 +373,8 @@ private const val UNKNOWN_WORKFLOW_MESSAGE = "The selected workflow is not regis
 private const val MISSING_SCHEMA_MESSAGE = "The selected workflow has no verified submission schema"
 private const val MISSING_ENDPOINT_MESSAGE = "The selected workflow has no verified submission endpoint"
 private const val MISSING_REQUEST_ID_MESSAGE = "Accepted response is missing a request ID"
-private const val MISSING_STATUS_URL_MESSAGE = "Accepted response is missing a status URL"
-private const val INVALID_STATUS_URL_MESSAGE = "Accepted response has an invalid status URL"
-private const val INVALID_CANCEL_URL_MESSAGE = "Accepted response has an invalid cancellation URL"
+private const val INVALID_REQUEST_ID_MESSAGE = "Accepted response has an invalid request ID"
+private val REQUEST_ID_PATTERN = Regex("[A-Za-z0-9-]{1,128}")
+
+private fun canonicalStatusUrl(requestId: String): String =
+    "https://${com.higgsfield.mobile.core.network.HiggsfieldNetwork.PLATFORM_HOST}/requests/$requestId/status"

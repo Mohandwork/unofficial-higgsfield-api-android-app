@@ -134,6 +134,28 @@ class RoomGenerationRepositoryTest {
     }
 
     @Test
+    fun `accepted submission keeps a canonical recovery URL when the returned URL is unusable`() = runTest {
+        database.conversationDao().upsert(conversation(CONVERSATION_ID))
+        server.enqueue(
+            MockResponse().setBody(
+                """{"status":"queued","request_id":"request-2","status_url":"https://storage.example.test/request-status"}""",
+            ),
+        )
+
+        val result = repository.submit(
+            CONVERSATION_ID,
+            GenerationDraft(INSTRUCTION, CreativeBrief(), WorkflowCatalog.SOUL_V2.id),
+        )
+
+        assertTrue(result.isSuccess)
+        val persisted = database.generationDao().get(result.getOrThrow().id)!!
+        assertEquals(PersistedGenerationStatus.QUEUED, persisted.status)
+        assertEquals("request-2", persisted.requestId)
+        assertEquals("https://platform.higgsfield.ai/requests/request-2/status", persisted.statusUrl)
+        assertEquals(listOf(persisted.id), synchronizer.refreshedGenerationIds)
+    }
+
+    @Test
     fun `ambiguous submission disconnect is persisted without a generation retry`() = runTest {
         database.conversationDao().upsert(conversation(CONVERSATION_ID))
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START))
