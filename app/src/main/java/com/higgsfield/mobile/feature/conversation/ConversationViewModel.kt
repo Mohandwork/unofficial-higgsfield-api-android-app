@@ -3,11 +3,9 @@ package com.higgsfield.mobile.feature.conversation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.higgsfield.mobile.R
-import com.higgsfield.mobile.BuildConfig
 import com.higgsfield.mobile.core.connectivity.AlwaysOnlineConnectivityStatusProvider
 import com.higgsfield.mobile.core.connectivity.ConnectivityStatusProvider
 import com.higgsfield.mobile.core.database.ConversationPersistence
-import com.higgsfield.mobile.core.database.ConversationSummary
 import com.higgsfield.mobile.core.database.PersistedConversationSnapshot
 import com.higgsfield.mobile.core.database.PersistedComposerDraft
 import com.higgsfield.mobile.core.database.PersistedDraftAttachment
@@ -38,59 +36,9 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-data class TimelineItem(
-    val id: String,
-    val prompt: String,
-    val modelName: String,
-    val stateLabel: ConversationText,
-    val outputLabel: ConversationText? = null,
-    val output: GenerationOutput? = null,
-    val sourceOutputId: String? = null,
-    val parentId: String? = null,
-    val lifecycle: GenerationStatus? = null,
-    val record: GenerationRecord? = null,
-    val errorText: ConversationText? = null,
-    val canRetry: Boolean = false,
-    val canCancel: Boolean = false,
-)
-
-data class DraftMediaAttachment(
-    val role: MediaRole,
-    val kind: MediaKind,
-    val uri: String,
-    val label: String,
-    val remoteUrl: String? = null,
-)
-
-data class ConversationUiState(
-    val mediaKind: MediaKind = MediaKind.IMAGE,
-    val conversationId: String = "",
-    val conversationTitle: String = "",
-    val conversations: List<ConversationSummary> = emptyList(),
-    val prompt: String = "",
-    val brief: CreativeBrief = CreativeBrief(),
-    val workflows: List<WorkflowDescriptor> = emptyList(),
-    val selectedWorkflow: WorkflowDescriptor? = null,
-    val timeline: List<TimelineItem> = emptyList(),
-    val activeSourceId: String? = null,
-    val activeSourceLabel: ConversationText? = null,
-    val attachmentSlots: List<MediaRequirement> = emptyList(),
-    val attachments: List<DraftMediaAttachment> = emptyList(),
-    val options: GenerationOptions = GenerationOptions(),
-    val modelMenuOpen: Boolean = false,
-    val infoOpen: Boolean = false,
-    val briefOpen: Boolean = false,
-    val optionsOpen: Boolean = false,
-    val historyOpen: Boolean = false,
-    val message: ConversationText? = null,
-    val isSubmitting: Boolean = false,
-    val isTransitioning: Boolean = false,
-    val isOnline: Boolean = true,
-    val credentialsConfigured: Boolean = BuildConfig.HF_KEY_ID.isNotBlank() && BuildConfig.HF_KEY_SECRET.isNotBlank(),
-)
 
 @HiltViewModel
 class ConversationViewModel @Inject constructor(
@@ -98,9 +46,14 @@ class ConversationViewModel @Inject constructor(
     private val connectivity: ConnectivityStatusProvider = AlwaysOnlineConnectivityStatusProvider,
     private val generationRepository: GenerationRepository? = null,
     private val statusPoller: RequestStatusPoller? = null,
+    private val conversationLifecycle: ConversationLifecycleUseCase = ConversationLifecycleUseCase(persistence),
+    private val submitGenerationUseCase: SubmitGenerationUseCase? = generationRepository?.let { SubmitGenerationUseCase(it, persistence) },
+    private val composerUseCase: ConversationComposerUseCase = ConversationComposerUseCase(),
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ConversationUiState())
     val state: StateFlow<ConversationUiState> = mutableState.asStateFlow()
+    private val effectChannel = Channel<ConversationUiEffect>(Channel.BUFFERED)
+    val effects = effectChannel.receiveAsFlow()
     private var conversationId: String? = null
     private var observation: Job? = null
     private var generationObservation: Job? = null
@@ -140,7 +93,7 @@ class ConversationViewModel @Inject constructor(
             conversationId = id,
             workflows = workflows,
             selectedWorkflow = workflows.firstOrNull(),
-            attachmentSlots = attachmentSlotsFor(workflows.firstOrNull()),
+            attachmentSlots = composerUseCase.slotsFor(workflows.firstOrNull()),
             isTransitioning = true,
         )
         conversationId = id
@@ -198,6 +151,43 @@ class ConversationViewModel @Inject constructor(
         mutableState.update { it.copy(prompt = value, message = null) }
         persistDraft()
     }
+
+    fun onEvent(event: ConversationUiEvent) {
+        when (event) {
+            is ConversationUiEvent.SelectMediaKind -> openMostRecentConversation(event.kind)
+            is ConversationUiEvent.OpenConversation -> openConversation(event.id, event.kind)
+            is ConversationUiEvent.CreateConversation -> createConversation(event.kind)
+            ConversationUiEvent.RemoveConversation -> removeCurrentConversation()
+            is ConversationUiEvent.RenameConversation -> renameConversation(event.title)
+            is ConversationUiEvent.ChangePrompt -> updatePrompt(event.value)
+            ConversationUiEvent.ToggleModelMenu -> toggleModelMenu()
+            is ConversationUiEvent.SelectWorkflow -> selectWorkflow(event.workflow)
+            is ConversationUiEvent.ShowInfo -> showInfo(event.show)
+            is ConversationUiEvent.ShowHistory -> showHistory(event.show)
+            is ConversationUiEvent.ShowBrief -> showBrief(event.show)
+            is ConversationUiEvent.ShowOptions -> showOptions(event.show)
+            is ConversationUiEvent.UpdateBrief -> updateBrief(event.brief)
+            is ConversationUiEvent.UpdateOptions -> updateOptions(event.options)
+            is ConversationUiEvent.PickMedia -> viewModelScope.launch {
+                effectChannel.send(ConversationUiEffect.LaunchMediaPicker(event.role, event.kind))
+            }
+            is ConversationUiEvent.MediaPicked -> attachMedia(event.role, event.kind, event.uri, event.label)
+            is ConversationUiEvent.RemoveMedia -> removeMedia(event.role)
+            ConversationUiEvent.DetachSource -> detachSource()
+            is ConversationUiEvent.EditImage -> useOutput(event.item)
+            is ConversationUiEvent.ReuseParameters -> reuseParameters(event.item)
+            ConversationUiEvent.Generate -> submitGeneration()
+            is ConversationUiEvent.Retry -> retryGeneration(event.item)
+            is ConversationUiEvent.Cancel -> cancelGeneration(event.item)
+            is ConversationUiEvent.Download -> viewModelScope.launch {
+                effectChannel.send(ConversationUiEffect.LaunchDownload(event.item))
+            }
+            is ConversationUiEvent.DownloadDestinationSelected -> downloadOutput(event.item, event.uri)
+            is ConversationUiEvent.CopyPrompt -> viewModelScope.launch {
+                effectChannel.send(ConversationUiEffect.CopyText(event.item.prompt))
+            }
+        }
+    }
     fun toggleModelMenu() = mutableState.update { it.copy(modelMenuOpen = !it.modelMenuOpen) }
     fun showInfo(show: Boolean) = mutableState.update { it.copy(infoOpen = show) }
     fun showBrief(show: Boolean) = mutableState.update { it.copy(briefOpen = show) }
@@ -206,54 +196,53 @@ class ConversationViewModel @Inject constructor(
 
     fun renameConversation(title: String) {
         val id = conversationId ?: return
-        viewModelScope.launch { persistence.renameConversation(id, title) }
-    }
-
-    fun createConversation(kind: MediaKind, onCreated: (String) -> Unit) {
-        mutableState.update { it.copy(isTransitioning = true) }
         viewModelScope.launch {
-            onCreated(persistence.createConversation(kind, WorkflowRegistry.forKind(kind).firstOrNull()?.id))
+            try {
+                persistence.renameConversation(id, title)
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (_: Exception) {
+                mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
+            }
         }
     }
 
-    fun openMostRecentConversation(kind: MediaKind, onOpen: (String, MediaKind) -> Unit) {
-        mutableState.update { it.copy(isTransitioning = true) }
-        viewModelScope.launch {
-            onOpen(persistence.mostRecentConversation(kind, WorkflowRegistry.forKind(kind).firstOrNull()?.id), kind)
-        }
-    }
+    fun createConversation(kind: MediaKind) = navigate(kind) { conversationLifecycle.create(kind) }
 
-    fun openConversation(id: String, kind: MediaKind, onOpen: (String, MediaKind) -> Unit) {
-        mutableState.update { it.copy(isTransitioning = true) }
-        onOpen(id, kind)
-    }
+    fun openMostRecentConversation(kind: MediaKind) = navigate(kind) { conversationLifecycle.mostRecent(kind) }
 
-    fun removeCurrentConversation(onOpen: (String, MediaKind) -> Unit) {
+    fun openConversation(id: String, kind: MediaKind) = navigate(kind) { id }
+
+    fun removeCurrentConversation() {
         val id = conversationId ?: return
         val kind = mutableState.value.mediaKind
+        navigate(kind) { conversationLifecycle.removeAndOpenNext(id, kind) }
+    }
+
+    private fun navigate(kind: MediaKind, destination: suspend () -> String) {
         mutableState.update { it.copy(isTransitioning = true) }
         viewModelScope.launch {
-            persistence.deleteConversation(id)
-            onOpen(persistence.mostRecentConversation(kind, WorkflowRegistry.forKind(kind).firstOrNull()?.id), kind)
+            try {
+                effectChannel.send(ConversationUiEffect.NavigateToConversation(destination(), kind))
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (_: Exception) {
+                mutableState.update { it.copy(isTransitioning = false, message = ConversationText.Resource(R.string.error_unknown)) }
+            }
         }
     }
 
     fun selectWorkflow(workflow: WorkflowDescriptor) {
         draftTouched = true
         mutableState.update { current ->
-            val sourceIncompatible = current.activeSourceId != null && current.mediaKind == MediaKind.IMAGE &&
-                WorkflowCapability.IMAGE_TO_IMAGE !in workflow.capabilities
+            val selection = composerUseCase.selectWorkflow(current, workflow)
             current.copy(
                 selectedWorkflow = workflow,
-                attachmentSlots = attachmentSlotsFor(workflow),
-                attachments = current.attachments.filter { attachment ->
-                    attachmentSlotsFor(workflow).any { slot ->
-                        slot.role == attachment.role && slot.kind == attachment.kind
-                    }
-                },
-                options = current.options.retainFor(workflow),
+                attachmentSlots = selection.slots,
+                attachments = selection.attachments,
+                options = selection.options,
                 modelMenuOpen = false,
-                message = if (sourceIncompatible) {
+                message = if (selection.activeImageIncompatible) {
                     ConversationText.Resource(R.string.message_model_cannot_edit_active_image)
                 } else null,
             )
@@ -288,33 +277,12 @@ class ConversationViewModel @Inject constructor(
     fun updateOptions(options: GenerationOptions) {
         draftTouched = true
         mutableState.update { current ->
-            current.copy(options = options.retainFor(current.selectedWorkflow))
+            current.copy(options = composerUseCase.retainOptionsFor(options, current.selectedWorkflow))
         }
         persistDraft()
     }
 
-    fun currentDraft(): GenerationDraft? {
-        val current = mutableState.value
-        val workflow = current.selectedWorkflow ?: return null
-        return GenerationDraft(
-            instruction = current.prompt,
-            creativeBrief = current.brief,
-            workflowId = workflow.id,
-            attachments = current.attachments.map { attachment ->
-                GenerationAttachment(
-                    id = "$LOCAL_ATTACHMENT_ID_PREFIX${attachment.role.name.lowercase()}",
-                    uri = attachment.uri,
-                    kind = attachment.kind,
-                    role = attachment.role,
-                    remoteUrl = attachment.remoteUrl,
-                )
-            },
-            activeSourceId = current.activeSourceId?.let { activeId ->
-                persistedActiveSourceOutputId ?: current.timeline.firstOrNull { it.id == activeId }?.sourceOutputId
-            },
-            options = current.options,
-        )
-    }
+    fun currentDraft(): GenerationDraft? = composerUseCase.draftFor(mutableState.value, persistedActiveSourceOutputId)
 
     fun updateBrief(brief: CreativeBrief) {
         mutableState.update { it.copy(brief = brief, briefOpen = false) }
@@ -368,12 +336,18 @@ class ConversationViewModel @Inject constructor(
     }
 
     private fun submitDraft(conversationId: String, draft: GenerationDraft, clearPromptOnSuccess: Boolean) {
-        val repository = generationRepository
+        val useCase = submitGenerationUseCase
             ?: return mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
         if (!mutableState.value.isOnline || mutableState.value.isSubmitting) return
         mutableState.update { it.copy(isSubmitting = true, message = null) }
         viewModelScope.launch {
-            val result = repository.submit(conversationId, draft)
+            val result = try {
+                useCase(conversationId, draft)
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (error: Exception) {
+                Result.failure(error)
+            }
             mutableState.update { current ->
                 current.copy(
                     prompt = if (result.isSuccess && clearPromptOnSuccess && current.conversationId == conversationId && current.prompt == draft.instruction) "" else current.prompt,
@@ -383,7 +357,6 @@ class ConversationViewModel @Inject constructor(
             }
             if (result.isSuccess && clearPromptOnSuccess && mutableState.value.conversationId == conversationId) persistDraft()
             result.getOrNull()?.let(::startStatusPollingIfNeeded)
-            if (result.isSuccess) persistence.deriveTitleFromFirstPrompt(conversationId, draft.instruction)
         }
     }
 
@@ -413,7 +386,7 @@ class ConversationViewModel @Inject constructor(
 
     fun useOutput(item: TimelineItem) {
         if (item.output?.kind != MediaKind.IMAGE || item.sourceOutputId == null || mutableState.value.mediaKind != MediaKind.IMAGE) return
-        if (WorkflowCapability.IMAGE_TO_IMAGE !in mutableState.value.selectedWorkflow?.capabilities.orEmpty()) {
+        if (!composerUseCase.canEditOutput(mutableState.value, item)) {
             mutableState.update { it.copy(message = ConversationText.Resource(R.string.message_choose_compatible_editor)) }
             return
         }
@@ -434,9 +407,9 @@ class ConversationViewModel @Inject constructor(
 
     fun reuseParameters(item: TimelineItem) {
         val id = conversationId ?: return
-        val draft = item.record?.draft ?: return
-        val workflow = WorkflowRegistry.find(draft.workflowId) ?: return
-        if (workflow.mediaKind != mutableState.value.mediaKind) return
+        val reusable = composerUseCase.reusable(item, mutableState.value.mediaKind) ?: return
+        val draft = reusable.draft
+        val workflow = reusable.workflow
         draftTouched = true
         detachAwaitingDatabaseConfirmation = true
         persistedActiveSourceOutputId = null
@@ -446,7 +419,7 @@ class ConversationViewModel @Inject constructor(
                 prompt = draft.instruction,
                 brief = draft.creativeBrief,
                 options = draft.options,
-                attachmentSlots = attachmentSlotsFor(workflow),
+                attachmentSlots = reusable.slots,
                 attachments = emptyList(),
                 activeSourceId = null,
                 activeSourceLabel = null,
@@ -565,9 +538,9 @@ class ConversationViewModel @Inject constructor(
                 activeSourceId = if (detachAwaitingDatabaseConfirmation) null else activeGeneration?.id,
                 activeSourceLabel = if (detachAwaitingDatabaseConfirmation) null else activeGeneration?.outputLabel,
                 prompt = restoredDraft?.prompt ?: current.prompt,
-                options = restoredDraft?.options?.retainFor(restoredWorkflow) ?: current.options,
+                options = restoredDraft?.options?.let { composerUseCase.retainOptionsFor(it, restoredWorkflow) } ?: current.options,
                 attachments = restoredDraft?.attachments?.map { DraftMediaAttachment(it.role, it.kind, it.uri, it.label, it.remoteUrl) } ?: current.attachments,
-                attachmentSlots = attachmentSlotsFor(restoredWorkflow),
+                attachmentSlots = composerUseCase.slotsFor(restoredWorkflow),
                 message = if (snapshot.requiresSourceSelection) {
                     ConversationText.Resource(R.string.message_select_output_before_continuing)
                 } else current.message,
@@ -610,19 +583,6 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
-    private fun attachmentSlotsFor(workflow: WorkflowDescriptor?): List<MediaRequirement> {
-        if (workflow == null) return emptyList()
-        val referenceSlot = MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE)
-        return workflow.mediaRequirements + if (
-            WorkflowCapability.REFERENCE_IMAGE in workflow.capabilities &&
-                workflow.mediaRequirements.none { it.role == MediaRole.REFERENCE }
-        ) {
-            listOf(referenceSlot)
-        } else {
-            emptyList()
-        }
-    }
-
     private fun persistDraft() {
         val id = conversationId ?: return
         val current = mutableState.value
@@ -637,7 +597,6 @@ class ConversationViewModel @Inject constructor(
         const val LOCAL_SOURCE_ID = "local-source"
         const val DEMO_GENERATION_PREFIX = "demo-"
         const val OUTPUT_SUFFIX = "-output"
-        const val LOCAL_ATTACHMENT_ID_PREFIX = "local-attachment-"
     }
 }
 
@@ -683,17 +642,6 @@ private fun GenerationStatus.toStateText(): ConversationText = ConversationText.
         GenerationStatus.Canceled -> R.string.status_canceled
     },
 )
-
-private fun GenerationOptions.retainFor(workflow: WorkflowDescriptor?): GenerationOptions {
-    val supported = workflow?.supportedOptions.orEmpty()
-    return copy(
-        aspectRatio = if (WorkflowOption.ASPECT_RATIO in supported) aspectRatio else GenerationOptions().aspectRatio,
-        resolution = resolution?.takeIf { WorkflowOption.RESOLUTION in supported },
-        durationSeconds = durationSeconds?.takeIf { WorkflowOption.DURATION in supported },
-        seed = seed?.takeIf { WorkflowOption.SEED in supported },
-        negativePrompt = negativePrompt?.takeIf { WorkflowOption.NEGATIVE_PROMPT in supported },
-    )
-}
 
 private fun PersistedGenerationStatus.toLifecycle(): GenerationStatus = when (this) {
     PersistedGenerationStatus.DRAFT -> GenerationStatus.Draft

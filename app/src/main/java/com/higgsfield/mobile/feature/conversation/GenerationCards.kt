@@ -63,7 +63,7 @@ import com.higgsfield.mobile.ui.theme.HiggsfieldTheme
 @Composable
 private fun GenerationCardPreview() {
     HiggsfieldTheme {
-        TimelineCard(previewGenerationItem(), false, true, {}, {}, {}, {}, {}, {})
+        TimelineCard(previewGenerationItem(), false, true, {})
     }
 }
 
@@ -72,12 +72,7 @@ internal fun TimelineCard(
     item: TimelineItem,
     active: Boolean,
     canEditImage: Boolean,
-    onUseOutput: (TimelineItem) -> Unit,
-    onReuseParameters: (TimelineItem) -> Unit,
-    onRetry: (TimelineItem) -> Unit,
-    onCancel: (TimelineItem) -> Unit,
-    onDownload: (TimelineItem) -> Unit,
-    onCopyPrompt: (TimelineItem) -> Unit,
+    onEvent: (ConversationUiEvent) -> Unit,
 ) {
     val hasOutput = item.lifecycle is GenerationStatus.Completed && item.outputLabel != null
     val isFailure =
@@ -97,13 +92,13 @@ internal fun TimelineCard(
                 .semantics { contentDescription = statusDescription }) {
             GenerationMediaSurface(item, hasOutput, isFailure)
             GenerationProgress(item.lifecycle)
-            GenerationMetadata(item, hasOutput, active, onRetry, onCancel)
+            GenerationMetadata(item, hasOutput, active, { onEvent(ConversationUiEvent.Retry(it)) }, { onEvent(ConversationUiEvent.Cancel(it)) })
             if (hasOutput) GenerationActions(
                 item,
-                onDownload,
-                onCopyPrompt,
-                onUseOutput,
-                onReuseParameters,
+                { onEvent(ConversationUiEvent.Download(it)) },
+                { onEvent(ConversationUiEvent.CopyPrompt(it)) },
+                { onEvent(ConversationUiEvent.EditImage(it)) },
+                { onEvent(ConversationUiEvent.ReuseParameters(it)) },
                 canEditImage,
             )
         }

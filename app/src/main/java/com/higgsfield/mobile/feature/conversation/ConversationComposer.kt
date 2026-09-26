@@ -39,6 +39,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
@@ -55,7 +56,7 @@ import com.higgsfield.mobile.ui.theme.HiggsfieldTheme
 @Composable
 private fun ComposerDockPreview() {
     HiggsfieldTheme {
-        ComposerDock(previewConversationState(), true, {}, {}, {}, { _, _ -> }, {}, {}, {})
+        ComposerDock(previewConversationState(), true, {})
     }
 }
 
@@ -63,13 +64,7 @@ private fun ComposerDockPreview() {
 internal fun ComposerDock(
     state: ConversationUiState,
     motionEnabled: Boolean,
-    onPromptChange: (String) -> Unit,
-    onShowBrief: (Boolean) -> Unit,
-    onShowOptions: (Boolean) -> Unit,
-    onPickMedia: (MediaRole, MediaKind) -> Unit,
-    onRemoveMedia: (MediaRole) -> Unit,
-    onDetachSource: () -> Unit,
-    onGenerate: () -> Unit,
+    onEvent: (ConversationUiEvent) -> Unit,
 ) {
     Column(
         Modifier.fillMaxWidth().imePadding().padding(12.dp),
@@ -79,7 +74,7 @@ internal fun ComposerDock(
         if (state.activeSourceId != null) ActiveSourceCard(
             state.activeSourceLabel?.resolve().orEmpty(),
             state.timeline.firstOrNull { it.id == state.activeSourceId }?.output,
-            onDetachSource,
+            { onEvent(ConversationUiEvent.DetachSource) },
         )
         if (state.activeSourceId != null && WorkflowCapability.IMAGE_TO_IMAGE !in state.selectedWorkflow?.capabilities.orEmpty()) {
             Text(
@@ -88,9 +83,11 @@ internal fun ComposerDock(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        ComposerAttachments(state.attachments, motionEnabled, onRemoveMedia)
-        PromptInput(state, onPromptChange, onGenerate)
-        ComposerActions(state, onShowBrief, onShowOptions, onPickMedia)
+        ComposerAttachments(state.attachments, motionEnabled) { onEvent(ConversationUiEvent.RemoveMedia(it)) }
+        PromptInput(state, { onEvent(ConversationUiEvent.ChangePrompt(it)) }, { onEvent(ConversationUiEvent.Generate) })
+        ComposerActions(state, { onEvent(ConversationUiEvent.ShowBrief(it)) }, { onEvent(ConversationUiEvent.ShowOptions(it)) }) { role, kind ->
+            onEvent(ConversationUiEvent.PickMedia(role, kind))
+        }
         if (!state.credentialsConfigured) Text(stringResource(R.string.api_credentials_not_configured), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -118,7 +115,7 @@ private fun PromptInput(state: ConversationUiState, onPromptChange: (String) -> 
         OutlinedTextField(
             value = state.prompt,
             onValueChange = onPromptChange,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).testTag("conversation_prompt"),
             minLines = 2,
             maxLines = 5,
             placeholder = { Text(stringResource(if (state.activeSourceId != null) R.string.describe_change else R.string.describe_creation)) },

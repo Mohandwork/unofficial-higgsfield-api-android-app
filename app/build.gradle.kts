@@ -26,6 +26,7 @@ android {
         applicationId = "com.higgsfield.mobile"
         minSdk = 24
         targetSdk = 37
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         versionCode = 1
         versionName = "1.0"
 
