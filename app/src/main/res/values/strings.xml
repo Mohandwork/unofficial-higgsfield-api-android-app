@@ -89,7 +89,7 @@
     <string name="detach_active_image">Detach active image and start fresh</string>
     <string name="done">Done</string>
     <string name="model">Model</string>
-    <string name="capabilities">Capabilities: %1$s</string>
+    <string name="capabilities">Capabilities</string>
     <string name="unknown">Unknown</string>
     <string name="model_cost_note">Cost depends on the exact options. A live estimate will appear before real generation.</string>
     <string name="adapter_not_enabled">This adapter is not enabled until its endpoint schema is verified.</string>
