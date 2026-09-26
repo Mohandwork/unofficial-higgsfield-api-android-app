@@ -17,7 +17,6 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -31,9 +30,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,7 +63,7 @@ import com.higgsfield.mobile.ui.theme.HiggsfieldTheme
 @Composable
 private fun GenerationCardPreview() {
     HiggsfieldTheme {
-        TimelineCard(previewGenerationItem(), false, true, {}, {}, {}, {}, {}, {}, {})
+        TimelineCard(previewGenerationItem(), false, true, {}, {}, {}, {}, {}, {})
     }
 }
 
@@ -79,7 +78,6 @@ internal fun TimelineCard(
     onCancel: (TimelineItem) -> Unit,
     onDownload: (TimelineItem) -> Unit,
     onCopyPrompt: (TimelineItem) -> Unit,
-    onSharePrompt: (TimelineItem) -> Unit,
 ) {
     val hasOutput = item.lifecycle is GenerationStatus.Completed && item.outputLabel != null
     val isFailure =
@@ -103,7 +101,6 @@ internal fun TimelineCard(
             if (hasOutput) GenerationActions(
                 item,
                 onDownload,
-                onSharePrompt,
                 onCopyPrompt,
                 onUseOutput,
                 onReuseParameters,
@@ -271,7 +268,6 @@ private fun GenerationMetadata(
 private fun GenerationActions(
     item: TimelineItem,
     onDownload: (TimelineItem) -> Unit,
-    onSharePrompt: (TimelineItem) -> Unit,
     onCopyPrompt: (TimelineItem) -> Unit,
     onUseOutput: (TimelineItem) -> Unit,
     onReuseParameters: (TimelineItem) -> Unit,

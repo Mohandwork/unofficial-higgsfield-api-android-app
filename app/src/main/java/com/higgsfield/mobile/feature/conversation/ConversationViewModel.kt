@@ -433,18 +433,13 @@ class ConversationViewModel @Inject constructor(
     }
 
     fun reuseParameters(item: TimelineItem) {
+        val id = conversationId ?: return
         val draft = item.record?.draft ?: return
         val workflow = WorkflowRegistry.find(draft.workflowId) ?: return
         if (workflow.mediaKind != mutableState.value.mediaKind) return
-        val source = draft.activeSourceId?.let { outputId ->
-            mutableState.value.timeline.firstOrNull { it.sourceOutputId == outputId && it.output?.kind == MediaKind.IMAGE }
-        }
-        if (draft.activeSourceId != null && source == null) {
-            mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_active_image_unavailable)) }
-            return
-        }
         draftTouched = true
-        persistedActiveSourceOutputId = source?.sourceOutputId
+        detachAwaitingDatabaseConfirmation = true
+        persistedActiveSourceOutputId = null
         mutableState.update { current ->
             current.copy(
                 selectedWorkflow = workflow,
@@ -452,25 +447,22 @@ class ConversationViewModel @Inject constructor(
                 brief = draft.creativeBrief,
                 options = draft.options,
                 attachmentSlots = attachmentSlotsFor(workflow),
-                attachments = draft.attachments.map { attachment ->
-                    DraftMediaAttachment(
-                        role = attachment.role,
-                        kind = attachment.kind,
-                        uri = attachment.uri,
-                        label = attachment.uri.substringAfterLast('/').ifBlank { attachment.role.name.lowercase() },
-                        remoteUrl = attachment.remoteUrl,
-                    )
-                },
-                activeSourceId = source?.id,
-                activeSourceLabel = source?.outputLabel,
+                attachments = emptyList(),
+                activeSourceId = null,
+                activeSourceLabel = null,
                 message = ConversationText.Resource(R.string.message_parameters_reused),
             )
         }
-        conversationId?.let { id ->
-            viewModelScope.launch {
+        viewModelScope.launch {
+            try {
                 persistence.saveSelectedWorkflow(id, workflow.id)
                 persistence.saveBrief(id, draft.creativeBrief)
-                persistence.selectActiveSource(id, source?.sourceOutputId)
+                persistence.selectActiveSource(id, null)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                detachAwaitingDatabaseConfirmation = false
+                mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
             }
         }
         persistDraft()

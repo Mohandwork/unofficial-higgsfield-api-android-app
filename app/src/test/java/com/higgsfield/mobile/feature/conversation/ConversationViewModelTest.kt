@@ -14,6 +14,7 @@ import com.higgsfield.mobile.core.error.ErrorMapper
 import com.higgsfield.mobile.core.model.CreativeBrief
 import com.higgsfield.mobile.core.model.EstimateState
 import com.higgsfield.mobile.core.model.GenerationDraft
+import com.higgsfield.mobile.core.model.GenerationAttachment
 import com.higgsfield.mobile.core.model.GenerationOptions
 import com.higgsfield.mobile.core.model.GenerationOutput
 import com.higgsfield.mobile.core.model.GenerationRecord
@@ -223,6 +224,64 @@ class ConversationViewModelTest {
     }
 
     @Test
+    fun `reuse parameters restores text and settings without old image references`() {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+        persistence.selectedSourceOutputId = "old-output"
+        val draft = GenerationDraft(
+            instruction = "Make the light warmer",
+            creativeBrief = CreativeBrief(mood = "Calm"),
+            workflowId = WorkflowCatalog.QWEN_IMAGE_3_EDIT.id,
+            attachments = listOf(
+                GenerationAttachment("reference-1", "content://photos/original", MediaKind.IMAGE, MediaRole.REFERENCE),
+                GenerationAttachment("reference-2", "content://photos/original", MediaKind.IMAGE, MediaRole.SOURCE),
+            ),
+            activeSourceId = "old-output",
+            options = GenerationOptions(aspectRatio = "16:9"),
+        )
+        val item = TimelineItem(
+            id = "result-1",
+            prompt = draft.instruction,
+            modelName = WorkflowCatalog.QWEN_IMAGE_3_EDIT.displayName,
+            stateLabel = ConversationText.Resource(R.string.status_completed),
+            output = GenerationOutput("latest-output", "https://example.test/latest.png", MediaKind.IMAGE),
+            sourceOutputId = "latest-output",
+            record = GenerationRecord("result-1", draft = draft, status = GenerationStatus.Completed(emptyList())),
+        )
+
+        viewModel.reuseParameters(item)
+
+        assertEquals(draft.instruction, viewModel.state.value.prompt)
+        assertEquals(draft.workflowId, viewModel.state.value.selectedWorkflow?.id)
+        assertEquals("16:9", viewModel.state.value.options.aspectRatio)
+        assertTrue(viewModel.state.value.attachments.isEmpty())
+        assertNull(viewModel.state.value.activeSourceId)
+        assertTrue(viewModel.currentDraft()?.attachments.orEmpty().isEmpty())
+        assertNull(viewModel.currentDraft()?.activeSourceId)
+        assertTrue(persistence.savedDrafts["image-default"]?.attachments.orEmpty().isEmpty())
+        assertNull(persistence.selectedSourceOutputId)
+
+        val staleSnapshot = PersistedConversationSnapshot(
+            id = "image-default",
+            title = "Image exploration",
+            mediaKind = MediaKind.IMAGE,
+            brief = draft.creativeBrief,
+            selectedWorkflowId = draft.workflowId,
+            activeSourceOutputId = "old-output",
+            requiresSourceSelection = false,
+            timeline = listOf(PersistedTimelineItem(
+                "old-generation", "Original", draft.workflowId,
+                PersistedGenerationStatus.COMPLETED, "old-output", MediaKind.IMAGE, null,
+            )),
+        )
+        persistence.emit(staleSnapshot)
+        assertNull(viewModel.state.value.activeSourceId)
+        persistence.emit(staleSnapshot.copy(activeSourceOutputId = null))
+        assertNull(viewModel.state.value.activeSourceId)
+    }
+
+    @Test
     fun `workspace transition ends only after its saved conversation arrives`() {
         val persistence = FakeConversationPersistence()
         val viewModel = ConversationViewModel(persistence)
@@ -352,6 +411,7 @@ private class FakeConnectivityStatusProvider(isOnline: Boolean) : ConnectivitySt
 private class FakeConversationPersistence : ConversationPersistence {
     private val snapshots = mutableMapOf<String, MutableStateFlow<PersistedConversationSnapshot?>>()
     val savedDrafts = mutableMapOf<String, PersistedComposerDraft>()
+    var selectedSourceOutputId: String? = null
     override fun observe(conversationId: String): Flow<PersistedConversationSnapshot?> =
         snapshots.getOrPut(conversationId) { MutableStateFlow(null) }
     override fun observeConversations(): Flow<List<ConversationSummary>> = emptyFlow()
@@ -374,7 +434,9 @@ private class FakeConversationPersistence : ConversationPersistence {
         instruction: String,
         outputKind: MediaKind,
     ) = Unit
-    override suspend fun selectActiveSource(conversationId: String, outputId: String?) = Unit
+    override suspend fun selectActiveSource(conversationId: String, outputId: String?) {
+        selectedSourceOutputId = outputId
+    }
 
     fun emit(value: PersistedConversationSnapshot) {
         snapshots.getOrPut(value.id) { MutableStateFlow(null) }.value = value

@@ -14,8 +14,6 @@
     <string name="video">Video</string>
     <string name="add_reference">+ Ref</string>
     <string name="presets">Presets</string>
-    <string name="share">Share</string>
-    <string name="share_prompt">Share prompt</string>
     <string name="edit_image">Edit image</string>
     <string name="media_unavailable">Media could not be loaded</string>
     <string name="message_parameters_reused">Original prompt and settings restored.</string>

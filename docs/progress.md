@@ -16,7 +16,7 @@ The refined product implementation is complete in the working tree. The remainin
 - Static model catalog details from the supplied pricing/spec material; the bottom price chip was removed.
 - Neon-lime/cyan light and dark themes plus matching mode-aware splash artwork.
 - Loading overlays for chat creation, switching, removal, and other larger transitions, held until the destination conversation and timeline have loaded.
-- Separate image-edit and prompt/settings-reuse actions, explicit media load/failure/retry states, selected-image thumbnail, prompt sharing, and automatic timeline scrolling to a newly added generation.
+- Separate image-edit and prompt/settings-reuse actions, explicit media load/failure/retry states, selected-image thumbnail, prompt copying, and automatic timeline scrolling to a newly added generation.
 - Local-only drafts, faithful retry from the original request snapshot, and credential-safe configuration.
 
 ## Verification completed

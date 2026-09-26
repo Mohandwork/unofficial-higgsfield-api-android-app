@@ -99,7 +99,6 @@ fun ConversationRoute(
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    val shareChooserTitle = stringResource(R.string.share)
     LaunchedEffect(mediaKind, conversationId) { viewModel.initialize(mediaKind, conversationId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var pendingRole by remember { mutableStateOf<MediaRole?>(null) }
@@ -168,17 +167,6 @@ fun ConversationRoute(
             outputDownload.launch("higgsfield-${item.id}.${item.output?.downloadExtension() ?: "bin"}")
         },
         onCopyPrompt = { item -> clipboard.setText(AnnotatedString(item.prompt)) },
-        onSharePrompt = { item ->
-            context.startActivity(
-                Intent.createChooser(
-                    Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, item.prompt)
-                    },
-                    shareChooserTitle,
-                ),
-            )
-        },
     )
 }
 
@@ -211,7 +199,6 @@ private fun ConversationScreen(
     onCancelGeneration: (TimelineItem) -> Unit,
     onDownloadOutput: (TimelineItem) -> Unit,
     onCopyPrompt: (TimelineItem) -> Unit,
-    onSharePrompt: (TimelineItem) -> Unit,
 ) {
     var pendingConversationSwitch by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
     var pendingConversationCreation by remember { mutableStateOf<MediaKind?>(null) }
@@ -266,10 +253,10 @@ private fun ConversationScreen(
                 Row(Modifier.fillMaxSize()) {
                     ConversationRail(state, requestConversationSwitch, onCreateConversation, onRenameConversation, requestConversationRemoval, Modifier.width(280.dp).fillMaxHeight())
                     HorizontalDivider(Modifier.fillMaxHeight().width(1.dp))
-                    Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onReuseParameters, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
+                    Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onReuseParameters, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, Modifier.weight(1f))
                 }
             } else {
-                Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onReuseParameters, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.fillMaxSize())
+                Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onReuseParameters, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, Modifier.fillMaxSize())
             }
             if (state.isTransitioning) WorkspaceTransitionOverlay()
         }
@@ -501,12 +488,11 @@ private fun Workspace(
     onCancelGeneration: (TimelineItem) -> Unit,
     onDownloadOutput: (TimelineItem) -> Unit,
     onCopyPrompt: (TimelineItem) -> Unit,
-    onSharePrompt: (TimelineItem) -> Unit,
     modifier: Modifier,
 ) {
     val motionEnabled = remember { Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled() }
     Column(modifier) {
-        WorkspaceTimeline(state, onUseOutput, onReuseParameters, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
+        WorkspaceTimeline(state, onUseOutput, onReuseParameters, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, Modifier.weight(1f))
         ComposerDock(state, motionEnabled, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onGenerate)
     }
 }
@@ -520,7 +506,6 @@ private fun WorkspaceTimeline(
     onCancelGeneration: (TimelineItem) -> Unit,
     onDownloadOutput: (TimelineItem) -> Unit,
     onCopyPrompt: (TimelineItem) -> Unit,
-    onSharePrompt: (TimelineItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -535,7 +520,7 @@ private fun WorkspaceTimeline(
                 item, item.id == state.activeSourceId,
                 WorkflowCapability.IMAGE_TO_IMAGE in state.selectedWorkflow?.capabilities.orEmpty(),
                 onUseOutput, onReuseParameters, onRetryGeneration, onCancelGeneration,
-                onDownloadOutput, onCopyPrompt, onSharePrompt,
+                onDownloadOutput, onCopyPrompt,
             )
         }
     }
@@ -581,7 +566,6 @@ private fun ConversationWorkspacePreview() {
             onCancelGeneration = {},
             onDownloadOutput = {},
             onCopyPrompt = {},
-            onSharePrompt = {},
             modifier = Modifier.fillMaxSize(),
         )
     }
