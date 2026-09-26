@@ -60,7 +60,9 @@ The conversation state derives local attachment slots from the selected workflow
 
 ## Request composition
 
-Higgsfield is stateless. `PromptComposer` deterministically joins non-empty Creative Brief fields and the current instruction. When supported, exclusions are mapped to the DTO's `negative_prompt`; they are not duplicated into hidden history. The exact composed draft and option snapshot are persisted with every generation.
+Higgsfield is stateless. `PromptComposer` deterministically joins non-empty Creative Brief fields and the current instruction. When supported, exclusions are mapped to the DTO's `negative_prompt`; they are not duplicated into hidden history. Each generation stores the exact composed prompt, negative prompt, options, source output ID, and attachments. Retry uses these submission-time values instead of recomposing with the conversation's current brief.
+
+Composer drafts are stored separately per conversation in Room (`conversation_drafts`), with a version 1-to-2 migration that preserves existing chats and generations. Draft writes are serialized so rapid typing and navigation cannot reorder saved values.
 
 ## Attachment upload boundary
 
@@ -81,9 +83,11 @@ Every generation has an optional parent generation and branch root. A conversati
 
 The linear timeline remains the primary UI. A Versions/Compare sheet visualizes parent-child relationships without turning the composer into a graph editor.
 
+The compact history surface remains a bottom sheet. It dismisses before creating or switching chats, and its list scrolls only after full expansion; expanded layouts keep a scrollable rail. A workspace-loading overlay stays visible until both the conversation snapshot and generation records have been observed. Result actions distinguish selecting an image as the next edit source from restoring a generation's original prompt, model, options, brief, and references. Image/video previews expose loading and retryable failure states instead of relying on the placeholder gradient.
+
 ## State and recovery
 
-Room is the durable source of truth for conversations and accepted requests. A submit transaction writes the local generation first; once the server accepts, IDs and URLs are persisted immediately. Foreground observation polls responsively. WorkManager only resumes already-accepted requests under a network constraint; it never submits a draft.
+Room is the durable source of truth for conversations and accepted requests. A submit transaction writes the local generation first; once the server accepts, IDs and URLs are persisted immediately. Opening the app polls accepted requests across conversations, and foreground observation also polls the current conversation. A recovery worker exists but is not scheduled in this release; polling while the app is closed is deferred.
 
 Polling starts at two seconds and grows toward ten seconds with jitter. Terminal statuses stop polling. Status GET requests can retry safely. Submission POST requests are single-attempt because the API has no idempotency key; an ambiguous timeout becomes an actionable “unknown submission outcome” state.
 
@@ -95,11 +99,11 @@ All traffic is HTTPS. Presigned upload requests use a separate unauthenticated c
 
 ## Offline behavior
 
-Validated connectivity is observable UI state. Drafts, briefs, navigation, and local history work offline. The Generate action explains that a connection is required. Connectivity restoration resumes polling accepted remote jobs through WorkManager, but never auto-submits a draft or retries an uncertain POST.
+Validated connectivity is observable UI state. Drafts, briefs, navigation, and local history work offline. The Generate action explains that a connection is required. Reopening the app resumes polling accepted remote jobs, but never auto-submits a draft or retries an uncertain POST.
 
 ## Downloads
 
-The system Storage Access Framework selects a folder and grants persistable URI access. DataStore remembers the URI. Downloads stream into a user-created document and Room records the resulting content URI. No broad storage permission is requested.
+The system Storage Access Framework selects a folder and grants persistable URI access. DataStore remembers the URI. Downloads stream into a user-created document and Room records the resulting content URI. The app takes a persistable read grant for newly created downloads; previews use a saved local URI only while that grant exists, otherwise they use the remote output URL. This also keeps older downloads with missing grants from breaking media previews after app relaunch. No broad storage permission is requested.
 
 ## Adaptive and edge-to-edge UI
 
@@ -127,7 +131,7 @@ Debug builds add a verbose, sanitized OkHttp interceptor for the authenticated A
 
 ## Generation lifecycle presentation
 
-The conversation timeline is a projection of observed `GenerationRecord`s, not a local optimistic demo. It presents queued, generating, completed, failed, moderated, canceled, and unknown-submission states from their domain status. A foreground `RequestStatusPoller` starts only for accepted or restored queued/in-progress records and stops at a terminal state; it makes status-only requests. Completed outputs can become the active editing source, retry is exposed only for retryable failures, and cancellation is exposed only while a request is queued.
+The conversation timeline is a projection of observed `GenerationRecord`s, not a local optimistic demo. It presents queued, generating, completed, failed, moderated, canceled, and unknown-submission states from their domain status. A foreground `RequestStatusPoller` starts only for accepted or restored queued/in-progress records and stops at a terminal state; it makes status-only requests. Completed outputs can become the active editing source, retry is exposed only for retryable failures, and cancellation is exposed only while a request is queued. If the server rejects a stale queued cancellation because processing already started, the app immediately fetches the current status, never marks the request canceled, and preserves the server's rejection message.
 
 ## Output rendering and retention
 

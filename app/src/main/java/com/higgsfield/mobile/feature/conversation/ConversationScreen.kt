@@ -8,7 +8,7 @@ import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
-import androidx.activity.result.contract.ActivityResultContracts.GetContent
+import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,12 +21,16 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Add
@@ -49,9 +53,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,6 +68,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -78,6 +85,7 @@ import com.higgsfield.mobile.core.model.GenerationOptions
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.MediaRole
 import com.higgsfield.mobile.core.model.WorkflowDescriptor
+import com.higgsfield.mobile.core.model.WorkflowCapability
 import com.higgsfield.mobile.ui.theme.HiggsfieldTheme
 
 @Composable
@@ -91,25 +99,33 @@ fun ConversationRoute(
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    val shareChooserTitle = stringResource(R.string.share)
     LaunchedEffect(mediaKind, conversationId) { viewModel.initialize(mediaKind, conversationId) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var pendingRole by remember { mutableStateOf<MediaRole?>(null) }
     var pendingDownload by remember { mutableStateOf<TimelineItem?>(null) }
     val outputDownload = rememberLauncherForActivityResult(CreateDocument("*/*")) { uri: Uri? ->
-        pendingDownload?.let { item -> if (uri != null) viewModel.downloadOutput(item, uri.toString()) }
+        pendingDownload?.let { item ->
+            if (uri != null) {
+                runCatching {
+                    context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                viewModel.downloadOutput(item, uri.toString())
+            }
+        }
         pendingDownload = null
     }
     val imagePicker = rememberLauncherForActivityResult(PickVisualMedia()) { uri: Uri? ->
         val role = pendingRole
         if (uri != null && role != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             viewModel.attachMedia(role, MediaKind.IMAGE, uri.toString(), uri.lastPathSegment ?: uri.toString())
         }
         pendingRole = null
     }
-    val videoPicker = rememberLauncherForActivityResult(GetContent()) { uri: Uri? ->
+    val videoPicker = rememberLauncherForActivityResult(OpenDocument()) { uri: Uri? ->
         val role = pendingRole
         if (uri != null && role != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             viewModel.attachMedia(role, MediaKind.VIDEO, uri.toString(), uri.lastPathSegment ?: uri.toString())
         }
         pendingRole = null
@@ -135,13 +151,14 @@ fun ConversationRoute(
             pendingRole = role
             when (kind) {
                 MediaKind.IMAGE -> imagePicker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly))
-                MediaKind.VIDEO -> videoPicker.launch(VIDEO_MIME_TYPE)
+                MediaKind.VIDEO -> videoPicker.launch(arrayOf(VIDEO_MIME_TYPE))
                 MediaKind.AUDIO -> Unit
             }
         },
         onRemoveMedia = viewModel::removeMedia,
         onDetachSource = viewModel::detachSource,
         onUseOutput = viewModel::useOutput,
+        onReuseParameters = viewModel::reuseParameters,
         onGenerate = viewModel::submitGeneration,
         onRetryGeneration = viewModel::retryGeneration,
         onCancelGeneration = viewModel::cancelGeneration,
@@ -150,17 +167,6 @@ fun ConversationRoute(
             outputDownload.launch("higgsfield-${item.id}.${item.output?.downloadExtension() ?: "bin"}")
         },
         onCopyPrompt = { item -> clipboard.setText(AnnotatedString(item.prompt)) },
-        onSharePrompt = { item ->
-            context.startActivity(
-                Intent.createChooser(
-                    Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, item.prompt)
-                    },
-                    shareChooserTitle,
-                ),
-            )
-        },
     )
 }
 
@@ -187,23 +193,19 @@ private fun ConversationScreen(
     onRemoveMedia: (MediaRole) -> Unit,
     onDetachSource: () -> Unit,
     onUseOutput: (TimelineItem) -> Unit,
+    onReuseParameters: (TimelineItem) -> Unit,
     onGenerate: () -> Unit,
     onRetryGeneration: (TimelineItem) -> Unit,
     onCancelGeneration: (TimelineItem) -> Unit,
     onDownloadOutput: (TimelineItem) -> Unit,
     onCopyPrompt: (TimelineItem) -> Unit,
-    onSharePrompt: (TimelineItem) -> Unit,
 ) {
-    var pendingConversation by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
     var pendingConversationSwitch by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
+    var pendingConversationCreation by remember { mutableStateOf<MediaKind?>(null) }
     var pendingRemoval by remember { mutableStateOf(false) }
     val requestConversationSwitch: (String, MediaKind) -> Unit = { id, kind ->
         if (id != state.conversationId) {
-            if (state.prompt.isNotBlank() || state.attachments.isNotEmpty()) {
-                pendingConversation = id to kind
-            } else {
-                pendingConversationSwitch = id to kind
-            }
+            pendingConversationSwitch = id to kind
         }
     }
     val requestConversationRemoval: () -> Unit = {
@@ -226,6 +228,13 @@ private fun ConversationScreen(
             onSelectConversation(id, kind)
         }
     }
+    LaunchedEffect(pendingConversationCreation) {
+        pendingConversationCreation?.let { kind ->
+            withFrameNanos { }
+            pendingConversationCreation = null
+            onCreateConversation(kind)
+        }
+    }
     Scaffold(
         topBar = {
             HeaderControls(
@@ -244,10 +253,10 @@ private fun ConversationScreen(
                 Row(Modifier.fillMaxSize()) {
                     ConversationRail(state, requestConversationSwitch, onCreateConversation, onRenameConversation, requestConversationRemoval, Modifier.width(280.dp).fillMaxHeight())
                     HorizontalDivider(Modifier.fillMaxHeight().width(1.dp))
-                    Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
+                    Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onReuseParameters, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, Modifier.weight(1f))
                 }
             } else {
-                Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.fillMaxSize())
+                Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onReuseParameters, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, Modifier.fillMaxSize())
             }
             if (state.isTransitioning) WorkspaceTransitionOverlay()
         }
@@ -262,7 +271,10 @@ private fun ConversationScreen(
                 onShowHistory(false)
                 requestConversationSwitch(id, kind)
             },
-            onCreateConversation = onCreateConversation,
+            onCreateConversation = { kind ->
+                onShowHistory(false)
+                pendingConversationCreation = kind
+            },
             onRenameConversation = onRenameConversation,
             onRemoveConversation = {
                 onShowHistory(false)
@@ -272,20 +284,6 @@ private fun ConversationScreen(
         )
     }
     if (state.briefOpen) CreativeBriefSheet(state.brief, { onShowBrief(false) }, onUpdateBrief)
-    pendingConversation?.let { (id, kind) ->
-        AlertDialog(
-            onDismissRequest = { pendingConversation = null },
-            title = { Text(stringResource(R.string.switch_chat)) },
-            text = { Text(stringResource(R.string.switch_chat_discard_draft)) },
-            dismissButton = { TextButton(onClick = { pendingConversation = null }) { Text(stringResource(R.string.continue_editing)) } },
-            confirmButton = {
-                TextButton(onClick = {
-                    pendingConversation = null
-                    pendingConversationSwitch = id to kind
-                }) { Text(stringResource(R.string.switch_chat_confirm)) }
-            },
-        )
-    }
 }
 
 @Composable
@@ -319,8 +317,14 @@ private fun ConversationHistorySheet(
     onRemoveConversation: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        ConversationHistoryContent(state, onSelectConversation, onCreateConversation, onRenameConversation, onRemoveConversation, Modifier.fillMaxWidth().padding(20.dp))
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.85f
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        ConversationHistoryContent(
+            state, onSelectConversation, onCreateConversation, onRenameConversation, onRemoveConversation,
+            Modifier.fillMaxWidth().heightIn(max = maxSheetHeight).padding(20.dp),
+            scrollEnabled = sheetState.currentValue == SheetValue.Expanded,
+        )
     }
 }
 
@@ -410,11 +414,12 @@ private fun ConversationHistoryContent(
     onRenameConversation: (String) -> Unit,
     onRemoveConversation: () -> Unit,
     modifier: Modifier = Modifier,
+    scrollEnabled: Boolean = true,
 ) {
     var renameOpen by remember { mutableStateOf(false) }
     var removeOpen by remember { mutableStateOf(false) }
     var renameValue by remember(state.conversationTitle) { mutableStateOf(state.conversationTitle) }
-    Column(modifier) {
+    Column(modifier.verticalScroll(rememberScrollState(), enabled = scrollEnabled)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.conversations), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 TextButton(onClick = { onCreateConversation(state.mediaKind) }) { Text(stringResource(R.string.new_chat)) }
@@ -477,17 +482,17 @@ private fun Workspace(
     onRemoveMedia: (MediaRole) -> Unit,
     onDetachSource: () -> Unit,
     onUseOutput: (TimelineItem) -> Unit,
+    onReuseParameters: (TimelineItem) -> Unit,
     onGenerate: () -> Unit,
     onRetryGeneration: (TimelineItem) -> Unit,
     onCancelGeneration: (TimelineItem) -> Unit,
     onDownloadOutput: (TimelineItem) -> Unit,
     onCopyPrompt: (TimelineItem) -> Unit,
-    onSharePrompt: (TimelineItem) -> Unit,
     modifier: Modifier,
 ) {
     val motionEnabled = remember { Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled() }
     Column(modifier) {
-        WorkspaceTimeline(state, onUseOutput, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
+        WorkspaceTimeline(state, onUseOutput, onReuseParameters, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, Modifier.weight(1f))
         ComposerDock(state, motionEnabled, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onGenerate)
     }
 }
@@ -496,17 +501,27 @@ private fun Workspace(
 private fun WorkspaceTimeline(
     state: ConversationUiState,
     onUseOutput: (TimelineItem) -> Unit,
+    onReuseParameters: (TimelineItem) -> Unit,
     onRetryGeneration: (TimelineItem) -> Unit,
     onCancelGeneration: (TimelineItem) -> Unit,
     onDownloadOutput: (TimelineItem) -> Unit,
     onCopyPrompt: (TimelineItem) -> Unit,
-    onSharePrompt: (TimelineItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    val listState = rememberLazyListState()
+    val latestId = state.timeline.lastOrNull()?.id
+    LaunchedEffect(state.conversationId, latestId) {
+        if (latestId != null) listState.animateScrollToItem(state.timeline.lastIndex)
+    }
+    LazyColumn(modifier.fillMaxWidth(), state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (state.timeline.isEmpty()) item { EmptyConversation(state.mediaKind) }
         items(state.timeline, key = { it.id }, contentType = { it.lifecycle?.javaClass?.simpleName }) { item ->
-            TimelineCard(item, item.id == state.activeSourceId, onUseOutput, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt)
+            TimelineCard(
+                item, item.id == state.activeSourceId,
+                WorkflowCapability.IMAGE_TO_IMAGE in state.selectedWorkflow?.capabilities.orEmpty(),
+                onUseOutput, onReuseParameters, onRetryGeneration, onCancelGeneration,
+                onDownloadOutput, onCopyPrompt,
+            )
         }
     }
 }
@@ -545,12 +560,12 @@ private fun ConversationWorkspacePreview() {
             onRemoveMedia = {},
             onDetachSource = {},
             onUseOutput = {},
+            onReuseParameters = {},
             onGenerate = {},
             onRetryGeneration = {},
             onCancelGeneration = {},
             onDownloadOutput = {},
             onCopyPrompt = {},
-            onSharePrompt = {},
             modifier = Modifier.fillMaxSize(),
         )
     }

@@ -16,8 +16,8 @@ The default path is:
 
 ## 2. Persistence and navigation
 
-- Room is the source of truth for conversations, messages, generation records, selected workflow, brief, and active source output.
-- The history rail is used on wider layouts; the modal drawer is used on compact layouts.
+- Room is the source of truth for conversations, messages, generation records, selected workflow, brief, per-conversation composer draft, and active source output.
+- The history rail is used on wider layouts; a modal bottom sheet is used on compact layouts. Its list scrolls only after the sheet fully expands.
 - History is grouped by Image and Video and shows only populated sections.
 - New chat creates a persisted placeholder conversation. The first prompt can derive a useful title; rename remains available.
 - Chat removal requires confirmation, deletes the local conversation and its related records, then opens the most recent remaining chat or creates a fresh one.
@@ -30,6 +30,8 @@ The default path is:
 - Workflow capabilities decide whether negative prompts are sent as a dedicated field or folded into the composed prompt.
 - The reference CTA performs the action directly when there is one available slot; a menu is shown only when multiple attachment choices are valid.
 - References remain visible in the timeline independently of whether a generation succeeds.
+- Editing a generated image sends its output URL in the selected model's verified image input field; incompatible models are rejected before submission.
+- Retry reuses the original submitted prompt, options, references, and source output, even if the conversation's Creative Brief has since changed.
 
 ## 4. API, errors, and lifecycle
 
@@ -49,7 +51,7 @@ The default path is:
 ## 6. Acceptance checklist
 
 - [x] Image/video workspace separation and workflow selection.
-- [x] Persistent per-section conversations with rail/drawer history.
+- [x] Persistent per-section conversations with rail/bottom-sheet history.
 - [x] New chat, rename, removal confirmation, and post-removal recovery.
 - [x] Creative Brief persistence and capability-aware prompt composition.
 - [x] Direct reference CTA and reference visibility across failure states.
@@ -67,6 +69,7 @@ These items do not block the finished product contract:
 - A final manual visual pass on representative physical devices.
 - Live pricing/credit estimates after the provider publishes a stable authenticated schema and billable use is explicitly approved.
 
-## 8. Future enhancement
+## 8. Deferred work
 
-Image editing still needs a dedicated implementation pass. The selected generated output must be uploaded or mapped into the workflow's image/reference field on the next submission; prompt text alone is not sufficient for an edit request.
+- Background WorkManager recovery is optional for now. Opening the app polls accepted queued/running requests across chats without repeating their generation POSTs.
+- Multi-image output selection needs a provider response review before its UI is specified. Single-output results remain the supported path.

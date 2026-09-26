@@ -4,8 +4,11 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.higgsfield.mobile.core.model.MediaKind
+import com.higgsfield.mobile.core.model.MediaRole
+import com.higgsfield.mobile.core.model.GenerationOptions
 import com.higgsfield.mobile.core.model.WorkflowCatalog
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.flow.first
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -105,6 +108,27 @@ class PersistenceDatabaseTest {
 
         assertNull(database.mediaDao().getOutput("wrong"))
         assertEquals(PersistedGenerationStatus.DRAFT, database.generationDao().get("generation")?.status)
+    }
+
+    @Test
+    fun `composer draft is restored per conversation and deleted with its chat`() = runTest {
+        val persistence = RoomConversationPersistence(
+            database, database.conversationDao(), database.generationDao(), store,
+        )
+        persistence.ensureConversation("image-chat", MediaKind.IMAGE, WorkflowCatalog.SOUL.id)
+        persistence.ensureConversation("video-chat", MediaKind.VIDEO, null)
+        val draft = PersistedComposerDraft(
+            prompt = "A red apple",
+            options = GenerationOptions(aspectRatio = "4:5", seed = 42L),
+            attachments = listOf(PersistedDraftAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "content://media/apple", "apple.jpg", "https://example.test/apple.jpg")),
+        )
+
+        persistence.saveDraft("image-chat", draft)
+
+        assertEquals(draft, persistence.observe("image-chat").first()?.draft)
+        assertEquals(PersistedComposerDraft(), persistence.observe("video-chat").first()?.draft)
+        persistence.deleteConversation("image-chat")
+        assertNull(database.conversationDao().get("image-chat"))
     }
 
     private fun conversation(id: String) = ConversationEntity(

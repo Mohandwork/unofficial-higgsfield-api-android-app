@@ -1,7 +1,6 @@
 package com.higgsfield.mobile.feature.conversation
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +35,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,8 +45,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import coil3.compose.AsyncImage
 import com.higgsfield.mobile.R
 import com.higgsfield.mobile.core.model.MediaKind
+import com.higgsfield.mobile.core.model.GenerationOutput
 import com.higgsfield.mobile.core.model.MediaRole
 import com.higgsfield.mobile.core.model.WorkflowDescriptor
+import com.higgsfield.mobile.core.model.WorkflowCapability
 import com.higgsfield.mobile.ui.theme.HiggsfieldTheme
 
 @Preview(showBackground = true, backgroundColor = 0xFF0D1316)
@@ -68,11 +72,22 @@ internal fun ComposerDock(
     onGenerate: () -> Unit,
 ) {
     Column(
-        (if (motionEnabled) Modifier.animateContentSize() else Modifier).fillMaxWidth().imePadding().padding(12.dp),
+        Modifier.fillMaxWidth().imePadding().padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         ComposerMessage(state.message)
-        if (state.activeSourceId != null) ActiveSourceCard(state.activeSourceLabel?.resolve().orEmpty(), onDetachSource)
+        if (state.activeSourceId != null) ActiveSourceCard(
+            state.activeSourceLabel?.resolve().orEmpty(),
+            state.timeline.firstOrNull { it.id == state.activeSourceId }?.output,
+            onDetachSource,
+        )
+        if (state.activeSourceId != null && WorkflowCapability.IMAGE_TO_IMAGE !in state.selectedWorkflow?.capabilities.orEmpty()) {
+            Text(
+                stringResource(R.string.message_choose_compatible_editor),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
         ComposerAttachments(state.attachments, motionEnabled, onRemoveMedia)
         PromptInput(state, onPromptChange, onGenerate)
         ComposerActions(state, onShowBrief, onShowOptions, onPickMedia)
@@ -97,16 +112,23 @@ private fun ComposerAttachments(attachments: List<DraftMediaAttachment>, motionE
 
 @Composable
 private fun PromptInput(state: ConversationUiState, onPromptChange: (String) -> Unit, onGenerate: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedTextField(
             value = state.prompt,
             onValueChange = onPromptChange,
             modifier = Modifier.weight(1f),
-            minLines = 1,
+            minLines = 2,
             maxLines = 5,
             placeholder = { Text(stringResource(if (state.activeSourceId != null) R.string.describe_change else R.string.describe_creation)) },
         )
-        FilledTonalIconButton(onClick = onGenerate, enabled = state.prompt.isNotBlank() && state.isOnline && !state.isSubmitting, modifier = Modifier.size(52.dp)) {
+        val sourceCompatible = state.activeSourceId == null || WorkflowCapability.IMAGE_TO_IMAGE in state.selectedWorkflow?.capabilities.orEmpty()
+        FilledTonalIconButton(onClick = {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+            onGenerate()
+        }, enabled = state.prompt.isNotBlank() && state.isOnline && !state.isSubmitting && sourceCompatible, modifier = Modifier.size(52.dp)) {
             Icon(if (state.isSubmitting) Icons.Rounded.AutoAwesome else Icons.Rounded.ArrowUpward, stringResource(if (state.isSubmitting) R.string.generating else R.string.generate))
         }
     }
@@ -177,7 +199,7 @@ private fun AttachmentList(attachments: List<DraftMediaAttachment>, onRemove: (M
 }
 
 @Composable
-private fun attachmentRoleText(role: MediaRole): String = stringResource(
+internal fun attachmentRoleText(role: MediaRole): String = stringResource(
     when (role) {
         MediaRole.SOURCE -> R.string.media_role_source_image
         MediaRole.MOTION_REFERENCE -> R.string.media_role_motion_video
@@ -189,10 +211,22 @@ private fun attachmentRoleText(role: MediaRole): String = stringResource(
 )
 
 @Composable
-private fun ActiveSourceCard(label: String, onDetach: () -> Unit) {
+private fun ActiveSourceCard(label: String, output: GenerationOutput?, onDetach: () -> Unit) {
+    val context = LocalContext.current
+    val previewUri = remember(output?.localUri, output?.remoteUrl) {
+        output?.previewUri(context.contentResolver.persistedUriPermissions
+            .filter { it.isReadPermission }
+            .map { it.uri.toString() }
+            .toSet())
+    }
     Surface(color = MaterialTheme.colorScheme.tertiaryContainer, shape = RoundedCornerShape(16.dp)) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(58.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp)))
+            if (previewUri != null) AsyncImage(
+                model = previewUri,
+                contentDescription = stringResource(R.string.generated_image),
+                modifier = Modifier.size(58.dp).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp)),
+                contentScale = ContentScale.Crop,
+            ) else Box(Modifier.size(58.dp).background(MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp)))
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(stringResource(R.string.editing_this_image), style = MaterialTheme.typography.labelLarge)
                 Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)

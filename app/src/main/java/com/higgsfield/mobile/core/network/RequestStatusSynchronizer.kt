@@ -10,6 +10,7 @@ import com.higgsfield.mobile.core.error.ErrorMapper
 import com.higgsfield.mobile.core.model.MediaKind
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import retrofit2.HttpException
 
@@ -72,7 +73,22 @@ class RequestStatusSynchronizer @Inject constructor(
         val cancellationUrl = generation.cancellationUrl
             ?: return markFailure(generation, ErrorMapper.protocol(MISSING_CANCELLATION_URL_MESSAGE))
         require(HiggsfieldUrlValidator.isApiUrl(cancellationUrl)) { NON_HIGGSFIELD_CANCEL_MESSAGE }
-        service.cancelRequest(cancellationUrl)
+        try {
+            service.cancelRequest(cancellationUrl)
+        } catch (error: HttpException) {
+            // The request can leave the queue between the last poll and this POST.
+            // Reconcile the card immediately, but keep the cancellation error for the caller.
+            if (error.code() == 400 || error.code() == 409) {
+                try {
+                    refresh(generationId)
+                } catch (canceled: CancellationException) {
+                    throw canceled
+                } catch (_: Exception) {
+                    // The normal poller can retry; the original server message is more useful here.
+                }
+            }
+            throw error
+        }
         update(generationId, PersistedGenerationStatus.CANCELED, System.currentTimeMillis())
     }
 

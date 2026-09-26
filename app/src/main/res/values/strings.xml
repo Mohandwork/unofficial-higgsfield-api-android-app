@@ -14,7 +14,9 @@
     <string name="video">Video</string>
     <string name="add_reference">+ Ref</string>
     <string name="presets">Presets</string>
-    <string name="share">Share</string>
+    <string name="edit_image">Edit image</string>
+    <string name="media_unavailable">Media could not be loaded</string>
+    <string name="message_parameters_reused">Original prompt and settings restored.</string>
     <string name="copy_prompt">Copy prompt</string>
     <string name="reuse_parameters">Reuse parameters</string>
     <string name="draft_saved_locally">Draft saved locally</string>
@@ -146,6 +148,9 @@
     <string name="error_attachment_unreadable">This attachment could not be read. Choose it again.</string>
     <string name="error_attachment_type_unsupported">This file type is not supported for the selected attachment slot.</string>
     <string name="error_reference_image_limit">This model accepts fewer reference images. Remove an image and try again.</string>
+    <string name="error_image_edit_unsupported">This model cannot edit the selected image. Choose an image-edit model or detach the image.</string>
+    <string name="error_active_image_unavailable">The selected image is no longer available. Choose another image before editing.</string>
+    <string name="submitted_references">Submitted references</string>
     <string name="error_request_not_found">Higgsfield could not find this request.</string>
     <string name="error_remote_protocol">The generation response could not be processed safely.</string>
     <string name="error_generation_failed">The generation failed. Update the request and try again.</string>
