@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.higgsfield.mobile.core.database.ConversationEntity
+import com.higgsfield.mobile.core.database.GenerationEntity
 import com.higgsfield.mobile.core.database.HiggsfieldDatabase
 import com.higgsfield.mobile.core.database.LocalGenerationStore
 import com.higgsfield.mobile.core.database.OutputEntity
@@ -170,6 +171,75 @@ class RoomGenerationRepositoryTest {
         assertEquals(PersistedGenerationStatus.UNKNOWN_SUBMISSION_OUTCOME, persisted.status)
         assertEquals(1, server.requestCount)
         assertEquals(0, synchronizer.refreshedGenerationIds.size)
+    }
+
+    @Test
+    fun `editing a completed image sends its URL and keeps the parent generation`() = runTest {
+        database.conversationDao().upsert(conversation(CONVERSATION_ID))
+        database.generationDao().insert(GenerationEntity(
+            id = "original", conversationId = CONVERSATION_ID, branchRootId = "original",
+            workflowId = WorkflowCatalog.MARKETING_STUDIO_2_ALPHA.id.value,
+            instruction = "An apple", composedPrompt = "An apple", optionsSnapshotJson = "{}",
+            status = PersistedGenerationStatus.COMPLETED, createdAtEpochMillis = 1L, updatedAtEpochMillis = 1L,
+        ))
+        database.mediaDao().upsertOutputs(listOf(OutputEntity(
+            id = "source-output", generationId = "original", mediaKind = MediaKind.IMAGE.name,
+            remoteUrl = "https://media.example.test/apple.png", createdAtEpochMillis = 1L,
+        )))
+        server.enqueue(MockResponse().setBody("""{"status":"queued","request_id":"edit-1"}"""))
+
+        val result = repository.submit(CONVERSATION_ID, GenerationDraft(
+            instruction = "Make the apple red", creativeBrief = CreativeBrief(),
+            workflowId = WorkflowCatalog.MARKETING_STUDIO_2_ALPHA.id,
+            activeSourceId = "source-output",
+        ))
+
+        assertTrue(result.isSuccess)
+        assertTrue(server.takeRequest().body.readUtf8().contains("\"image_urls\":[\"https://media.example.test/apple.png\"]"))
+        assertEquals("original", database.generationDao().get(result.getOrThrow().id)?.parentGenerationId)
+        assertEquals("source-output", result.getOrThrow().draft.activeSourceId)
+    }
+
+    @Test
+    fun `incompatible active image is rejected before a billable POST`() = runTest {
+        database.conversationDao().upsert(conversation(CONVERSATION_ID))
+        database.generationDao().insert(GenerationEntity(
+            id = "original", conversationId = CONVERSATION_ID, branchRootId = "original",
+            workflowId = WorkflowCatalog.SOUL.id.value,
+            instruction = "An apple", composedPrompt = "An apple", optionsSnapshotJson = "{}",
+            status = PersistedGenerationStatus.COMPLETED, createdAtEpochMillis = 1L, updatedAtEpochMillis = 1L,
+        ))
+        database.mediaDao().upsertOutputs(listOf(OutputEntity(
+            id = "source-output", generationId = "original", mediaKind = MediaKind.IMAGE.name,
+            remoteUrl = "https://media.example.test/apple.png", createdAtEpochMillis = 1L,
+        )))
+
+        val result = repository.submit(CONVERSATION_ID, GenerationDraft(
+            instruction = "Make the apple red", creativeBrief = CreativeBrief(),
+            workflowId = WorkflowCatalog.SOUL.id, activeSourceId = "source-output",
+        ))
+
+        assertTrue(result.isFailure)
+        assertEquals(0, server.requestCount)
+    }
+
+    @Test
+    fun `retry retains the original composed prompt after the conversation brief changes`() = runTest {
+        database.conversationDao().upsert(conversation(CONVERSATION_ID))
+        server.enqueue(MockResponse().setBody("""{"status":"queued","request_id":"first-1"}"""))
+        server.enqueue(MockResponse().setBody("""{"status":"queued","request_id":"retry-1"}"""))
+        val original = GenerationDraft(
+            instruction = "Make a painting", creativeBrief = CreativeBrief(subject = "forest", exclusions = "people"),
+            workflowId = WorkflowCatalog.QWEN_IMAGE_3.id,
+        )
+        assertTrue(repository.submit(CONVERSATION_ID, original).isSuccess)
+        val firstBody = server.takeRequest().body.readUtf8()
+        database.conversationDao().updateBrief(CONVERSATION_ID, "desert", "", "", "", "", "text", "", 2L)
+
+        val restored = repository.observeConversation(CONVERSATION_ID).first().single()
+        assertTrue(repository.submit(CONVERSATION_ID, restored.draft).isSuccess)
+
+        assertEquals(firstBody, server.takeRequest().body.readUtf8())
     }
 
     private fun conversation(id: String) = ConversationEntity(

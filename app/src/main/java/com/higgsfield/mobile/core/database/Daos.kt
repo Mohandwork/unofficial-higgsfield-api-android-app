@@ -16,6 +16,12 @@ interface ConversationDao {
     @Upsert
     suspend fun upsert(conversation: ConversationEntity)
 
+    @Upsert
+    suspend fun upsertDraft(draft: ConversationDraftEntity)
+
+    @Query("SELECT * FROM conversation_drafts WHERE conversationId = :conversationId")
+    fun observeDraft(conversationId: String): Flow<ConversationDraftEntity?>
+
     @Query("SELECT * FROM conversations ORDER BY updatedAtEpochMillis DESC")
     fun observeAll(): Flow<List<ConversationEntity>>
 

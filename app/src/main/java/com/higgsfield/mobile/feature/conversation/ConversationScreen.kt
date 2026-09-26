@@ -8,7 +8,7 @@ import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
-import androidx.activity.result.contract.ActivityResultContracts.GetContent
+import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
 import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -103,13 +103,15 @@ fun ConversationRoute(
     val imagePicker = rememberLauncherForActivityResult(PickVisualMedia()) { uri: Uri? ->
         val role = pendingRole
         if (uri != null && role != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             viewModel.attachMedia(role, MediaKind.IMAGE, uri.toString(), uri.lastPathSegment ?: uri.toString())
         }
         pendingRole = null
     }
-    val videoPicker = rememberLauncherForActivityResult(GetContent()) { uri: Uri? ->
+    val videoPicker = rememberLauncherForActivityResult(OpenDocument()) { uri: Uri? ->
         val role = pendingRole
         if (uri != null && role != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             viewModel.attachMedia(role, MediaKind.VIDEO, uri.toString(), uri.lastPathSegment ?: uri.toString())
         }
         pendingRole = null
@@ -135,7 +137,7 @@ fun ConversationRoute(
             pendingRole = role
             when (kind) {
                 MediaKind.IMAGE -> imagePicker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly))
-                MediaKind.VIDEO -> videoPicker.launch(VIDEO_MIME_TYPE)
+                MediaKind.VIDEO -> videoPicker.launch(arrayOf(VIDEO_MIME_TYPE))
                 MediaKind.AUDIO -> Unit
             }
         },
@@ -194,16 +196,11 @@ private fun ConversationScreen(
     onCopyPrompt: (TimelineItem) -> Unit,
     onSharePrompt: (TimelineItem) -> Unit,
 ) {
-    var pendingConversation by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
     var pendingConversationSwitch by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
     var pendingRemoval by remember { mutableStateOf(false) }
     val requestConversationSwitch: (String, MediaKind) -> Unit = { id, kind ->
         if (id != state.conversationId) {
-            if (state.prompt.isNotBlank() || state.attachments.isNotEmpty()) {
-                pendingConversation = id to kind
-            } else {
-                pendingConversationSwitch = id to kind
-            }
+            pendingConversationSwitch = id to kind
         }
     }
     val requestConversationRemoval: () -> Unit = {
@@ -272,20 +269,6 @@ private fun ConversationScreen(
         )
     }
     if (state.briefOpen) CreativeBriefSheet(state.brief, { onShowBrief(false) }, onUpdateBrief)
-    pendingConversation?.let { (id, kind) ->
-        AlertDialog(
-            onDismissRequest = { pendingConversation = null },
-            title = { Text(stringResource(R.string.switch_chat)) },
-            text = { Text(stringResource(R.string.switch_chat_discard_draft)) },
-            dismissButton = { TextButton(onClick = { pendingConversation = null }) { Text(stringResource(R.string.continue_editing)) } },
-            confirmButton = {
-                TextButton(onClick = {
-                    pendingConversation = null
-                    pendingConversationSwitch = id to kind
-                }) { Text(stringResource(R.string.switch_chat_confirm)) }
-            },
-        )
-    }
 }
 
 @Composable

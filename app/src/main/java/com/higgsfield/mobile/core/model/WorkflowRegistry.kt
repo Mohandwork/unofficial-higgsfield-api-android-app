@@ -59,7 +59,7 @@ object WorkflowRegistry {
         image(WorkflowCatalog.MARKETING_STUDIO_2_ALPHA, WorkflowFamily.MARKETING_STUDIO, imageEdit, options = imageOptions, endpointPath = MARKETING_STUDIO_ALPHA_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         image(WorkflowCatalog.MARKETING_STUDIO_2_5_FLARE, WorkflowFamily.MARKETING_STUDIO, imageEdit, options = imageOptions, endpointPath = MARKETING_STUDIO_FLARE_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         image(WorkflowCatalog.MARKETING_STUDIO_2_5_SUNBURST, WorkflowFamily.MARKETING_STUDIO, imageEdit, options = imageOptions, endpointPath = MARKETING_STUDIO_SUNBURST_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        image(WorkflowCatalog.QWEN_IMAGE_3, WorkflowFamily.QWEN, imageEdit + WorkflowCapability.NEGATIVE_PROMPT, options = qwenOptions, endpointPath = QWEN_IMAGE_3_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+        image(WorkflowCatalog.QWEN_IMAGE_3, WorkflowFamily.QWEN, setOf(WorkflowCapability.TEXT_TO_IMAGE, WorkflowCapability.NEGATIVE_PROMPT), options = qwenOptions, endpointPath = QWEN_IMAGE_3_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         image(WorkflowCatalog.QWEN_IMAGE_3_EDIT, WorkflowFamily.QWEN, imageEdit, sourceImageRequired, options = qwenOptions, endpointPath = QWEN_IMAGE_3_EDIT_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.SEEDANCE_2, WorkflowFamily.SEEDANCE, endpointPath = SEEDANCE_2_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.SEEDANCE_2_5, WorkflowFamily.SEEDANCE, endpointPath = SEEDANCE_2_5_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),

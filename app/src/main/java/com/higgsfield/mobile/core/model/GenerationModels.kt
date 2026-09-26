@@ -87,6 +87,8 @@ data class GenerationDraft(
     val attachments: List<GenerationAttachment> = emptyList(),
     val activeSourceId: String? = null,
     val options: GenerationOptions = GenerationOptions(),
+    /** Exact prompt captured at the original submission; used for a faithful retry. */
+    val composedPromptOverride: String? = null,
 )
 
 sealed interface GenerationStatus {

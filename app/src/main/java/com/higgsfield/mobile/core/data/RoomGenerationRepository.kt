@@ -20,6 +20,7 @@ import com.higgsfield.mobile.core.model.GenerationOutput
 import com.higgsfield.mobile.core.model.GenerationRecord
 import com.higgsfield.mobile.core.model.GenerationStatus
 import com.higgsfield.mobile.core.model.MediaKind
+import com.higgsfield.mobile.core.model.MediaRole
 import com.higgsfield.mobile.core.model.PromptComposer
 import com.higgsfield.mobile.core.model.WorkflowRegistry
 import com.higgsfield.mobile.core.model.WorkflowCapability
@@ -85,24 +86,45 @@ class RoomGenerationRepository @Inject constructor(
     override suspend fun estimate(draft: GenerationDraft): EstimateState = EstimateState.Idle
 
     override suspend fun submit(conversationId: String, draft: GenerationDraft): Result<GenerationRecord> {
-        if (PromptComposer.compose(draft.creativeBrief, draft.instruction).isBlank()) {
+        if ((draft.composedPromptOverride ?: PromptComposer.compose(draft.creativeBrief, draft.instruction)).isBlank()) {
             return Result.failure(GenerationSubmissionException(ErrorMapper.instructionRequired()))
         }
         val adapter = workflowAdapter(draft).getOrElse { return Result.failure(it) }
+        val sourceOutput = draft.activeSourceId?.let { mediaDao.getOutput(it) }
+        if (draft.activeSourceId != null) {
+            val parentGeneration = sourceOutput?.let { generationDao.get(it.generationId) }
+            if (sourceOutput == null || parentGeneration?.conversationId != conversationId ||
+                sourceOutput.mediaKind != MediaKind.IMAGE.name || !sourceOutput.remoteUrl.startsWith("https://")) {
+                return Result.failure(GenerationSubmissionException(ErrorMapper.activeImageUnavailable()))
+            }
+            if (WorkflowCapability.IMAGE_TO_IMAGE !in adapter.descriptor.capabilities ||
+                WorkflowRequestSchemas.find(draft.workflowId)?.fields?.none { it.name == "image_urls" } != false) {
+                return Result.failure(GenerationSubmissionException(ErrorMapper.imageEditUnsupported()))
+            }
+        }
+        val submittedDraft = if (sourceOutput == null) draft else draft.copy(
+            attachments = listOf(GenerationAttachment(
+                    id = "source-${sourceOutput.id}",
+                    uri = sourceOutput.remoteUrl,
+                    kind = MediaKind.IMAGE,
+                    role = MediaRole.SOURCE,
+                    remoteUrl = sourceOutput.remoteUrl,
+                    isGeneratedOutput = true,
+                )) + draft.attachments.filterNot { it.role == MediaRole.SOURCE && it.remoteUrl == sourceOutput.remoteUrl },
+        )
         val now = System.currentTimeMillis()
         val generationId = UUID.randomUUID().toString()
-        val parent = draft.activeSourceId
-            ?.let { outputId -> mediaDao.getOutput(outputId) }
+        val parent = sourceOutput
             ?.let { output -> generationDao.get(output.generationId) }
             ?.takeIf { generation -> generation.conversationId == conversationId }
-        val entity = draft.toEntity(generationId, conversationId, parent, now)
+        val entity = submittedDraft.toEntity(generationId, conversationId, parent, now)
 
         var generationPostStarted = false
         var generationResponseReceived = false
         return try {
-            localStore.insertDraft(entity, draft.attachments.toEntities(generationId))
-            val uploadedDraft = when (val upload = attachmentUploader.uploadAll(draft.attachments)) {
-                is AttachmentUploadResult.Uploaded -> draft.copy(attachments = upload.attachments)
+            localStore.insertDraft(entity, submittedDraft.attachments.toEntities(generationId))
+            val uploadedDraft = when (val upload = attachmentUploader.uploadAll(submittedDraft.attachments)) {
+                is AttachmentUploadResult.Uploaded -> submittedDraft.copy(attachments = upload.attachments)
                 is AttachmentUploadResult.Failed -> return fail(entity, upload.error)
             }
             val uploadedPlan = submissionPlan(uploadedDraft, adapter).getOrElse { return fail(entity, it.toAppError()) }
@@ -134,10 +156,10 @@ class RoomGenerationRepository @Inject constructor(
             val persisted = generationDao.get(generationId)
             Result.success(
                 persisted?.toRecord(
-                    brief = draft.creativeBrief,
+                    brief = submittedDraft.creativeBrief,
                     attachments = mediaDao.attachmentsFor(generationId),
                     outputs = mediaDao.outputsFor(generationId),
-                ) ?: entity.toRecord(draft.creativeBrief),
+                ) ?: entity.toRecord(submittedDraft.creativeBrief),
             )
         } catch (error: CancellationException) {
             throw error
@@ -240,14 +262,15 @@ private fun GenerationDraft.toEntity(
     conversationId = conversationId,
     parentGenerationId = parent?.id,
     branchRootId = parent?.branchRootId ?: generationId,
+    sourceOutputId = activeSourceId,
     workflowId = workflowId.value,
     instruction = instruction.trim(),
-    composedPrompt = PromptComposer.compose(
+    composedPrompt = composedPromptOverride ?: PromptComposer.compose(
         creativeBrief,
         instruction,
         WorkflowCapability.NEGATIVE_PROMPT in WorkflowRegistry.find(workflowId)?.capabilities.orEmpty(),
     ),
-    negativePrompt = PromptComposer.composeNegativePrompt(creativeBrief, options.negativePrompt),
+    negativePrompt = if (composedPromptOverride != null) options.negativePrompt else PromptComposer.composeNegativePrompt(creativeBrief, options.negativePrompt),
     optionsSnapshotJson = options.snapshotJson(),
     createdAtEpochMillis = now,
     updatedAtEpochMillis = now,
@@ -272,7 +295,9 @@ private fun GenerationEntity.toRecord(brief: com.higgsfield.mobile.core.model.Cr
         instruction = instruction,
         creativeBrief = brief,
         workflowId = com.higgsfield.mobile.core.model.WorkflowId(workflowId),
-        options = optionsSnapshotJson.toOptions(),
+        activeSourceId = sourceOutputId,
+        options = optionsSnapshotJson.toOptions().copy(negativePrompt = negativePrompt),
+        composedPromptOverride = composedPrompt,
     ),
     status = status.toDomainStatus(errorMessage, errorCode),
     errorCode = errorCode,
@@ -294,7 +319,9 @@ private fun GenerationEntity.toRecord(
         creativeBrief = brief,
         workflowId = com.higgsfield.mobile.core.model.WorkflowId(workflowId),
         attachments = attachments.map(AttachmentEntity::toDomainAttachment),
-        options = optionsSnapshotJson.toOptions(),
+        activeSourceId = sourceOutputId,
+        options = optionsSnapshotJson.toOptions().copy(negativePrompt = negativePrompt),
+        composedPromptOverride = composedPrompt,
     ),
     status = status.toDomainStatus(errorMessage, errorCode, outputs),
     errorCode = errorCode,

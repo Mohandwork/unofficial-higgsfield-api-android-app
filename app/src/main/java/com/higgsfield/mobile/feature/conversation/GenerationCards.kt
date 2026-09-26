@@ -1,6 +1,7 @@
 package com.higgsfield.mobile.feature.conversation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,12 +11,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ContentCopy
-import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -37,14 +38,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
 import com.higgsfield.mobile.R
+import com.higgsfield.mobile.core.model.GenerationAttachment
 import com.higgsfield.mobile.core.model.GenerationOutput
 import com.higgsfield.mobile.core.model.GenerationStatus
 import com.higgsfield.mobile.core.model.MediaKind
@@ -79,6 +81,8 @@ internal fun TimelineCard(
     )
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         PromptBubble(item.prompt, Modifier.align(Alignment.End))
+        val references = item.record?.draft?.attachments.orEmpty()
+        if (references.isNotEmpty()) SubmittedReferences(references)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -93,6 +97,43 @@ internal fun TimelineCard(
                 onCopyPrompt,
                 onUseOutput
             )
+        }
+    }
+}
+
+@Composable
+private fun SubmittedReferences(references: List<GenerationAttachment>) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            stringResource(R.string.submitted_references),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            references.forEach { reference ->
+                Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                    Row(Modifier.padding(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (reference.kind == MediaKind.IMAGE) AsyncImage(
+                            model = reference.uri.takeIf(String::isNotBlank) ?: reference.remoteUrl,
+                            contentDescription = attachmentRoleText(reference.role),
+                            modifier = Modifier.size(48.dp),
+                            contentScale = ContentScale.Crop,
+                        ) else Icon(
+                            Icons.Rounded.AutoAwesome,
+                            contentDescription = attachmentRoleText(reference.role),
+                            modifier = Modifier.size(48.dp),
+                        )
+                        Text(
+                            attachmentRoleText(reference.role),
+                            modifier = Modifier.padding(horizontal = 8.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+            }
         }
     }
 }

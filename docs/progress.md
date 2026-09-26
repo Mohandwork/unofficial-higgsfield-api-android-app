@@ -6,17 +6,17 @@ The refined product implementation is complete in the working tree. The remainin
 
 ## Completed
 
-- Image and Video workspaces with independent persisted state.
+- Image and Video workspaces with independent persisted state, including composer prompts, options, and attachment references per conversation.
 - Room-backed conversation history with compact drawer and expanded rail.
 - New chat, rename, explicit chat removal confirmation, and recovery to a valid conversation.
 - Creative Brief editing, persistence, and capability-aware prompt/negative-prompt composition.
-- Reference selection with direct single-slot CTA behavior; references remain visible when a generation fails.
+- Reference selection with direct single-slot CTA behavior; submitted references remain visible when a generation fails. Generated-image edits send the selected output URL to verified image-edit endpoints and reject incompatible models before POST.
 - Generation timeline with queued/running/success/failure/cancelled states, progress indicators, retry, and stale-response protection.
 - Provider error detail rendered from the response body for all relevant status codes, including authentication and credit failures.
 - Static model catalog details from the supplied pricing/spec material; the bottom price chip was removed.
 - Neon-lime/cyan light and dark themes plus matching mode-aware splash artwork.
 - Loading overlays for chat creation, switching, removal, and other larger transitions.
-- Local-only drafts and credential-safe configuration.
+- Local-only drafts, faithful retry from the original request snapshot, and credential-safe configuration.
 
 ## Verification completed
 
@@ -31,7 +31,9 @@ The debug APK has also been checked against the 16 KB page-size packaging requir
 
 ## Known limitations / next verification steps
 
-- Image editing is not complete yet: selecting an active generated image changes the prompt context, but the next submission does not currently include that output as an image/reference payload. The provider therefore receives text such as `Camera: Eagle view\nMake it realistic` without the source image.
+- A live provider edit has not yet been exercised in this pass; unit tests verify the request includes the selected image URL and that incompatible models make no generation POST.
+- Background recovery is deferred. Opening the app polls accepted requests across chats; it does not schedule polling while closed.
+- Multi-image output selection remains pending a review of provider behavior. The current timeline displays the first output only.
 - There are no Compose screenshot tests yet; manual compact/expanded device review is still recommended.
 - Live pricing/credit estimates are intentionally absent. They require an authenticated provider schema and explicit approval for billable requests; static catalog values remain available.
 - Provider-side conversation deletion is out of scope. “Chat removal” deletes the local conversation and its related local records.

@@ -36,18 +36,23 @@ Important behavior is documented in [docs/architecture.md](docs/architecture.md)
 The current debug build has passing unit tests, Kotlin compilation, and APK assembly. Device visual QA and screenshot coverage are still useful follow-ups, but they are verification work rather than missing product functionality. See [docs/progress.md](docs/progress.md) for the exact commands and remaining limitations.
 
 
-App Images and functionality demo:
+## App screenshots
 
-<img width="720" height="1546" alt="WhatsApp Image 2026-09-26 at 3 37 20 PM (1)" src="https://github.com/user-attachments/assets/91cc3bf2-00d0-49c7-84bd-c7fd3d4ba4a8" />          <img width="720" height="1485" alt="WhatsApp Image 2026-09-26 at 3 37 19 PM" src="https://github.com/user-attachments/assets/abd59999-3fb3-40c5-9e01-2b9cdce06aef" />
-
-
-
-<img width="720" height="1504" alt="WhatsApp Image 2026-09-26 at 3 37 20 PM" src="https://github.com/user-attachments/assets/152ae76d-0600-4ca5-b1f4-8b249b9662cd" />                     <img width="720" height="1494" alt="WhatsApp Image 2026-09-26 at 3 37 20 PM (6)" src="https://github.com/user-attachments/assets/acd5de22-742d-4e82-8757-786fc56b9857" />
-
-
-
-<img width="720" height="1531" alt="WhatsApp Image 2026-09-26 at 3 37 20 PM (5)" src="https://github.com/user-attachments/assets/64a7a74b-b20c-48bd-9e4e-06a6930ce9d6" />              <img width="720" height="1547" alt="WhatsApp Image 2026-09-26 at 3 37 20 PM (4)" src="https://github.com/user-attachments/assets/84e53a9e-a1ec-4945-af56-58422c2dc8e3" />
-
-
-
-<img width="720" height="1544" alt="WhatsApp Image 2026-09-26 at 3 37 20 PM (3)" src="https://github.com/user-attachments/assets/6ce03327-30ee-47e9-a8f4-75ebdd834980" />               <img width="720" height="1544" alt="WhatsApp Image 2026-09-26 at 3 37 20 PM (2)" src="https://github.com/user-attachments/assets/25bf8ee1-c879-4ce0-84b4-bf08665a3842" />
+<table>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/91cc3bf2-00d0-49c7-84bd-c7fd3d4ba4a8" alt="App screenshot 1" width="320" /></td>
+    <td><img src="https://github.com/user-attachments/assets/abd59999-3fb3-40c5-9e01-2b9cdce06aef" alt="App screenshot 2" width="320" /></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/152ae76d-0600-4ca5-b1f4-8b249b9662cd" alt="App screenshot 3" width="320" /></td>
+    <td><img src="https://github.com/user-attachments/assets/acd5de22-742d-4e82-8757-786fc56b9857" alt="App screenshot 4" width="320" /></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/64a7a74b-b20c-48bd-9e4e-06a6930ce9d6" alt="App screenshot 5" width="320" /></td>
+    <td><img src="https://github.com/user-attachments/assets/84e53a9e-a1ec-4945-af56-58422c2dc8e3" alt="App screenshot 6" width="320" /></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/user-attachments/assets/6ce03327-30ee-47e9-a8f4-75ebdd834980" alt="App screenshot 7" width="320" /></td>
+    <td><img src="https://github.com/user-attachments/assets/25bf8ee1-c879-4ce0-84b4-bf08665a3842" alt="App screenshot 8" width="320" /></td>
+  </tr>
+</table>

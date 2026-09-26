@@ -29,6 +29,7 @@ data class PersistedConversationSnapshot(
     val activeSourceOutputId: String?,
     val requiresSourceSelection: Boolean,
     val timeline: List<PersistedTimelineItem>,
+    val draft: PersistedComposerDraft = PersistedComposerDraft(),
 )
 
 data class ConversationSummary(
@@ -48,6 +49,7 @@ interface ConversationPersistence {
     suspend fun deriveTitleFromFirstPrompt(conversationId: String, prompt: String)
     suspend fun deleteConversation(conversationId: String)
     suspend fun saveBrief(conversationId: String, brief: CreativeBrief)
+    suspend fun saveDraft(conversationId: String, draft: PersistedComposerDraft)
     suspend fun saveSelectedWorkflow(conversationId: String, workflowId: WorkflowId)
     suspend fun saveCompletedDemo(
         conversationId: String,
@@ -71,7 +73,8 @@ class RoomConversationPersistence @Inject constructor(
         combine(
             conversationDao.observe(conversationId),
             generationDao.observeWithOutputs(conversationId),
-        ) { conversation, generations ->
+            conversationDao.observeDraft(conversationId),
+        ) { conversation, generations, draft ->
             conversation?.let { entity ->
                 PersistedConversationSnapshot(
                     id = entity.id,
@@ -81,6 +84,7 @@ class RoomConversationPersistence @Inject constructor(
                     selectedWorkflowId = entity.selectedWorkflowId?.let(::WorkflowId),
                     activeSourceOutputId = entity.activeSourceOutputId,
                     requiresSourceSelection = entity.requiresSourceSelection,
+                    draft = draft?.toDraft() ?: PersistedComposerDraft(),
                     timeline = generations.map { generation ->
                         val firstOutput = generation.outputs.firstOrNull()
                         PersistedTimelineItem(
@@ -167,6 +171,12 @@ class RoomConversationPersistence @Inject constructor(
             outputGoal = brief.outputGoal,
             now = System.currentTimeMillis(),
         ) == 1) { "Cannot save a brief for a missing conversation" }
+    }
+
+    override suspend fun saveDraft(conversationId: String, draft: PersistedComposerDraft) {
+        if (conversationDao.get(conversationId) != null) {
+            conversationDao.upsertDraft(draft.toEntity(conversationId))
+        }
     }
 
     override suspend fun saveSelectedWorkflow(conversationId: String, workflowId: WorkflowId) {

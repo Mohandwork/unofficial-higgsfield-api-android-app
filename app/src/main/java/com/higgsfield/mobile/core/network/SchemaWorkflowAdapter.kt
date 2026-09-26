@@ -43,11 +43,12 @@ class SchemaWorkflowAdapter(
     private fun resolveFields(draft: GenerationDraft) = schema.fields.map { field ->
         val prompt = composedPrompt(draft)
         field to if (field.name == NEGATIVE_PROMPT_FIELD) {
-            PromptComposer.composeNegativePrompt(draft.creativeBrief, draft.options.negativePrompt)?.let(::JsonPrimitive)
+            (if (draft.composedPromptOverride != null) draft.options.negativePrompt
+            else PromptComposer.composeNegativePrompt(draft.creativeBrief, draft.options.negativePrompt))?.let(::JsonPrimitive)
         } else field.value.resolve(draft, prompt)
     }
 
-    private fun composedPrompt(draft: GenerationDraft) = PromptComposer.compose(
+    private fun composedPrompt(draft: GenerationDraft) = draft.composedPromptOverride ?: PromptComposer.compose(
         draft.creativeBrief,
         draft.instruction,
         WorkflowCapability.NEGATIVE_PROMPT in descriptor.capabilities,

@@ -60,7 +60,9 @@ The conversation state derives local attachment slots from the selected workflow
 
 ## Request composition
 
-Higgsfield is stateless. `PromptComposer` deterministically joins non-empty Creative Brief fields and the current instruction. When supported, exclusions are mapped to the DTO's `negative_prompt`; they are not duplicated into hidden history. The exact composed draft and option snapshot are persisted with every generation.
+Higgsfield is stateless. `PromptComposer` deterministically joins non-empty Creative Brief fields and the current instruction. When supported, exclusions are mapped to the DTO's `negative_prompt`; they are not duplicated into hidden history. Each generation stores the exact composed prompt, negative prompt, options, source output ID, and attachments. Retry uses these submission-time values instead of recomposing with the conversation's current brief.
+
+Composer drafts are stored separately per conversation in Room (`conversation_drafts`), with a version 1-to-2 migration that preserves existing chats and generations. Draft writes are serialized so rapid typing and navigation cannot reorder saved values.
 
 ## Attachment upload boundary
 
@@ -83,7 +85,7 @@ The linear timeline remains the primary UI. A Versions/Compare sheet visualizes 
 
 ## State and recovery
 
-Room is the durable source of truth for conversations and accepted requests. A submit transaction writes the local generation first; once the server accepts, IDs and URLs are persisted immediately. Foreground observation polls responsively. WorkManager only resumes already-accepted requests under a network constraint; it never submits a draft.
+Room is the durable source of truth for conversations and accepted requests. A submit transaction writes the local generation first; once the server accepts, IDs and URLs are persisted immediately. Opening the app polls accepted requests across conversations, and foreground observation also polls the current conversation. A recovery worker exists but is not scheduled in this release; polling while the app is closed is deferred.
 
 Polling starts at two seconds and grows toward ten seconds with jitter. Terminal statuses stop polling. Status GET requests can retry safely. Submission POST requests are single-attempt because the API has no idempotency key; an ambiguous timeout becomes an actionable “unknown submission outcome” state.
 
@@ -95,7 +97,7 @@ All traffic is HTTPS. Presigned upload requests use a separate unauthenticated c
 
 ## Offline behavior
 
-Validated connectivity is observable UI state. Drafts, briefs, navigation, and local history work offline. The Generate action explains that a connection is required. Connectivity restoration resumes polling accepted remote jobs through WorkManager, but never auto-submits a draft or retries an uncertain POST.
+Validated connectivity is observable UI state. Drafts, briefs, navigation, and local history work offline. The Generate action explains that a connection is required. Reopening the app resumes polling accepted remote jobs, but never auto-submits a draft or retries an uncertain POST.
 
 ## Downloads
 

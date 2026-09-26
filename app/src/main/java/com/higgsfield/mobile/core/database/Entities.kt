@@ -24,6 +24,27 @@ data class ConversationEntity(
     val updatedAtEpochMillis: Long,
 )
 
+@Entity(
+    tableName = "conversation_drafts",
+    foreignKeys = [ForeignKey(
+        entity = ConversationEntity::class,
+        parentColumns = ["id"],
+        childColumns = ["conversationId"],
+        onDelete = ForeignKey.CASCADE,
+    )],
+    indices = [Index("conversationId")],
+)
+data class ConversationDraftEntity(
+    @PrimaryKey val conversationId: String,
+    val prompt: String = "",
+    val aspectRatio: String = "1:1",
+    val resolution: String? = null,
+    val durationSeconds: Int? = null,
+    val seed: Long? = null,
+    val negativePrompt: String? = null,
+    val attachmentsJson: String = "[]",
+)
+
 enum class PersistedGenerationStatus { DRAFT, QUEUED, IN_PROGRESS, COMPLETED, FAILED, NSFW, CANCELED, UNKNOWN_SUBMISSION_OUTCOME }
 
 @Entity(
@@ -57,6 +78,7 @@ data class GenerationEntity(
     val conversationId: String,
     val parentGenerationId: String? = null,
     val branchRootId: String,
+    val sourceOutputId: String? = null,
     val workflowId: String,
     val instruction: String,
     val composedPrompt: String,

@@ -21,6 +21,8 @@ object ErrorMapper {
         CODE_ATTACHMENT_UNREADABLE -> R.string.error_attachment_unreadable
         CODE_ATTACHMENT_TYPE_UNSUPPORTED -> R.string.error_attachment_type_unsupported
         CODE_REFERENCE_IMAGE_LIMIT -> R.string.error_reference_image_limit
+        CODE_IMAGE_EDIT_UNSUPPORTED -> R.string.error_image_edit_unsupported
+        CODE_ACTIVE_IMAGE_UNAVAILABLE -> R.string.error_active_image_unavailable
         CODE_CREDENTIALS_REJECTED -> R.string.error_credentials_rejected
         CODE_REQUEST_NOT_FOUND -> R.string.error_request_not_found
         CODE_REMOTE_PROTOCOL -> R.string.error_remote_protocol
@@ -105,6 +107,18 @@ object ErrorMapper {
         diagnosticMessage = message,
     )
 
+    fun imageEditUnsupported() = AppError(
+        code = CODE_IMAGE_EDIT_UNSUPPORTED,
+        messageResId = R.string.error_image_edit_unsupported,
+        retryable = false,
+    )
+
+    fun activeImageUnavailable() = AppError(
+        code = CODE_ACTIVE_IMAGE_UNAVAILABLE,
+        messageResId = R.string.error_active_image_unavailable,
+        retryable = false,
+    )
+
     fun notEnoughCredits() = AppError(
         code = CODE_NOT_ENOUGH_CREDITS,
         messageResId = R.string.error_not_enough_credits,
@@ -136,6 +150,8 @@ object ErrorMapper {
     private const val CODE_ATTACHMENT_UNREADABLE = "attachment_unreadable"
     private const val CODE_ATTACHMENT_TYPE_UNSUPPORTED = "attachment_type_unsupported"
     private const val CODE_REFERENCE_IMAGE_LIMIT = "reference_image_limit"
+    private const val CODE_IMAGE_EDIT_UNSUPPORTED = "image_edit_unsupported"
+    private const val CODE_ACTIVE_IMAGE_UNAVAILABLE = "active_image_unavailable"
     private const val CODE_CREDENTIALS_REJECTED = "credentials_rejected"
     private const val CODE_REQUEST_NOT_FOUND = "request_not_found"
     private const val CODE_REMOTE_PROTOCOL = "remote_protocol"

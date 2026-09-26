@@ -1,7 +1,6 @@
 package com.higgsfield.mobile.feature.conversation
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +35,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -68,7 +69,7 @@ internal fun ComposerDock(
     onGenerate: () -> Unit,
 ) {
     Column(
-        (if (motionEnabled) Modifier.animateContentSize() else Modifier).fillMaxWidth().imePadding().padding(12.dp),
+        Modifier.fillMaxWidth().imePadding().padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         ComposerMessage(state.message)
@@ -97,16 +98,22 @@ private fun ComposerAttachments(attachments: List<DraftMediaAttachment>, motionE
 
 @Composable
 private fun PromptInput(state: ConversationUiState, onPromptChange: (String) -> Unit, onGenerate: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedTextField(
             value = state.prompt,
             onValueChange = onPromptChange,
             modifier = Modifier.weight(1f),
-            minLines = 1,
+            minLines = 2,
             maxLines = 5,
             placeholder = { Text(stringResource(if (state.activeSourceId != null) R.string.describe_change else R.string.describe_creation)) },
         )
-        FilledTonalIconButton(onClick = onGenerate, enabled = state.prompt.isNotBlank() && state.isOnline && !state.isSubmitting, modifier = Modifier.size(52.dp)) {
+        FilledTonalIconButton(onClick = {
+            focusManager.clearFocus()
+            keyboardController?.hide()
+            onGenerate()
+        }, enabled = state.prompt.isNotBlank() && state.isOnline && !state.isSubmitting, modifier = Modifier.size(52.dp)) {
             Icon(if (state.isSubmitting) Icons.Rounded.AutoAwesome else Icons.Rounded.ArrowUpward, stringResource(if (state.isSubmitting) R.string.generating else R.string.generate))
         }
     }
@@ -177,7 +184,7 @@ private fun AttachmentList(attachments: List<DraftMediaAttachment>, onRemove: (M
 }
 
 @Composable
-private fun attachmentRoleText(role: MediaRole): String = stringResource(
+internal fun attachmentRoleText(role: MediaRole): String = stringResource(
     when (role) {
         MediaRole.SOURCE -> R.string.media_role_source_image
         MediaRole.MOTION_REFERENCE -> R.string.media_role_motion_video
