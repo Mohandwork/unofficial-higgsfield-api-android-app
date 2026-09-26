@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
@@ -49,8 +51,15 @@ private fun GenerationSpecsSheetPreview() {
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 internal fun ModelInfoDialog(workflow: WorkflowDescriptor?, onDismiss: () -> Unit) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.85f
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        Column(
+            Modifier.fillMaxWidth().heightIn(max = maxSheetHeight)
+                .verticalScroll(rememberScrollState(), enabled = sheetState.currentValue == androidx.compose.material3.SheetValue.Expanded)
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
             Text(stringResource(R.string.model_details), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             Text(workflow?.displayName ?: stringResource(R.string.model), style = MaterialTheme.typography.headlineSmall)
             val estimate = workflow?.staticEstimate

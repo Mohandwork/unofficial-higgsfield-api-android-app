@@ -120,7 +120,7 @@ class PersistenceDatabaseTest {
         val draft = PersistedComposerDraft(
             prompt = "A red apple",
             options = GenerationOptions(aspectRatio = "4:5", seed = 42L),
-            attachments = listOf(PersistedDraftAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "content://media/apple", "apple.jpg")),
+            attachments = listOf(PersistedDraftAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "content://media/apple", "apple.jpg", "https://example.test/apple.jpg")),
         )
 
         persistence.saveDraft("image-chat", draft)

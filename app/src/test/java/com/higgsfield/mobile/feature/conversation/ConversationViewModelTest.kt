@@ -17,6 +17,7 @@ import com.higgsfield.mobile.core.model.GenerationDraft
 import com.higgsfield.mobile.core.model.GenerationOptions
 import com.higgsfield.mobile.core.model.GenerationOutput
 import com.higgsfield.mobile.core.model.GenerationRecord
+import com.higgsfield.mobile.core.model.GenerationStatus
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.MediaRole
 import com.higgsfield.mobile.core.model.WorkflowCatalog
@@ -63,7 +64,7 @@ class ConversationViewModelTest {
         assertEquals(1, state.timeline.size)
         assertNotNull(state.activeSourceId)
         assertEquals(ConversationText.Resource(R.string.demo_image, listOf(1)), state.activeSourceLabel)
-        assertEquals("Studio product photo of one ripe green apple centered on a matte cream background, soft daylight, no text", state.prompt)
+        assertEquals("", state.prompt)
     }
 
     @Test
@@ -104,7 +105,7 @@ class ConversationViewModelTest {
     }
 
     @Test
-    fun `restoring a completed image carries its prompt once`() {
+    fun `restoring a completed image keeps the composer empty`() {
         val persistence = FakeConversationPersistence()
         val viewModel = ConversationViewModel(persistence)
         viewModel.initialize(MediaKind.IMAGE)
@@ -120,11 +121,12 @@ class ConversationViewModelTest {
         )
 
         persistence.emit(snapshot)
-        assertEquals("A quiet forest", viewModel.state.value.prompt)
-
-        viewModel.updatePrompt("")
-        persistence.emit(snapshot.copy(title = "Renamed"))
         assertEquals("", viewModel.state.value.prompt)
+        assertEquals("image-1", viewModel.state.value.activeSourceId)
+
+        viewModel.updatePrompt("Add mist between the trees")
+        persistence.emit(snapshot.copy(title = "Renamed"))
+        assertEquals("Add mist between the trees", viewModel.state.value.prompt)
     }
 
     @Test
@@ -133,7 +135,9 @@ class ConversationViewModelTest {
         viewModel.initialize(MediaKind.IMAGE)
         viewModel.updatePrompt("First")
         viewModel.addDemoResult()
-        val first = viewModel.state.value.timeline.single()
+        val first = viewModel.state.value.timeline.single().let { item ->
+            item.copy(output = GenerationOutput(item.sourceOutputId!!, "https://example.test/first.png", MediaKind.IMAGE))
+        }
         viewModel.selectWorkflow(WorkflowRegistry.find(WorkflowCatalog.QWEN_IMAGE_3_EDIT.id)!!)
         viewModel.updatePrompt("Second")
         viewModel.addDemoResult()
@@ -147,7 +151,7 @@ class ConversationViewModelTest {
     }
 
     @Test
-    fun `selecting an image carries its prompt into an empty composer`() {
+    fun `selecting an image keeps the composer ready for a new edit`() {
         val viewModel = ConversationViewModel(FakeConversationPersistence())
         viewModel.initialize(MediaKind.IMAGE)
         viewModel.updatePrompt("A green apple on a cream background")
@@ -156,15 +160,83 @@ class ConversationViewModelTest {
             output = GenerationOutput("output-1", "https://example.test/apple.png", MediaKind.IMAGE),
             sourceOutputId = "output-1",
         )
+        viewModel.selectWorkflow(WorkflowRegistry.find(WorkflowCatalog.QWEN_IMAGE_3_EDIT.id)!!)
         viewModel.updatePrompt("")
 
         viewModel.useOutput(image)
 
-        assertEquals("A green apple on a cream background", viewModel.state.value.prompt)
+        assertEquals("", viewModel.state.value.prompt)
         assertEquals("output-1", viewModel.currentDraft()?.activeSourceId)
         viewModel.updatePrompt("Keep my own edit")
         viewModel.useOutput(image)
         assertEquals("Keep my own edit", viewModel.state.value.prompt)
+    }
+
+    @Test
+    fun `image edit selection requires a compatible model`() {
+        val viewModel = ConversationViewModel(FakeConversationPersistence())
+        viewModel.initialize(MediaKind.IMAGE)
+        val item = TimelineItem(
+            id = "image-1", prompt = "Apple", modelName = WorkflowCatalog.SOUL.displayName,
+            stateLabel = ConversationText.Resource(R.string.status_completed),
+            output = GenerationOutput("output-1", "https://example.test/apple.png", MediaKind.IMAGE),
+            sourceOutputId = "output-1",
+        )
+
+        viewModel.useOutput(item)
+
+        assertNull(viewModel.state.value.activeSourceId)
+        assertEquals(ConversationText.Resource(R.string.message_choose_compatible_editor), viewModel.state.value.message)
+    }
+
+    @Test
+    fun `video reuse restores the original prompt and model without treating video as an image source`() {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.VIDEO)
+        val draft = GenerationDraft(
+            instruction = "Orbit around a lighthouse",
+            creativeBrief = CreativeBrief(mood = "Stormy"),
+            workflowId = WorkflowCatalog.SEEDANCE_2_5.id,
+            options = GenerationOptions(durationSeconds = 8),
+        )
+        val item = TimelineItem(
+            id = "video-1",
+            prompt = draft.instruction,
+            modelName = WorkflowCatalog.SEEDANCE_2_5.displayName,
+            stateLabel = ConversationText.Resource(R.string.status_completed),
+            output = GenerationOutput("output-1", "https://example.test/video.mp4", MediaKind.VIDEO),
+            sourceOutputId = "output-1",
+            record = GenerationRecord("video-1", draft = draft, status = GenerationStatus.Completed(emptyList())),
+        )
+
+        viewModel.useOutput(item)
+        assertNull(viewModel.state.value.activeSourceId)
+        viewModel.reuseParameters(item)
+
+        assertEquals(draft.instruction, viewModel.state.value.prompt)
+        assertEquals(draft.workflowId, viewModel.state.value.selectedWorkflow?.id)
+        assertEquals(8, viewModel.state.value.options.durationSeconds)
+        assertEquals("Stormy", viewModel.state.value.brief.mood)
+        assertNull(viewModel.state.value.activeSourceId)
+        assertEquals(draft.instruction, persistence.savedDrafts["video-default"]?.prompt)
+    }
+
+    @Test
+    fun `workspace transition ends only after its saved conversation arrives`() {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE, "image-new")
+        assertTrue(viewModel.state.value.isTransitioning)
+
+        persistence.emit(PersistedConversationSnapshot(
+            id = "image-new", title = "New image chat", mediaKind = MediaKind.IMAGE,
+            brief = CreativeBrief(), selectedWorkflowId = WorkflowCatalog.SOUL.id,
+            activeSourceOutputId = null, requiresSourceSelection = false, timeline = emptyList(),
+        ))
+
+        assertEquals("New image chat", viewModel.state.value.conversationTitle)
+        assertEquals(false, viewModel.state.value.isTransitioning)
     }
 
     @Test
@@ -245,6 +317,26 @@ class ConversationViewModelTest {
             viewModel.state.value.message,
         )
         assertTrue(!viewModel.state.value.isSubmitting)
+    }
+
+    @Test
+    fun `accepted generation clears submitted prompt for the next edit`() {
+        val originalPrompt = "A green apple on a cream background"
+        val repository = FakeGenerationRepository(Result.success(GenerationRecord(
+            id = "generation-1",
+            draft = GenerationDraft(originalPrompt, CreativeBrief(), WorkflowCatalog.SOUL.id),
+            status = GenerationStatus.Queued,
+        )))
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence = persistence, generationRepository = repository)
+        viewModel.initialize(MediaKind.IMAGE)
+        viewModel.updatePrompt(originalPrompt)
+
+        viewModel.submitGeneration()
+
+        assertEquals(originalPrompt, repository.draft?.instruction)
+        assertEquals("", viewModel.state.value.prompt)
+        assertEquals("", persistence.savedDrafts["image-default"]?.prompt)
     }
 }
 

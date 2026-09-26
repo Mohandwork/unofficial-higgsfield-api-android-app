@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -28,7 +29,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -42,6 +48,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import coil3.compose.AsyncImage
@@ -56,7 +64,7 @@ import com.higgsfield.mobile.ui.theme.HiggsfieldTheme
 @Composable
 private fun GenerationCardPreview() {
     HiggsfieldTheme {
-        TimelineCard(previewGenerationItem(), false, {}, {}, {}, {}, {}, {})
+        TimelineCard(previewGenerationItem(), false, true, {}, {}, {}, {}, {}, {}, {})
     }
 }
 
@@ -64,7 +72,9 @@ private fun GenerationCardPreview() {
 internal fun TimelineCard(
     item: TimelineItem,
     active: Boolean,
+    canEditImage: Boolean,
     onUseOutput: (TimelineItem) -> Unit,
+    onReuseParameters: (TimelineItem) -> Unit,
     onRetry: (TimelineItem) -> Unit,
     onCancel: (TimelineItem) -> Unit,
     onDownload: (TimelineItem) -> Unit,
@@ -95,7 +105,9 @@ internal fun TimelineCard(
                 onDownload,
                 onSharePrompt,
                 onCopyPrompt,
-                onUseOutput
+                onUseOutput,
+                onReuseParameters,
+                canEditImage,
             )
         }
     }
@@ -261,29 +273,32 @@ private fun GenerationActions(
     onDownload: (TimelineItem) -> Unit,
     onSharePrompt: (TimelineItem) -> Unit,
     onCopyPrompt: (TimelineItem) -> Unit,
-    onUseOutput: (TimelineItem) -> Unit
+    onUseOutput: (TimelineItem) -> Unit,
+    onReuseParameters: (TimelineItem) -> Unit,
+    canEditImage: Boolean,
 ) {
     HorizontalDivider()
     Row(
         Modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 4.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TextButton(onClick = { onDownload(item) }) { Text(stringResource(R.string.download)) }
+        TextButton(onClick = { onDownload(item) }) { Text(stringResource(R.string.download), maxLines = 1) }
         TextButton(onClick = { onCopyPrompt(item) }, enabled = item.prompt.isNotBlank()) {
             Icon(
                 Icons.Rounded.ContentCopy,
                 null,
                 modifier = Modifier.size(16.dp)
-            ); Text(stringResource(R.string.copy_prompt), Modifier.padding(start = 4.dp))
+            ); Text(stringResource(R.string.copy_prompt), Modifier.padding(start = 4.dp), maxLines = 1)
         }
-
     }
     Row(
         Modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(
                 horizontal = 4.dp,
                 vertical = 4.dp
@@ -291,40 +306,103 @@ private fun GenerationActions(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        TextButton(onClick = { onUseOutput(item) }) { Text(stringResource(R.string.reuse_parameters)) }
+        if (item.output?.kind == MediaKind.IMAGE && canEditImage) {
+            TextButton(onClick = { onUseOutput(item) }) { Text(stringResource(R.string.edit_image), maxLines = 1) }
+        }
+        if (item.record != null) {
+            TextButton(onClick = { onReuseParameters(item) }) { Text(stringResource(R.string.reuse_parameters), maxLines = 1) }
+        }
     }
 }
 
 @Composable
 private fun GenerationOutputPreview(output: GenerationOutput) {
+    val context = LocalContext.current
+    val previewUri = remember(output.localUri, output.remoteUrl) {
+        output.previewUri(context.contentResolver.persistedUriPermissions
+            .filter { it.isReadPermission }
+            .map { it.uri.toString() }
+            .toSet())
+    }
     when (output.kind) {
-        MediaKind.IMAGE -> AsyncImage(
-            model = output.localUri ?: output.remoteUrl,
-            contentDescription = stringResource(R.string.generated_image),
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
-        )
+        MediaKind.IMAGE -> ImageOutputPreview(previewUri)
 
-        MediaKind.VIDEO, MediaKind.AUDIO -> MediaOutputPlayer(output)
+        MediaKind.VIDEO, MediaKind.AUDIO -> MediaOutputPlayer(output, previewUri)
+    }
+}
+
+private enum class MediaLoadState { Loading, Ready, Failed }
+
+@Composable
+private fun ImageOutputPreview(previewUri: String) {
+    var attempt by remember(previewUri) { mutableIntStateOf(0) }
+    var loadState by remember(previewUri, attempt) { mutableStateOf(MediaLoadState.Loading) }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        key(attempt) {
+            AsyncImage(
+                model = previewUri,
+                contentDescription = stringResource(R.string.generated_image),
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                onLoading = { loadState = MediaLoadState.Loading },
+                onSuccess = { loadState = MediaLoadState.Ready },
+                onError = { loadState = MediaLoadState.Failed },
+            )
+        }
+        MediaLoadOverlay(loadState) { attempt++ }
     }
 }
 
 @Composable
-private fun MediaOutputPlayer(output: GenerationOutput) {
+private fun MediaOutputPlayer(output: GenerationOutput, previewUri: String) {
     val context = LocalContext.current
-    val exoPlayer = remember(output.id, output.localUri, output.remoteUrl) {
+    var attempt by remember(output.id, previewUri) { mutableIntStateOf(0) }
+    var loadState by remember(output.id, previewUri, attempt) { mutableStateOf(MediaLoadState.Loading) }
+    val exoPlayer = remember(output.id, previewUri, attempt) {
         ExoPlayer.Builder(context).build().apply {
-            setMediaItem(
-                MediaItem.fromUri(
-                    output.localUri ?: output.remoteUrl
-                )
-            ); prepare()
+            setMediaItem(MediaItem.fromUri(previewUri))
+            prepare()
         }
     }
-    DisposableEffect(exoPlayer) { onDispose(exoPlayer::release) }
-    AndroidView(
-        factory = { PlayerView(it).apply { player = exoPlayer; useController = true } },
-        update = { it.player = exoPlayer },
-        modifier = Modifier.fillMaxSize()
-    )
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                loadState = if (playbackState == Player.STATE_READY) MediaLoadState.Ready else MediaLoadState.Loading
+            }
+            override fun onPlayerError(error: PlaybackException) { loadState = MediaLoadState.Failed }
+        }
+        exoPlayer.addListener(listener)
+        loadState = when {
+            exoPlayer.playerError != null -> MediaLoadState.Failed
+            exoPlayer.playbackState == Player.STATE_READY -> MediaLoadState.Ready
+            else -> MediaLoadState.Loading
+        }
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
+    }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        AndroidView(
+            factory = { PlayerView(it).apply { player = exoPlayer; useController = true } },
+            update = { it.player = exoPlayer },
+            modifier = Modifier.fillMaxSize(),
+        )
+        MediaLoadOverlay(loadState) { attempt++ }
+    }
 }
+
+@Composable
+private fun MediaLoadOverlay(state: MediaLoadState, onRetry: () -> Unit) {
+    when (state) {
+        MediaLoadState.Loading -> CircularProgressIndicator(modifier = Modifier.size(32.dp))
+        MediaLoadState.Ready -> Unit
+        MediaLoadState.Failed -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(stringResource(R.string.media_unavailable), color = MaterialTheme.colorScheme.onSurface)
+            TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+        }
+    }
+}
+
+internal fun GenerationOutput.previewUri(persistedReadUris: Set<String>): String =
+    localUri?.takeIf(persistedReadUris::contains) ?: remoteUrl

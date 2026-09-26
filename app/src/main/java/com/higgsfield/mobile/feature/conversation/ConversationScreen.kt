@@ -21,12 +21,16 @@ import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Add
@@ -49,9 +53,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,6 +68,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -78,6 +85,7 @@ import com.higgsfield.mobile.core.model.GenerationOptions
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.MediaRole
 import com.higgsfield.mobile.core.model.WorkflowDescriptor
+import com.higgsfield.mobile.core.model.WorkflowCapability
 import com.higgsfield.mobile.ui.theme.HiggsfieldTheme
 
 @Composable
@@ -97,7 +105,14 @@ fun ConversationRoute(
     var pendingRole by remember { mutableStateOf<MediaRole?>(null) }
     var pendingDownload by remember { mutableStateOf<TimelineItem?>(null) }
     val outputDownload = rememberLauncherForActivityResult(CreateDocument("*/*")) { uri: Uri? ->
-        pendingDownload?.let { item -> if (uri != null) viewModel.downloadOutput(item, uri.toString()) }
+        pendingDownload?.let { item ->
+            if (uri != null) {
+                runCatching {
+                    context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                viewModel.downloadOutput(item, uri.toString())
+            }
+        }
         pendingDownload = null
     }
     val imagePicker = rememberLauncherForActivityResult(PickVisualMedia()) { uri: Uri? ->
@@ -144,6 +159,7 @@ fun ConversationRoute(
         onRemoveMedia = viewModel::removeMedia,
         onDetachSource = viewModel::detachSource,
         onUseOutput = viewModel::useOutput,
+        onReuseParameters = viewModel::reuseParameters,
         onGenerate = viewModel::submitGeneration,
         onRetryGeneration = viewModel::retryGeneration,
         onCancelGeneration = viewModel::cancelGeneration,
@@ -189,6 +205,7 @@ private fun ConversationScreen(
     onRemoveMedia: (MediaRole) -> Unit,
     onDetachSource: () -> Unit,
     onUseOutput: (TimelineItem) -> Unit,
+    onReuseParameters: (TimelineItem) -> Unit,
     onGenerate: () -> Unit,
     onRetryGeneration: (TimelineItem) -> Unit,
     onCancelGeneration: (TimelineItem) -> Unit,
@@ -197,6 +214,7 @@ private fun ConversationScreen(
     onSharePrompt: (TimelineItem) -> Unit,
 ) {
     var pendingConversationSwitch by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
+    var pendingConversationCreation by remember { mutableStateOf<MediaKind?>(null) }
     var pendingRemoval by remember { mutableStateOf(false) }
     val requestConversationSwitch: (String, MediaKind) -> Unit = { id, kind ->
         if (id != state.conversationId) {
@@ -223,6 +241,13 @@ private fun ConversationScreen(
             onSelectConversation(id, kind)
         }
     }
+    LaunchedEffect(pendingConversationCreation) {
+        pendingConversationCreation?.let { kind ->
+            withFrameNanos { }
+            pendingConversationCreation = null
+            onCreateConversation(kind)
+        }
+    }
     Scaffold(
         topBar = {
             HeaderControls(
@@ -241,10 +266,10 @@ private fun ConversationScreen(
                 Row(Modifier.fillMaxSize()) {
                     ConversationRail(state, requestConversationSwitch, onCreateConversation, onRenameConversation, requestConversationRemoval, Modifier.width(280.dp).fillMaxHeight())
                     HorizontalDivider(Modifier.fillMaxHeight().width(1.dp))
-                    Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
+                    Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onReuseParameters, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
                 }
             } else {
-                Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.fillMaxSize())
+                Workspace(state, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onReuseParameters, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.fillMaxSize())
             }
             if (state.isTransitioning) WorkspaceTransitionOverlay()
         }
@@ -259,7 +284,10 @@ private fun ConversationScreen(
                 onShowHistory(false)
                 requestConversationSwitch(id, kind)
             },
-            onCreateConversation = onCreateConversation,
+            onCreateConversation = { kind ->
+                onShowHistory(false)
+                pendingConversationCreation = kind
+            },
             onRenameConversation = onRenameConversation,
             onRemoveConversation = {
                 onShowHistory(false)
@@ -302,8 +330,14 @@ private fun ConversationHistorySheet(
     onRemoveConversation: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        ConversationHistoryContent(state, onSelectConversation, onCreateConversation, onRenameConversation, onRemoveConversation, Modifier.fillMaxWidth().padding(20.dp))
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val maxSheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.85f
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
+        ConversationHistoryContent(
+            state, onSelectConversation, onCreateConversation, onRenameConversation, onRemoveConversation,
+            Modifier.fillMaxWidth().heightIn(max = maxSheetHeight).padding(20.dp),
+            scrollEnabled = sheetState.currentValue == SheetValue.Expanded,
+        )
     }
 }
 
@@ -393,11 +427,12 @@ private fun ConversationHistoryContent(
     onRenameConversation: (String) -> Unit,
     onRemoveConversation: () -> Unit,
     modifier: Modifier = Modifier,
+    scrollEnabled: Boolean = true,
 ) {
     var renameOpen by remember { mutableStateOf(false) }
     var removeOpen by remember { mutableStateOf(false) }
     var renameValue by remember(state.conversationTitle) { mutableStateOf(state.conversationTitle) }
-    Column(modifier) {
+    Column(modifier.verticalScroll(rememberScrollState(), enabled = scrollEnabled)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.conversations), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
                 TextButton(onClick = { onCreateConversation(state.mediaKind) }) { Text(stringResource(R.string.new_chat)) }
@@ -460,6 +495,7 @@ private fun Workspace(
     onRemoveMedia: (MediaRole) -> Unit,
     onDetachSource: () -> Unit,
     onUseOutput: (TimelineItem) -> Unit,
+    onReuseParameters: (TimelineItem) -> Unit,
     onGenerate: () -> Unit,
     onRetryGeneration: (TimelineItem) -> Unit,
     onCancelGeneration: (TimelineItem) -> Unit,
@@ -470,7 +506,7 @@ private fun Workspace(
 ) {
     val motionEnabled = remember { Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled() }
     Column(modifier) {
-        WorkspaceTimeline(state, onUseOutput, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
+        WorkspaceTimeline(state, onUseOutput, onReuseParameters, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
         ComposerDock(state, motionEnabled, onPromptChange, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onGenerate)
     }
 }
@@ -479,6 +515,7 @@ private fun Workspace(
 private fun WorkspaceTimeline(
     state: ConversationUiState,
     onUseOutput: (TimelineItem) -> Unit,
+    onReuseParameters: (TimelineItem) -> Unit,
     onRetryGeneration: (TimelineItem) -> Unit,
     onCancelGeneration: (TimelineItem) -> Unit,
     onDownloadOutput: (TimelineItem) -> Unit,
@@ -486,10 +523,20 @@ private fun WorkspaceTimeline(
     onSharePrompt: (TimelineItem) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyColumn(modifier.fillMaxWidth(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    val listState = rememberLazyListState()
+    val latestId = state.timeline.lastOrNull()?.id
+    LaunchedEffect(state.conversationId, latestId) {
+        if (latestId != null) listState.animateScrollToItem(state.timeline.lastIndex)
+    }
+    LazyColumn(modifier.fillMaxWidth(), state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (state.timeline.isEmpty()) item { EmptyConversation(state.mediaKind) }
         items(state.timeline, key = { it.id }, contentType = { it.lifecycle?.javaClass?.simpleName }) { item ->
-            TimelineCard(item, item.id == state.activeSourceId, onUseOutput, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt)
+            TimelineCard(
+                item, item.id == state.activeSourceId,
+                WorkflowCapability.IMAGE_TO_IMAGE in state.selectedWorkflow?.capabilities.orEmpty(),
+                onUseOutput, onReuseParameters, onRetryGeneration, onCancelGeneration,
+                onDownloadOutput, onCopyPrompt, onSharePrompt,
+            )
         }
     }
 }
@@ -528,6 +575,7 @@ private fun ConversationWorkspacePreview() {
             onRemoveMedia = {},
             onDetachSource = {},
             onUseOutput = {},
+            onReuseParameters = {},
             onGenerate = {},
             onRetryGeneration = {},
             onCancelGeneration = {},

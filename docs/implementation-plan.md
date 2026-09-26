@@ -17,7 +17,7 @@ The default path is:
 ## 2. Persistence and navigation
 
 - Room is the source of truth for conversations, messages, generation records, selected workflow, brief, per-conversation composer draft, and active source output.
-- The history rail is used on wider layouts; the modal drawer is used on compact layouts.
+- The history rail is used on wider layouts; a modal bottom sheet is used on compact layouts. Its list scrolls only after the sheet fully expands.
 - History is grouped by Image and Video and shows only populated sections.
 - New chat creates a persisted placeholder conversation. The first prompt can derive a useful title; rename remains available.
 - Chat removal requires confirmation, deletes the local conversation and its related records, then opens the most recent remaining chat or creates a fresh one.
@@ -51,7 +51,7 @@ The default path is:
 ## 6. Acceptance checklist
 
 - [x] Image/video workspace separation and workflow selection.
-- [x] Persistent per-section conversations with rail/drawer history.
+- [x] Persistent per-section conversations with rail/bottom-sheet history.
 - [x] New chat, rename, removal confirmation, and post-removal recovery.
 - [x] Creative Brief persistence and capability-aware prompt composition.
 - [x] Direct reference CTA and reference visibility across failure states.

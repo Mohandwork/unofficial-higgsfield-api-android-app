@@ -7,7 +7,7 @@ The refined product implementation is complete in the working tree. The remainin
 ## Completed
 
 - Image and Video workspaces with independent persisted state, including composer prompts, options, and attachment references per conversation.
-- Room-backed conversation history with compact drawer and expanded rail.
+- Room-backed conversation history with a compact bottom sheet and expanded rail. The sheet scrolls its chat list only after full expansion.
 - New chat, rename, explicit chat removal confirmation, and recovery to a valid conversation.
 - Creative Brief editing, persistence, and capability-aware prompt/negative-prompt composition.
 - Reference selection with direct single-slot CTA behavior; submitted references remain visible when a generation fails. Generated-image edits send the selected output URL to verified image-edit endpoints and reject incompatible models before POST.
@@ -15,7 +15,8 @@ The refined product implementation is complete in the working tree. The remainin
 - Provider error detail rendered from the response body for all relevant status codes, including authentication and credit failures.
 - Static model catalog details from the supplied pricing/spec material; the bottom price chip was removed.
 - Neon-lime/cyan light and dark themes plus matching mode-aware splash artwork.
-- Loading overlays for chat creation, switching, removal, and other larger transitions.
+- Loading overlays for chat creation, switching, removal, and other larger transitions, held until the destination conversation and timeline have loaded.
+- Separate image-edit and prompt/settings-reuse actions, explicit media load/failure/retry states, selected-image thumbnail, prompt sharing, and automatic timeline scrolling to a newly added generation.
 - Local-only drafts, faithful retry from the original request snapshot, and credential-safe configuration.
 
 ## Verification completed

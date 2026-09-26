@@ -16,6 +16,7 @@ data class PersistedDraftAttachment(
     val kind: MediaKind,
     val uri: String,
     val label: String,
+    val remoteUrl: String? = null,
 )
 
 data class PersistedComposerDraft(
@@ -38,6 +39,7 @@ internal fun PersistedComposerDraft.toEntity(conversationId: String) = Conversat
             put("kind", JsonPrimitive(attachment.kind.name))
             put("uri", JsonPrimitive(attachment.uri))
             put("label", JsonPrimitive(attachment.label))
+            attachment.remoteUrl?.let { put("remoteUrl", JsonPrimitive(it)) }
         }
     }).toString(),
 )
@@ -53,6 +55,7 @@ internal fun ConversationDraftEntity.toDraft() = PersistedComposerDraft(
                 kind = MediaKind.valueOf(fields.getValue("kind").jsonPrimitive.content),
                 uri = fields.getValue("uri").jsonPrimitive.content,
                 label = fields.getValue("label").jsonPrimitive.content,
+                remoteUrl = fields["remoteUrl"]?.jsonPrimitive?.content,
             )
         }
     }.getOrDefault(emptyList()),

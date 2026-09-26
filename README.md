@@ -7,7 +7,7 @@ Higgsfield Mobile is a focused Android client for image and video creation workf
 The refined product now includes:
 
 - Image and video workspaces with model/workflow selection.
-- Persistent, section-scoped conversations with a compact history drawer and an expanded rail.
+- Persistent, section-scoped conversations with a compact history bottom sheet and an expanded rail.
 - New-chat, rename, and chat-removal flows with confirmation and transition feedback.
 - A Creative Brief for reusable intent, style, exclusions, and output guidance.
 - Reference-image selection, direct single-reference CTA behavior, and multi-reference support where a workflow allows it.
