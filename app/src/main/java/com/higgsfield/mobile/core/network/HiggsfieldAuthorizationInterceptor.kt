@@ -6,7 +6,7 @@ import okhttp3.Response
 /** Adds credentials only to Higgsfield API hosts; storage uploads use a separate client. */
 class HiggsfieldAuthorizationInterceptor(
     private val credentials: ApiCredentials,
-    private val authorizedHosts: Set<String> = setOf(HiggsfieldNetwork.API_HOST),
+    private val authorizedHosts: Set<String> = setOf(HiggsfieldNetwork.API_HOST, HiggsfieldNetwork.PLATFORM_HOST),
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()

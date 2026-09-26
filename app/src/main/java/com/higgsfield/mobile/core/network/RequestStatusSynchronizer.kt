@@ -112,7 +112,7 @@ private const val NON_HIGGSFIELD_CANCEL_MESSAGE = "Refusing to cancel through a 
 object HiggsfieldUrlValidator {
     fun isApiUrl(url: String): Boolean = runCatching {
         val parsed = url.toHttpUrlOrNull()
-        parsed?.isHttps == true && parsed.host == HiggsfieldNetwork.API_HOST
+        parsed?.isHttps == true && parsed.host in setOf(HiggsfieldNetwork.API_HOST, HiggsfieldNetwork.PLATFORM_HOST)
     }.getOrDefault(false)
 }
 

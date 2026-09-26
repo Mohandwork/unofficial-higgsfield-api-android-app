@@ -139,6 +139,7 @@ class HiggsfieldNetworkTest {
     @Test
     fun `only HTTPS Higgsfield URLs can be polled`() {
         assertTrue(HiggsfieldUrlValidator.isApiUrl("https://api.higgsfield.ai/requests/request-1/status"))
+        assertTrue(HiggsfieldUrlValidator.isApiUrl("https://platform.higgsfield.ai/requests/request-1/status"))
         assertFalse(HiggsfieldUrlValidator.isApiUrl("http://api.higgsfield.ai/requests/request-1/status"))
         assertFalse(HiggsfieldUrlValidator.isApiUrl("https://storage.example.test/requests/request-1/status"))
     }
