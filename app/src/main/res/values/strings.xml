@@ -10,6 +10,13 @@
     <string name="creation_workspace">%1$s creation workspace</string>
     <string name="image_studio">Image studio</string>
     <string name="video_studio">Video studio</string>
+    <string name="image">Image</string>
+    <string name="video">Video</string>
+    <string name="add_reference">+ Ref</string>
+    <string name="presets">Presets</string>
+    <string name="share">Share</string>
+    <string name="copy_prompt">Copy prompt</string>
+    <string name="reuse_parameters">Reuse parameters</string>
     <string name="draft_saved_locally">Draft saved locally</string>
     <string name="back">Back</string>
     <string name="online">Online</string>
@@ -43,6 +50,7 @@
     <string name="media_role_end_frame">End frame</string>
     <string name="media_role_audio">Audio reference</string>
     <string name="advanced_options_description">Advanced options</string>
+    <string name="generation_specs">Generation specs</string>
     <string name="generate">Generate</string>
     <string name="generating">Generating…</string>
     <string name="api_credentials_not_configured">Credentials are not configured. Generate will reach Higgsfield and return an authentication error.</string>

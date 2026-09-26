@@ -161,7 +161,21 @@ Replace the static conversation rail with real chat history. Users can see old I
 - Dirty-draft switching shows the warning and respects cancel/confirm.
 - Compact history drawer and expanded history rail provide equivalent behavior.
 
-### Remaining backlog
+### Next phase: conversation workspace redesign
+
+The existing workspace does not yet meet the supplied dark, media-first design concept. This redesign supersedes the earlier Creative Brief-first priority. Treat the supplied three-phone concept as the binding visual and interaction reference while retaining the safety and data-accuracy rules in this plan.
+
+1. Rebuild the primary header: centered Image/Video tabs, a compact model selector, and an adjacent model-info action. The model-info action opens a dimming modal bottom sheet; it is not an entry point for Creative Brief.
+2. Rebuild the timeline as a media-first feed. A user prompt bubble precedes each generated-media card. Completed cards show media, model, elapsed render time, API-returned cost when available, and Download, Share, Copy Prompt, and Reuse Parameters actions. Active generations render a skeleton media surface with real progress or a documented estimate, never placeholder implementation copy.
+3. Rebuild the bottom dock from the reference: selected-reference thumbnail card with remove action; auto-expanding prompt field; high-contrast floating generate button; and a compact action row containing `+ Ref`, model-aware `Presets`, and one estimate indicator.
+4. Rebuild model details and presets as deliberate sheets. The details sheet displays only documented, verified capability, pricing, credit, latency, and verification information. The preset sheet renders only active-workflow controls, with compact visual selectors and no unsupported defaults.
+5. Apply the reference visual system: dark-first warm charcoal surfaces, cyan/violet accents, editorial media prominence, compact rounded cards, strong contrast, and careful spacing. Keep all controls responsive, accessible, inset-aware, and reduced-motion aware.
+6. Add the missing interaction polish: animated card placement, attachment transition, sheet presentation, model/estimate crossfade, loading-to-result transition, and completion haptic feedback. Preserve immediate non-spatial feedback when reduced motion is enabled.
+7. Perform visual QA against the supplied concept at compact and expanded widths, including dark theme, large text, IME, and system-navigation insets.
+
+Creative Brief UX and multi-chat history remain deferred until this redesign is visually and behaviorally complete.
+
+### Deferred backlog
 
 - Complete the Creative Brief UX and request-composition corrections described above.
 - Complete persistent multi-chat history, navigation, naming, and draft-switch behavior described above.

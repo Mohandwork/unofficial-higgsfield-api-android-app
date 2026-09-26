@@ -1,7 +1,8 @@
 package com.higgsfield.mobile.feature.conversation
 
-import android.net.Uri
 import android.animation.ValueAnimator
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -33,11 +34,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -72,11 +76,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -100,8 +106,11 @@ import coil3.compose.AsyncImage
 fun ConversationRoute(
     mediaKind: MediaKind,
     onBack: () -> Unit,
+    onSelectMediaKind: (MediaKind) -> Unit,
     viewModel: ConversationViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
     LaunchedEffect(mediaKind) { viewModel.initialize(mediaKind) }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var pendingRole by remember { mutableStateOf<MediaRole?>(null) }
@@ -127,6 +136,7 @@ fun ConversationRoute(
     ConversationScreen(
         state = state,
         onBack = onBack,
+        onSelectMediaKind = onSelectMediaKind,
         onPromptChange = viewModel::updatePrompt,
         onToggleModelMenu = viewModel::toggleModelMenu,
         onSelectWorkflow = viewModel::selectWorkflow,
@@ -153,6 +163,18 @@ fun ConversationRoute(
             pendingDownload = item
             outputDownload.launch("higgsfield-${item.id}")
         },
+        onCopyPrompt = { item -> clipboard.setText(AnnotatedString(item.prompt)) },
+        onSharePrompt = { item ->
+            context.startActivity(
+                Intent.createChooser(
+                    Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, item.prompt)
+                    },
+                    context.getString(R.string.share),
+                ),
+            )
+        },
     )
 }
 
@@ -161,6 +183,7 @@ fun ConversationRoute(
 private fun ConversationScreen(
     state: ConversationUiState,
     onBack: () -> Unit,
+    onSelectMediaKind: (MediaKind) -> Unit,
     onPromptChange: (String) -> Unit,
     onToggleModelMenu: () -> Unit,
     onSelectWorkflow: (WorkflowDescriptor) -> Unit,
@@ -177,24 +200,19 @@ private fun ConversationScreen(
     onRetryGeneration: (TimelineItem) -> Unit,
     onCancelGeneration: (TimelineItem) -> Unit,
     onDownloadOutput: (TimelineItem) -> Unit,
+    onCopyPrompt: (TimelineItem) -> Unit,
+    onSharePrompt: (TimelineItem) -> Unit,
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        stringResource(if (state.mediaKind == MediaKind.IMAGE) R.string.image_studio else R.string.video_studio),
-                        modifier = Modifier.semantics { heading() },
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, stringResource(R.string.back)) }
-                },
-                actions = {
-                    Icon(
-                        if (state.isOnline) Icons.Rounded.CloudDone else Icons.Rounded.CloudOff,
-                        contentDescription = stringResource(if (state.isOnline) R.string.online else R.string.offline),
-                        tint = if (state.isOnline) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    HeaderControls(
+                        state = state,
+                        onSelectMediaKind = onSelectMediaKind,
+                        onToggleModelMenu = onToggleModelMenu,
+                        onSelectWorkflow = onSelectWorkflow,
+                        onShowInfo = { onShowInfo(true) },
                     )
                 },
             )
@@ -205,10 +223,10 @@ private fun ConversationScreen(
                 Row(Modifier.fillMaxSize()) {
                     ConversationRail(state, Modifier.width(280.dp).fillMaxHeight())
                     HorizontalDivider(Modifier.fillMaxHeight().width(1.dp))
-                    Workspace(state, onPromptChange, onToggleModelMenu, onSelectWorkflow, onShowInfo, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, Modifier.weight(1f))
+                    Workspace(state, onPromptChange, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.weight(1f))
                 }
             } else {
-                Workspace(state, onPromptChange, onToggleModelMenu, onSelectWorkflow, onShowInfo, onShowBrief, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, Modifier.fillMaxSize())
+                Workspace(state, onPromptChange, onShowOptions, onPickMedia, onRemoveMedia, onDetachSource, onUseOutput, onGenerate, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt, Modifier.fillMaxSize())
             }
         }
     }
@@ -216,6 +234,51 @@ private fun ConversationScreen(
     if (state.infoOpen) ModelInfoDialog(state.selectedWorkflow, { onShowInfo(false) })
     if (state.briefOpen) BriefDialog(state.brief, { onShowBrief(false) }, onUpdateBrief)
     if (state.optionsOpen) OptionsDialog(state.selectedWorkflow, state.options, { onShowOptions(false) }, onUpdateOptions)
+}
+
+@Composable
+private fun HeaderControls(
+    state: ConversationUiState,
+    onSelectMediaKind: (MediaKind) -> Unit,
+    onToggleModelMenu: () -> Unit,
+    onSelectWorkflow: (WorkflowDescriptor) -> Unit,
+    onShowInfo: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        TextButton(onClick = { onSelectMediaKind(MediaKind.IMAGE) }) {
+            Text(stringResource(R.string.image), color = if (state.mediaKind == MediaKind.IMAGE) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        TextButton(onClick = { onSelectMediaKind(MediaKind.VIDEO) }) {
+            Text(stringResource(R.string.video), color = if (state.mediaKind == MediaKind.VIDEO) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Box(Modifier.weight(1f)) {
+            AssistChip(
+                onClick = onToggleModelMenu,
+                label = { Text(state.selectedWorkflow?.displayName ?: stringResource(R.string.choose_model), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            )
+            DropdownMenu(expanded = state.modelMenuOpen, onDismissRequest = onToggleModelMenu) {
+                state.workflows.forEach { workflow ->
+                    DropdownMenuItem(
+                        text = { Text(workflow.displayName) },
+                        onClick = { onSelectWorkflow(workflow) },
+                    )
+                }
+            }
+        }
+        IconButton(onClick = onShowInfo) {
+            Icon(Icons.Rounded.Info, stringResource(R.string.model_details_and_cost), tint = MaterialTheme.colorScheme.primary)
+        }
+        Icon(
+            if (state.isOnline) Icons.Rounded.CloudDone else Icons.Rounded.CloudOff,
+            contentDescription = stringResource(if (state.isOnline) R.string.online else R.string.offline),
+            tint = if (state.isOnline) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(18.dp),
+        )
+    }
 }
 
 @Composable
@@ -241,10 +304,6 @@ private fun ConversationRail(state: ConversationUiState, modifier: Modifier = Mo
 private fun Workspace(
     state: ConversationUiState,
     onPromptChange: (String) -> Unit,
-    onToggleModelMenu: () -> Unit,
-    onSelectWorkflow: (WorkflowDescriptor) -> Unit,
-    onShowInfo: (Boolean) -> Unit,
-    onShowBrief: (Boolean) -> Unit,
     onShowOptions: (Boolean) -> Unit,
     onPickMedia: (MediaRole, MediaKind) -> Unit,
     onRemoveMedia: (MediaRole) -> Unit,
@@ -254,45 +313,13 @@ private fun Workspace(
     onRetryGeneration: (TimelineItem) -> Unit,
     onCancelGeneration: (TimelineItem) -> Unit,
     onDownloadOutput: (TimelineItem) -> Unit,
+    onCopyPrompt: (TimelineItem) -> Unit,
+    onSharePrompt: (TimelineItem) -> Unit,
     modifier: Modifier,
 ) {
     var attachmentMenuOpen by remember { mutableStateOf(false) }
     val motionEnabled = remember { Build.VERSION.SDK_INT < Build.VERSION_CODES.O || ValueAnimator.areAnimatorsEnabled() }
     Column(modifier) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box {
-                AssistChip(onClick = onToggleModelMenu, label = { Text(state.selectedWorkflow?.displayName ?: stringResource(R.string.choose_model)) })
-                DropdownMenu(expanded = state.modelMenuOpen, onDismissRequest = onToggleModelMenu) {
-                    state.workflows.forEach { workflow ->
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(workflow.displayName)
-                                    Text(
-                                        stringResource(
-                                            if (workflow.isSubmissionEnabled) R.string.adapter_verified
-                                            else R.string.adapter_verification_pending,
-                                        ),
-                                        style = MaterialTheme.typography.labelSmall,
-                                    )
-                                }
-                            },
-                            onClick = { onSelectWorkflow(workflow) },
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.weight(1f))
-            AssistChip(
-                onClick = { onShowInfo(true) },
-                label = { Text(state.selectedWorkflow?.staticEstimate?.fromPrice?.let { stringResource(R.string.estimate_from, it) } ?: stringResource(R.string.pricing_unavailable)) },
-            )
-        }
-        HorizontalDivider()
         LazyColumn(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             contentPadding = PaddingValues(16.dp),
@@ -304,7 +331,7 @@ private fun Workspace(
                 }
             }
             items(state.timeline, key = { it.id }, contentType = { it.lifecycle?.javaClass?.simpleName }) { item ->
-                TimelineCard(item, item.id == state.activeSourceId, onUseOutput, onRetryGeneration, onCancelGeneration, onDownloadOutput)
+                TimelineCard(item, item.id == state.activeSourceId, onUseOutput, onRetryGeneration, onCancelGeneration, onDownloadOutput, onCopyPrompt, onSharePrompt)
             }
         }
         Column(
@@ -321,19 +348,26 @@ private fun Workspace(
             if (motionEnabled) {
                 AnimatedVisibility(state.attachments.isNotEmpty()) { AttachmentList(state.attachments, onRemoveMedia) }
             } else if (state.attachments.isNotEmpty()) AttachmentList(state.attachments, onRemoveMedia)
-            OutlinedTextField(
-                value = state.prompt,
-                onValueChange = onPromptChange,
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 2,
-                maxLines = 5,
-                placeholder = { Text(stringResource(if (state.activeSourceId != null) R.string.describe_change else R.string.describe_creation)) },
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = state.prompt,
+                    onValueChange = onPromptChange,
+                    modifier = Modifier.weight(1f),
+                    minLines = 1,
+                    maxLines = 5,
+                    placeholder = { Text(stringResource(if (state.activeSourceId != null) R.string.describe_change else R.string.describe_creation)) },
+                )
+                FilledTonalIconButton(
+                    onClick = onGenerate,
+                    enabled = state.prompt.isNotBlank() && state.isOnline && !state.isSubmitting,
+                    modifier = Modifier.size(52.dp),
+                ) {
+                    Icon(if (state.isSubmitting) Icons.Rounded.AutoAwesome else Icons.Rounded.ArrowUpward, stringResource(if (state.isSubmitting) R.string.generating else R.string.generate))
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (state.attachmentSlots.isNotEmpty()) Box {
-                    IconButton(onClick = { attachmentMenuOpen = true }) {
-                        Icon(Icons.Rounded.AddPhotoAlternate, stringResource(R.string.attach_media))
-                    }
+                    AssistChip(onClick = { attachmentMenuOpen = true }, label = { Text(stringResource(R.string.add_reference)) }, leadingIcon = { Icon(Icons.Rounded.AddPhotoAlternate, null) })
                     DropdownMenu(expanded = attachmentMenuOpen, onDismissRequest = { attachmentMenuOpen = false }) {
                         state.attachmentSlots.forEach { slot ->
                             DropdownMenuItem(
@@ -346,12 +380,10 @@ private fun Workspace(
                         }
                     }
                 }
-                if (state.selectedWorkflow?.supportedOptions?.isNotEmpty() == true) IconButton(onClick = { onShowOptions(true) }) { Icon(Icons.Rounded.Tune, stringResource(R.string.advanced_options_description)) }
-                IconButton(onClick = { onShowBrief(true) }) { Icon(Icons.Rounded.Info, stringResource(R.string.creative_brief)) }
+                if (state.selectedWorkflow?.supportedOptions?.isNotEmpty() == true) AssistChip(onClick = { onShowOptions(true) }, label = { Text(stringResource(R.string.presets)) }, leadingIcon = { Icon(Icons.Rounded.Tune, null) })
                 Spacer(Modifier.weight(1f))
-                Button(onClick = onGenerate, enabled = state.prompt.isNotBlank() && state.isOnline && !state.isSubmitting) {
-                    Icon(Icons.Rounded.AutoAwesome, contentDescription = null)
-                    Text(stringResource(if (state.isSubmitting) R.string.generating else R.string.generate), Modifier.padding(start = 8.dp))
+                Surface(color = MaterialTheme.colorScheme.secondaryContainer, shape = RoundedCornerShape(20.dp)) {
+                    Text(state.selectedWorkflow?.staticEstimate?.fromPrice?.let { stringResource(R.string.estimate_from, it) } ?: stringResource(R.string.pricing_unavailable), Modifier.padding(horizontal = 12.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium)
                 }
             }
             if (!state.credentialsConfigured) {
@@ -363,8 +395,14 @@ private fun Workspace(
 
 @Composable
 private fun DraftAttachmentCard(attachment: DraftMediaAttachment, onRemove: (MediaRole) -> Unit) {
-    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(16.dp)) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            AsyncImage(
+                model = attachment.uri,
+                contentDescription = attachmentRoleText(attachment.role),
+                modifier = Modifier.size(56.dp).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp)),
+                contentScale = ContentScale.Crop,
+            )
             Column(Modifier.weight(1f)) {
                 Text(attachmentRoleText(attachment.role), style = MaterialTheme.typography.labelLarge)
                 Text(attachment.label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
@@ -416,13 +454,15 @@ private fun TimelineCard(
     onRetry: (TimelineItem) -> Unit,
     onCancel: (TimelineItem) -> Unit,
     onDownload: (TimelineItem) -> Unit,
+    onCopyPrompt: (TimelineItem) -> Unit,
+    onSharePrompt: (TimelineItem) -> Unit,
 ) {
     val hasOutput = item.lifecycle is GenerationStatus.Completed && item.outputLabel != null
     val isFailure = item.lifecycle is GenerationStatus.Failed ||
         item.lifecycle is GenerationStatus.Nsfw || item.lifecycle is GenerationStatus.UnknownSubmissionOutcome
     val statusDescription = stringResource(R.string.generation_status_content_description, item.modelName, item.stateLabel.resolve())
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.align(Alignment.End)) {
+        Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.secondaryContainer, modifier = Modifier.align(Alignment.End)) {
             Text(item.prompt, Modifier.padding(14.dp))
         }
         Card(
@@ -431,7 +471,7 @@ private fun TimelineCard(
             },
         ) {
             Box(
-                Modifier.fillMaxWidth().height(if (hasOutput) 180.dp else 104.dp).background(
+                Modifier.fillMaxWidth().height(if (hasOutput) 220.dp else 156.dp).background(
                     Brush.linearGradient(
                         if (isFailure) listOf(MaterialTheme.colorScheme.errorContainer, MaterialTheme.colorScheme.surfaceVariant)
                         else listOf(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.primaryContainer),
@@ -445,7 +485,10 @@ private fun TimelineCard(
                         style = MaterialTheme.typography.titleLarge,
                     )
                 } else {
-                    Text(item.stateLabel.resolve(), style = MaterialTheme.typography.titleLarge)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Icon(Icons.Rounded.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                        Text(item.stateLabel.resolve(), style = MaterialTheme.typography.titleMedium)
+                    }
                 }
             }
             if (item.lifecycle is GenerationStatus.InProgress) {
@@ -453,7 +496,7 @@ private fun TimelineCard(
                 if (progress == null) LinearProgressIndicator(Modifier.fillMaxWidth())
                 else LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
             }
-            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(item.modelName, fontWeight = FontWeight.SemiBold)
                     Text(item.stateLabel.resolve(), style = MaterialTheme.typography.bodySmall)
@@ -464,12 +507,28 @@ private fun TimelineCard(
                 }
                 when {
                     hasOutput && active -> Text(stringResource(R.string.editing_source), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
-                    hasOutput -> Row {
-                        TextButton(onClick = { onDownload(item) }) { Text(stringResource(R.string.download)) }
-                        TextButton(onClick = { onUseOutput(item) }) { Text(stringResource(R.string.use_this)) }
-                    }
+                    hasOutput -> Unit
                     item.canRetry -> TextButton(onClick = { onRetry(item) }) { Text(stringResource(R.string.retry)) }
                     item.canCancel -> TextButton(onClick = { onCancel(item) }) { Text(stringResource(R.string.cancel_generation)) }
+                }
+            }
+            if (hasOutput) {
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = { onDownload(item) }) { Text(stringResource(R.string.download)) }
+                    TextButton(onClick = { onSharePrompt(item) }, enabled = item.prompt.isNotBlank()) {
+                        Icon(Icons.Rounded.Share, null, modifier = Modifier.size(16.dp))
+                        Text(stringResource(R.string.share), Modifier.padding(start = 4.dp))
+                    }
+                    TextButton(onClick = { onCopyPrompt(item) }, enabled = item.prompt.isNotBlank()) {
+                        Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(16.dp))
+                        Text(stringResource(R.string.copy_prompt), Modifier.padding(start = 4.dp))
+                    }
+                    TextButton(onClick = { onUseOutput(item) }) { Text(stringResource(R.string.reuse_parameters)) }
                 }
             }
         }
@@ -566,6 +625,7 @@ private fun BriefDialog(initial: CreativeBrief, onDismiss: () -> Unit, onSave: (
 }
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun OptionsDialog(
     workflow: WorkflowDescriptor?,
     initial: GenerationOptions,
@@ -577,28 +637,31 @@ private fun OptionsDialog(
     var seed by remember(initial) { mutableStateOf(initial.seed?.toString().orEmpty()) }
     var negativePrompt by remember(initial) { mutableStateOf(initial.negativePrompt.orEmpty()) }
     val supported = workflow?.supportedOptions.orEmpty()
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = {
-            onUpdateOptions(GenerationOptions(
-                aspectRatio = aspectRatio,
-                resolution = resolution.ifBlank { null },
-                seed = seed.toLongOrNull(),
-                negativePrompt = negativePrompt.ifBlank { null },
-            ))
-            onDismiss()
-        }) { Text(stringResource(R.string.done)) } },
-        title = { Text(stringResource(R.string.advanced_options_description)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (WorkflowOption.ASPECT_RATIO in supported) OutlinedTextField(aspectRatio, { aspectRatio = it }, label = { Text(stringResource(R.string.aspect_ratio)) })
-                if (WorkflowOption.RESOLUTION in supported) OutlinedTextField(resolution, { resolution = it }, label = { Text(stringResource(R.string.resolution)) })
-                if (WorkflowOption.SEED in supported) OutlinedTextField(seed, { seed = it }, label = { Text(stringResource(R.string.seed)) })
-                if (WorkflowOption.NEGATIVE_PROMPT in supported) OutlinedTextField(negativePrompt, { negativePrompt = it }, label = { Text(stringResource(R.string.negative_prompt)) })
-                if (supported.isEmpty()) Text(stringResource(R.string.no_model_settings))
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(stringResource(R.string.generation_specs), style = MaterialTheme.typography.titleLarge)
+            Text(workflow?.displayName ?: stringResource(R.string.model), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+            if (WorkflowOption.ASPECT_RATIO in supported) OutlinedTextField(aspectRatio, { aspectRatio = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.aspect_ratio)) })
+            if (WorkflowOption.RESOLUTION in supported) OutlinedTextField(resolution, { resolution = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.resolution)) })
+            if (WorkflowOption.SEED in supported) OutlinedTextField(seed, { seed = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.seed)) })
+            if (WorkflowOption.NEGATIVE_PROMPT in supported) OutlinedTextField(negativePrompt, { negativePrompt = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.negative_prompt)) })
+            if (supported.isEmpty()) Text(stringResource(R.string.no_model_settings))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = {
+                    onUpdateOptions(GenerationOptions(
+                        aspectRatio = aspectRatio,
+                        resolution = resolution.ifBlank { null },
+                        seed = seed.toLongOrNull(),
+                        negativePrompt = negativePrompt.ifBlank { null },
+                    ))
+                    onDismiss()
+                }) { Text(stringResource(R.string.done)) }
             }
-        },
-    )
+        }
+    }
 }
 
 private const val VIDEO_MIME_TYPE = "video/*"

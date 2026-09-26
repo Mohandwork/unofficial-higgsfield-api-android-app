@@ -40,6 +40,12 @@ fun HiggsfieldApp() {
                 ConversationRoute(
                     mediaKind = route.mediaKind,
                     onBack = dropUnlessResumed { backStack.removeLastOrNull() },
+                    onSelectMediaKind = { kind ->
+                        if (kind != route.mediaKind) {
+                            backStack.removeLastOrNull()
+                            backStack.add(ConversationKey(kind))
+                        }
+                    },
                 )
             }
         },
