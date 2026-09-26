@@ -15,6 +15,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Owns workspace subscriptions and request polling across chat switches. */
@@ -95,26 +96,54 @@ internal class ConversationWorkspaceCoordinator(
     }
 }
 
-/** Preserves write ordering so a chat switch cannot persist an older draft last. */
+/** Debounces full-draft writes while retaining the latest pending draft for every conversation. */
 internal class ComposerDraftWriter(private val persistence: ConversationPersistence) {
-    private val writes = Channel<Triple<String, MediaKind, PersistedComposerDraft>>(Channel.UNLIMITED)
+    private val wakeups = Channel<Unit>(Channel.CONFLATED)
+    private val pending = mutableMapOf<String, Pair<MediaKind, PersistedComposerDraft>>()
+    private val guard = Any()
 
     fun start(scope: CoroutineScope, onFailure: (String) -> Unit) {
         scope.launch {
-            for ((id, kind, draft) in writes) {
-                try {
-                    persistence.ensureConversation(id, kind, WorkflowRegistry.forKind(kind).firstOrNull()?.id)
-                    persistence.saveDraft(id, draft)
-                } catch (canceled: CancellationException) {
-                    throw canceled
-                } catch (_: Exception) {
-                    onFailure(id)
+            for (ignored in wakeups) {
+                delay(DRAFT_WRITE_DEBOUNCE_MILLIS)
+                drain().forEach { (id, value) ->
+                    persist(id, value.first, value.second, onFailure)
                 }
             }
         }
     }
 
     fun enqueue(id: String, kind: MediaKind, draft: PersistedComposerDraft) {
-        writes.trySend(Triple(id, kind, draft))
+        synchronized(guard) { pending[id] = kind to draft }
+        wakeups.trySend(Unit)
+    }
+
+    suspend fun flush(id: String, onFailure: (String) -> Unit) {
+        val value = synchronized(guard) { pending.remove(id) } ?: return
+        persist(id, value.first, value.second, onFailure)
+    }
+
+    private fun drain(): Map<String, Pair<MediaKind, PersistedComposerDraft>> = synchronized(guard) {
+        pending.toMap().also { pending.clear() }
+    }
+
+    private suspend fun persist(
+        id: String,
+        kind: MediaKind,
+        draft: PersistedComposerDraft,
+        onFailure: (String) -> Unit,
+    ) {
+        try {
+            persistence.ensureConversation(id, kind, WorkflowRegistry.forKind(kind).firstOrNull()?.id)
+            persistence.saveDraft(id, draft)
+        } catch (canceled: CancellationException) {
+            throw canceled
+        } catch (_: Exception) {
+            onFailure(id)
+        }
+    }
+
+    private companion object {
+        const val DRAFT_WRITE_DEBOUNCE_MILLIS = 250L
     }
 }

@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -131,6 +132,25 @@ private fun ConversationScreen(
     var pendingConversationSwitch by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
     var pendingConversationCreation by remember { mutableStateOf<MediaKind?>(null) }
     var pendingRemoval by remember { mutableStateOf(false) }
+    var modelMenuOpen by rememberSaveable { mutableStateOf(false) }
+    var infoOpen by rememberSaveable { mutableStateOf(false) }
+    var historyOpen by rememberSaveable { mutableStateOf(false) }
+    var briefOpen by rememberSaveable { mutableStateOf(false) }
+    var optionsOpen by rememberSaveable { mutableStateOf(false) }
+    val dispatch: (ConversationUiEvent) -> Unit = { event ->
+        when (event) {
+            ConversationUiEvent.ToggleModelMenu -> modelMenuOpen = !modelMenuOpen
+            is ConversationUiEvent.ShowInfo -> infoOpen = event.show
+            is ConversationUiEvent.ShowHistory -> historyOpen = event.show
+            is ConversationUiEvent.ShowBrief -> briefOpen = event.show
+            is ConversationUiEvent.ShowOptions -> optionsOpen = event.show
+            is ConversationUiEvent.SelectWorkflow -> {
+                modelMenuOpen = false
+                onEvent(event)
+            }
+            else -> onEvent(event)
+        }
+    }
     val requestConversationSwitch: (String, MediaKind) -> Unit = { id, kind ->
         if (id != state.conversationId) {
             pendingConversationSwitch = id to kind
@@ -165,45 +185,45 @@ private fun ConversationScreen(
     }
     Scaffold(
         topBar = {
-            ConversationHeader(state, onEvent) { pendingConversationCreation = state.mediaKind }
+            ConversationHeader(state, dispatch, modelMenuOpen) { pendingConversationCreation = state.mediaKind }
         },
     ) { padding ->
         BoxWithConstraints(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
             if (maxWidth >= 840.dp) {
                 Row(Modifier.fillMaxSize()) {
-                    ConversationRail(state, requestConversationSwitch, { pendingConversationCreation = it }, requestConversationRemoval, onEvent, Modifier.width(280.dp).fillMaxHeight())
+                    ConversationRail(state, requestConversationSwitch, { pendingConversationCreation = it }, requestConversationRemoval, dispatch, Modifier.width(280.dp).fillMaxHeight())
                     HorizontalDivider(Modifier.fillMaxHeight().width(1.dp))
-                    Workspace(state, onEvent, Modifier.weight(1f))
+                    Workspace(state, dispatch, Modifier.weight(1f))
                 }
             } else {
-                Workspace(state, onEvent, Modifier.fillMaxSize())
+                Workspace(state, dispatch, Modifier.fillMaxSize())
             }
             if (state.isTransitioning) WorkspaceTransitionOverlay()
         }
     }
 
-    if (state.infoOpen) ModelInfoDialog(state.selectedWorkflow, { onEvent(ConversationUiEvent.ShowInfo(false)) })
-    if (state.optionsOpen) OptionsDialog(state.selectedWorkflow, state.options, { onEvent(ConversationUiEvent.ShowOptions(false)) }, { onEvent(ConversationUiEvent.UpdateOptions(it)) })
-    if (state.historyOpen) {
+    if (infoOpen) ModelInfoDialog(state.selectedWorkflow, { dispatch(ConversationUiEvent.ShowInfo(false)) })
+    if (optionsOpen) OptionsDialog(state.selectedWorkflow, state.options, { dispatch(ConversationUiEvent.ShowOptions(false)) }, { dispatch(ConversationUiEvent.UpdateOptions(it)) })
+    if (historyOpen) {
         ConversationHistorySheet(
             state = state,
             onSelectConversation = { id, kind ->
-                onEvent(ConversationUiEvent.ShowHistory(false))
+                dispatch(ConversationUiEvent.ShowHistory(false))
                 requestConversationSwitch(id, kind)
             },
             onCreateConversation = { kind ->
-                onEvent(ConversationUiEvent.ShowHistory(false))
+                dispatch(ConversationUiEvent.ShowHistory(false))
                 pendingConversationCreation = kind
             },
             onRemoveConversation = {
-                onEvent(ConversationUiEvent.ShowHistory(false))
+                dispatch(ConversationUiEvent.ShowHistory(false))
                 requestConversationRemoval()
             },
-            onDismiss = { onEvent(ConversationUiEvent.ShowHistory(false)) },
-            onEvent = onEvent,
+            onDismiss = { dispatch(ConversationUiEvent.ShowHistory(false)) },
+            onEvent = dispatch,
         )
     }
-    if (state.briefOpen) CreativeBriefSheet(state.brief, { onEvent(ConversationUiEvent.ShowBrief(false)) }, { onEvent(ConversationUiEvent.UpdateBrief(it)) })
+    if (briefOpen) CreativeBriefSheet(state.brief, { dispatch(ConversationUiEvent.ShowBrief(false)) }, { dispatch(ConversationUiEvent.UpdateBrief(it)) })
 }
 
 @Composable

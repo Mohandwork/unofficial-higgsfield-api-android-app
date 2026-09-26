@@ -48,6 +48,7 @@ class ConversationViewModel @Inject constructor(
     private val conversationLifecycle: ConversationLifecycleUseCase = ConversationLifecycleUseCase(persistence),
     private val submitGenerationUseCase: SubmitGenerationUseCase? = generationRepository?.let { SubmitGenerationUseCase(it, persistence) },
     private val composerUseCase: ConversationComposerUseCase = ConversationComposerUseCase(),
+    private val sourceSelectionUseCase: SourceSelectionUseCase = SourceSelectionUseCase(persistence),
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(ConversationUiState())
     val state: StateFlow<ConversationUiState> = mutableState.asStateFlow()
@@ -62,16 +63,15 @@ class ConversationViewModel @Inject constructor(
     private var snapshotLoaded = false
     private var recordsLoaded = false
     init {
-        draftWriter.start(viewModelScope) { id ->
-            if (mutableState.value.conversationId == id) {
-                mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
-            }
-        }
+        draftWriter.start(viewModelScope, ::onDraftWriteFailure)
     }
 
     fun initialize(kind: MediaKind, requestedConversationId: String? = null) {
         val id = requestedConversationId ?: kind.name.lowercase() + "-default"
         if (conversationId == id && mutableState.value.workflows.isNotEmpty()) return
+        conversationId?.takeIf { it != id }?.let { previousId ->
+            viewModelScope.launch { draftWriter.flush(previousId, ::onDraftWriteFailure) }
+        }
         val workflows = WorkflowRegistry.forKind(kind)
         mutableState.value = ConversationUiState(
             chat = ChatUiState(mediaKind = kind, id = id, isTransitioning = true),
@@ -113,7 +113,7 @@ class ConversationViewModel @Inject constructor(
             is ConversationUiEvent.Chat -> onChatEvent(event)
             is ConversationUiEvent.Composer -> onComposerEvent(event)
             is ConversationUiEvent.Generation -> onGenerationEvent(event)
-            is ConversationUiEvent.Panel -> onPanelEvent(event)
+            is ConversationUiEvent.Panel -> Unit // Panels are view-local state owned by ConversationScreen.
         }
     }
 
@@ -159,21 +159,6 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
-    private fun onPanelEvent(event: ConversationUiEvent.Panel) {
-        when (event) {
-            ConversationUiEvent.ToggleModelMenu -> toggleModelMenu()
-            is ConversationUiEvent.ShowInfo -> showInfo(event.show)
-            is ConversationUiEvent.ShowHistory -> showHistory(event.show)
-            is ConversationUiEvent.ShowBrief -> showBrief(event.show)
-            is ConversationUiEvent.ShowOptions -> showOptions(event.show)
-        }
-    }
-    fun toggleModelMenu() = mutableState.update { it.copy(panels = it.panels.copy(modelMenuOpen = !it.modelMenuOpen)) }
-    fun showInfo(show: Boolean) = mutableState.update { it.copy(panels = it.panels.copy(infoOpen = show)) }
-    fun showBrief(show: Boolean) = mutableState.update { it.copy(panels = it.panels.copy(briefOpen = show)) }
-    fun showOptions(show: Boolean) = mutableState.update { it.copy(panels = it.panels.copy(optionsOpen = show)) }
-    fun showHistory(show: Boolean) = mutableState.update { it.copy(panels = it.panels.copy(historyOpen = show)) }
-
     fun renameConversation(title: String) {
         val id = conversationId ?: return
         viewModelScope.launch {
@@ -189,7 +174,10 @@ class ConversationViewModel @Inject constructor(
 
     fun createConversation(kind: MediaKind) = navigate(kind) { conversationLifecycle.create(kind) }
 
-    fun openMostRecentConversation(kind: MediaKind) = navigate(kind) { conversationLifecycle.mostRecent(kind) }
+    fun openMostRecentConversation(kind: MediaKind) {
+        if (kind == mutableState.value.mediaKind) return
+        navigate(kind) { conversationLifecycle.mostRecent(kind) }
+    }
 
     fun openConversation(id: String, kind: MediaKind) = navigate(kind) { id }
 
@@ -203,7 +191,12 @@ class ConversationViewModel @Inject constructor(
         mutableState.update { it.copy(chat = it.chat.copy(isTransitioning = true)) }
         viewModelScope.launch {
             try {
-                effectChannel.send(ConversationUiEffect.NavigateToConversation(destination(), kind))
+                val id = destination()
+                if (id == conversationId && kind == mutableState.value.mediaKind) {
+                    mutableState.update { it.copy(chat = it.chat.copy(isTransitioning = false)) }
+                    return@launch
+                }
+                effectChannel.send(ConversationUiEffect.NavigateToConversation(id, kind))
             } catch (canceled: CancellationException) {
                 throw canceled
             } catch (_: Exception) {
@@ -223,7 +216,6 @@ class ConversationViewModel @Inject constructor(
                     attachments = selection.attachments,
                     options = selection.options,
                 ),
-                panels = current.panels.copy(modelMenuOpen = false),
                 message = if (selection.activeImageIncompatible) {
                     ConversationText.Resource(R.string.message_model_cannot_edit_active_image)
                 } else null,
@@ -269,7 +261,7 @@ class ConversationViewModel @Inject constructor(
     fun currentDraft(): GenerationDraft? = composerUseCase.draftFor(mutableState.value, persistedActiveSourceOutputId)
 
     fun updateBrief(brief: CreativeBrief) {
-        mutableState.update { it.copy(composer = it.composer.copy(brief = brief), panels = it.panels.copy(briefOpen = false)) }
+        mutableState.update { it.copy(composer = it.composer.copy(brief = brief)) }
         conversationId?.let { id -> viewModelScope.launch { persistence.saveBrief(id, brief) } }
     }
 
@@ -339,7 +331,7 @@ class ConversationViewModel @Inject constructor(
                     message = result.exceptionOrNull()?.toConversationText(),
                 )
             }
-            if (result.isSuccess && clearPromptOnSuccess && mutableState.value.conversationId == conversationId) persistDraft()
+            if (result.isSuccess && clearPromptOnSuccess && mutableState.value.conversationId == conversationId) persistDraft(flush = true)
             result.getOrNull()?.let { workspace.pollIfNeeded(viewModelScope, it) }
         }
     }
@@ -359,7 +351,7 @@ class ConversationViewModel @Inject constructor(
             it.copy(composer = it.composer.copy(activeSourceId = null, activeSourceLabel = null), message = ConversationText.Resource(R.string.message_fresh_generation_started))
         }
         viewModelScope.launch {
-            runCatching { persistence.selectActiveSource(id, null) }
+            runCatching { sourceSelectionUseCase.detach(id) }
                 .onFailure {
                     detachAwaitingDatabaseConfirmation = false
                     mutableState.update { state -> state.copy(message = ConversationText.Resource(R.string.error_unknown)) }
@@ -382,9 +374,9 @@ class ConversationViewModel @Inject constructor(
             )
         }
         conversationId?.let { id ->
-            viewModelScope.launch { persistence.selectActiveSource(id, item.sourceOutputId) }
+            viewModelScope.launch { sourceSelectionUseCase.selectOutput(id, item.sourceOutputId) }
         }
-        persistDraft()
+        persistDraft(flush = true)
     }
 
     fun reuseParameters(item: TimelineItem) {
@@ -412,9 +404,7 @@ class ConversationViewModel @Inject constructor(
         }
         viewModelScope.launch {
             try {
-                persistence.saveSelectedWorkflow(id, workflow.id)
-                persistence.saveBrief(id, draft.creativeBrief)
-                persistence.selectActiveSource(id, null)
+                sourceSelectionUseCase.reuseParameters(id, workflow, draft.creativeBrief)
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -422,7 +412,7 @@ class ConversationViewModel @Inject constructor(
                 mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
             }
         }
-        persistDraft()
+        persistDraft(flush = true)
     }
 
     fun addDemoResult() {
@@ -556,7 +546,7 @@ class ConversationViewModel @Inject constructor(
         if (snapshotLoaded && recordsLoaded) mutableState.update { it.copy(chat = it.chat.copy(isTransitioning = false)) }
     }
 
-    private fun persistDraft() {
+    private fun persistDraft(flush: Boolean = false) {
         val id = conversationId ?: return
         val current = mutableState.value
         draftWriter.enqueue(id, current.mediaKind, PersistedComposerDraft(
@@ -564,6 +554,13 @@ class ConversationViewModel @Inject constructor(
             options = current.options,
             attachments = current.attachments.map { PersistedDraftAttachment(it.role, it.kind, it.uri, it.label, it.remoteUrl) },
         ))
+        if (flush) viewModelScope.launch { draftWriter.flush(id, ::onDraftWriteFailure) }
+    }
+
+    private fun onDraftWriteFailure(id: String) {
+        if (mutableState.value.conversationId == id) {
+            mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
+        }
     }
 
     private companion object {

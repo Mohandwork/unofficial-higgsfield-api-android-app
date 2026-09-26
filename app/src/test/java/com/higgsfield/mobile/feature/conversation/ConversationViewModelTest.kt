@@ -298,6 +298,44 @@ class ConversationViewModelTest {
     }
 
     @Test
+    fun `tapping the selected media tab twice does not start a transition`() {
+        for (kind in listOf(MediaKind.IMAGE, MediaKind.VIDEO)) {
+            val persistence = FakeConversationPersistence()
+            val viewModel = ConversationViewModel(persistence)
+            val id = "${kind.name.lowercase()}-default"
+            viewModel.initialize(kind)
+            persistence.emit(PersistedConversationSnapshot(
+                id = id, title = "Current chat", mediaKind = kind,
+                brief = CreativeBrief(), selectedWorkflowId = WorkflowRegistry.forKind(kind).first().id,
+                activeSourceOutputId = null, requiresSourceSelection = false, timeline = emptyList(),
+            ))
+            assertEquals(false, viewModel.state.value.isTransitioning)
+
+            viewModel.onEvent(ConversationUiEvent.SelectMediaKind(kind))
+            viewModel.onEvent(ConversationUiEvent.SelectMediaKind(kind))
+
+            assertEquals(id, viewModel.state.value.conversationId)
+            assertEquals(false, viewModel.state.value.isTransitioning)
+        }
+    }
+
+    @Test
+    fun `navigation to the current conversation clears the transition`() {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+        persistence.emit(PersistedConversationSnapshot(
+            id = "image-default", title = "Current chat", mediaKind = MediaKind.IMAGE,
+            brief = CreativeBrief(), selectedWorkflowId = WorkflowCatalog.SOUL.id,
+            activeSourceOutputId = null, requiresSourceSelection = false, timeline = emptyList(),
+        ))
+
+        viewModel.onEvent(ConversationUiEvent.OpenConversation("image-default", MediaKind.IMAGE))
+
+        assertEquals(false, viewModel.state.value.isTransitioning)
+    }
+
+    @Test
     fun `failed chat creation clears transition instead of trapping workspace`() {
         val persistence = FakeConversationPersistence().apply { createFailure = IllegalStateException("disk unavailable") }
         val viewModel = ConversationViewModel(persistence)

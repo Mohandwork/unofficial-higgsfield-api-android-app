@@ -1,6 +1,6 @@
 # Next enhancements — two stages
 
-Status: **Stage 1 planned; Stage 2 architecture follow-up in progress and unverified.** The latest checkpoint and remaining validation are recorded in [progress.md](progress.md). This note captures the follow-up discussion to the [codebase review](codebase-review-2026-09-26.md).
+Status: **Stage 1 planned; Stage 2 refactor complete in the working tree; follow-up architecture findings recorded below.** Manual UI verification remains the chosen validation method. This note captures the follow-up discussion from the codebase review.
 
 ## Decisions from the discussion
 
@@ -23,7 +23,7 @@ Done when: those tests pass; a completion cannot regress to a pending card; dupl
 
 ## Stage 2 — separate business operations and explicit UI contracts
 
-Implementation checkpoint: `ConversationLifecycleUseCase`, `SubmitGenerationUseCase`, and `ConversationComposerUseCase` now own the corresponding operations/rules. `ConversationUiState`, `ConversationUiEvent`, and `ConversationUiEffect` are separate feature contracts; the route consumes platform effects, while the header, history, composer, and timeline have smaller UI boundaries. Chat mutation failure paths clear the transition overlay. JVM tests pass and Compose instrumentation tests compile, but the latter have **not been run on a device**. This stage should not be considered device-QA complete until those interactions are exercised.
+Implementation checkpoint: `ConversationLifecycleUseCase`, `SubmitGenerationUseCase`, `ConversationComposerUseCase`, and `SourceSelectionUseCase` own the corresponding operations/rules. `ConversationUiState`, `ConversationUiEvent`, and `ConversationUiEffect` are separate feature contracts; the route consumes platform effects, while the header, history, composer, and timeline use typed event dispatch. Chat, composer, and generation state are grouped separately; transient sheet/menu visibility is view-local. Draft persistence is per-conversation, debounced, and explicitly flushed for chat switches and durable submission/reuse transitions. JVM tests pass and Android test sources compile; manual UI verification is intentionally preferred over adding further Compose coverage.
 
 Goal: a new contributor can find a conversation operation, understand its inputs and outcomes, and change it without tracing one oversized ViewModel and a chain of positional callbacks.
 
@@ -35,6 +35,18 @@ Goal: a new contributor can find a conversation operation, understand its inputs
 
 Done when: the ViewModel primarily coordinates state and use cases; UI contracts live in their own files; no long callback list is passed across the main timeline layers; chat/generation behavior is unchanged; unit and UI tests cover the critical transitions. Do not make a new Gradle module a prerequisite for this stage.
 
+## Follow-up architecture findings — not yet implemented
+
+The next review found these state-consistency risks. They are recorded for later selection, not added to the completed Stage 2 scope. Address them in the order below, with deterministic JVM tests for the affected transitions; additional Compose tests are not required by the current manual-UI-validation preference.
+
+1. **Serialize draft persistence.** `ComposerDraftWriter`'s debounced loop and `flush()` can persist concurrently. An older draft may finish after a newer flush and overwrite it; a chat switch also launches the previous chat's flush without awaiting it. Serialize writes per conversation, make a switch wait for its relevant flush, and test overlapping debounce/flush and rapid chat switching. Relevant code: `ConversationWorkspaceCoordinator.kt` (`ComposerDraftWriter`) and `ConversationViewModel.kt` (`initialize`, `persistDraft`).
+2. **Make source/parameter transitions atomic and recoverable.** `SourceSelectionUseCase.reuseParameters()` saves workflow, brief, and active source separately, so a failure can leave a partial database transition after the UI has shown success. Expose one transactional persistence operation for the combined change, and commit or restore optimistic UI state according to its result. Apply explicit failure handling to workflow and output selection as well. Relevant code: `SourceSelectionUseCase.kt`, `ConversationPersistence.kt`, and `ConversationViewModel.kt`.
+3. **Keep submission completion scoped to its chat.** A request submitted in one conversation can finish after navigation; `submitDraft()` currently updates the then-current screen's submitting state and message. Guard completion-side UI updates by the captured conversation ID while still persisting and polling the accepted request. Test switching chats while submission is in flight. Relevant code: `ConversationViewModel.kt` (`submitDraft`).
+4. **Protect locally edited briefs from late snapshots.** `restoreSnapshot()` protects the prompt draft with `draftTouched` but always assigns `snapshot.brief`; `updateBrief()` does not mark the brief as locally changed. Track brief edits separately or use a snapshot revision so a delayed Room emission cannot replace new text. Test editing the brief before the initial snapshot arrives. Relevant code: `ConversationViewModel.kt` (`updateBrief`, `restoreSnapshot`).
+5. **Complete Stage 1 generation reconciliation.** Visible-chat polling and app-wide recovery can act on the same request; status writes must be monotonic and repeated completion must retain local media pointers. The concrete work and completion criteria remain in Stage 1 above. Relevant code: `ConversationWorkspaceCoordinator.kt`, `LocalGenerationStore.kt`, and the app-wide recovery worker.
+
+After the correctness work, optional readability cleanup: move the ViewModel's snapshot/record projection into a pure mapper, and have generation action events carry stable IDs instead of whole `TimelineItem` snapshots, resolving current data when handling an action. Keep the existing single `:app` module and grouped event types; do not create one file per event or one-line forwarding use cases solely for pattern conformity.
+
 ## Scope boundary
 
-These stages deliberately do **not** include public-release authentication, replacing intentional debug diagnostics, adding background polling while the app is closed, or implementing every other review recommendation. Those require a separate product decision. The user chose to start Stage 2 before Stage 1; the polling/data-integrity risk remains open and should be addressed separately.
+These stages deliberately do **not** include public-release authentication, replacing intentional debug diagnostics, adding background polling while the app is closed, or implementing every other review recommendation. Those require a separate product decision. The user chose to start Stage 2 before Stage 1; the polling/data-integrity risk remains open and should be addressed separately. The follow-up findings are a backlog, not a claim that those fixes were implemented.

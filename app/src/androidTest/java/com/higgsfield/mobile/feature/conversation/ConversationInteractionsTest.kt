@@ -48,7 +48,7 @@ class ConversationInteractionsTest {
         var createCount = 0
         compose.setContent {
             HiggsfieldTheme {
-                ConversationHeader(ConversationUiState(), onEvent = {}) { createCount++ }
+                ConversationHeader(ConversationUiState(), onEvent = {}, modelMenuOpen = false) { createCount++ }
             }
         }
 

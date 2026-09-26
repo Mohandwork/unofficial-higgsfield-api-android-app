@@ -38,6 +38,7 @@ import com.higgsfield.mobile.core.model.MediaKind
 internal fun ConversationHeader(
     state: ConversationUiState,
     onEvent: (ConversationUiEvent) -> Unit,
+    modelMenuOpen: Boolean,
     onCreateConversation: () -> Unit,
 ) {
     Surface(color = MaterialTheme.colorScheme.surface) {
@@ -74,7 +75,7 @@ internal fun ConversationHeader(
                         label = { Text(state.selectedWorkflow?.displayName ?: stringResource(R.string.choose_model), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    DropdownMenu(expanded = state.modelMenuOpen, onDismissRequest = { onEvent(ConversationUiEvent.ToggleModelMenu) }) {
+                    DropdownMenu(expanded = modelMenuOpen, onDismissRequest = { onEvent(ConversationUiEvent.ToggleModelMenu) }) {
                         state.workflows.forEach { workflow ->
                             DropdownMenuItem(text = { Text(workflow.displayName) }, onClick = { onEvent(ConversationUiEvent.SelectWorkflow(workflow)) })
                         }

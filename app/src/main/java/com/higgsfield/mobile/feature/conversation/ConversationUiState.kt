@@ -61,20 +61,11 @@ data class GenerationUiState(
     val isSubmitting: Boolean = false,
 )
 
-data class ConversationPanelsState(
-    val modelMenuOpen: Boolean = false,
-    val infoOpen: Boolean = false,
-    val briefOpen: Boolean = false,
-    val optionsOpen: Boolean = false,
-    val historyOpen: Boolean = false,
-)
-
 /** Durable workspace state grouped by ownership. One-time platform actions are effects. */
 data class ConversationUiState(
     val chat: ChatUiState = ChatUiState(),
     val composer: ComposerUiState = ComposerUiState(),
     val generation: GenerationUiState = GenerationUiState(),
-    val panels: ConversationPanelsState = ConversationPanelsState(),
     val message: ConversationText? = null,
     val isOnline: Boolean = true,
     val credentialsConfigured: Boolean = BuildConfig.HF_KEY_ID.isNotBlank() && BuildConfig.HF_KEY_SECRET.isNotBlank(),
@@ -96,9 +87,4 @@ data class ConversationUiState(
     val options get() = composer.options
     val timeline get() = generation.timeline
     val isSubmitting get() = generation.isSubmitting
-    val modelMenuOpen get() = panels.modelMenuOpen
-    val infoOpen get() = panels.infoOpen
-    val briefOpen get() = panels.briefOpen
-    val optionsOpen get() = panels.optionsOpen
-    val historyOpen get() = panels.historyOpen
 }

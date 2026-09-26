@@ -2,19 +2,13 @@
 
 ## Current checkpoint
 
-The product flows described below were previously implemented. A subsequent conversation-architecture refactor is now **in progress and unverified**; do not treat the current working tree as a validated build until the checks in the final section pass.
+The product flows and the conversation-architecture refactor are implemented in the working tree. JVM verification has passed; manual UI verification remains the chosen final check.
 
 ## 2026-09-26 architecture refactor checkpoint
 
-The current working tree groups `ConversationUiState` into chat, composer, generation, and panel sections, groups `ConversationUiEvent` by the same responsibilities, and moves workspace observation, foreground polling-job ownership, and ordered draft writes into `ConversationWorkspaceCoordinator.kt`. Existing rendering call sites still use read-only state aliases; mutations now target the owning section. These changes have not been built or tested yet.
+The current working tree groups `ConversationUiState` into chat, composer, and generation sections, groups `ConversationUiEvent` by the same responsibilities, and moves workspace observation, foreground polling-job ownership, source-selection persistence, and debounced per-conversation draft writes into focused feature components. Transient sheet/menu state is view-local. Existing rendering call sites use read-only state aliases; mutations target the owning section.
 
-Remaining work before calling this refactor finished:
-
-1. Run `:app:testDebugUnitTest`, `:app:compileDebugAndroidTestKotlin`, and `:app:assembleDebug`; resolve any compiler or test failures. The first Gradle attempt stopped before compilation because the sandbox was denied access to the wrapper lock under `C:\Users\DELL\.gradle\wrapper\dists`.
-2. Add focused tests for switching chats while observations or polls are active, ordered draft writes, polling deduplication, and error recovery. Review cancellation and map cleanup when a poll for the same ID restarts.
-3. Reassess the remaining ViewModel work: snapshot-to-UI mapping, source-selection persistence, generation submit/cancel/download, and demo-result persistence are still there. Move only cohesive business workflows that genuinely reduce coupling; keep screen state assembly in the ViewModel.
-4. Run the existing Compose interaction tests on a device or emulator and manually check chat switching, prompt restoration, source selection, generation progress, and failure/retry.
-5. Keep the separate Stage 1 data-integrity work in `next-enhancements.md` open: this refactor moves foreground poll-job ownership but does **not** make database transitions monotonic or coordinate foreground polling with app-wide recovery.
+Remaining work is Stage 1 data integrity in `next-enhancements.md`: the refactor moves visible-workspace polling ownership but does **not** make database transitions monotonic or coordinate foreground polling with app-wide recovery.
 
 No commit or push was made for this checkpoint. The staged codebase-review document predates this refactor and was not altered here.
 
