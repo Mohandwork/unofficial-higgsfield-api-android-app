@@ -9,12 +9,12 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/full_backup_rules"
-        android:icon="@drawable/ic_launcher"
+        android:icon="@drawable/higgsfield_brand"
         android:label="@string/app_name"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:roundIcon="@drawable/ic_launcher"
+        android:roundIcon="@drawable/higgsfield_brand"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Higgsfield">
+        android:theme="@style/Theme.Higgsfield.Splash">
         <activity
             android:name=".MainActivity"
             android:exported="true"
