@@ -66,3 +66,7 @@ These items do not block the finished product contract:
 - Compose screenshot tests for every compact and expanded breakpoint.
 - A final manual visual pass on representative physical devices.
 - Live pricing/credit estimates after the provider publishes a stable authenticated schema and billable use is explicitly approved.
+
+## 8. Future enhancement
+
+Image editing still needs a dedicated implementation pass. The selected generated output must be uploaded or mapped into the workflow's image/reference field on the next submission; prompt text alone is not sufficient for an edit request.

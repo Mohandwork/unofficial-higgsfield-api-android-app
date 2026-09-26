@@ -31,6 +31,7 @@ The debug APK has also been checked against the 16 KB page-size packaging requir
 
 ## Known limitations / next verification steps
 
+- Image editing is not complete yet: selecting an active generated image changes the prompt context, but the next submission does not currently include that output as an image/reference payload. The provider therefore receives text such as `Camera: Eagle view\nMake it realistic` without the source image.
 - There are no Compose screenshot tests yet; manual compact/expanded device review is still recommended.
 - Live pricing/credit estimates are intentionally absent. They require an authenticated provider schema and explicit approval for billable requests; static catalog values remain available.
 - Provider-side conversation deletion is out of scope. “Chat removal” deletes the local conversation and its related local records.
