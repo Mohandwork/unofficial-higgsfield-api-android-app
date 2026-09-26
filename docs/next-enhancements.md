@@ -1,6 +1,6 @@
 # Next enhancements — two stages
 
-Status: **Stage 1 planned; Stage 2 implemented in the working tree, pending device UI verification.** This note captures the follow-up discussion to the [codebase review](codebase-review-2026-09-26.md).
+Status: **Stage 1 planned; Stage 2 architecture follow-up in progress and unverified.** The latest checkpoint and remaining validation are recorded in [progress.md](progress.md). This note captures the follow-up discussion to the [codebase review](codebase-review-2026-09-26.md).
 
 ## Decisions from the discussion
 

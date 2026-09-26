@@ -31,7 +31,7 @@ class ConversationInteractionsTest {
         compose.setContent {
             HiggsfieldTheme {
                 ComposerDock(
-                    state = ConversationUiState(selectedWorkflow = previewWorkflow),
+                    state = ConversationUiState(composer = ComposerUiState(selectedWorkflow = previewWorkflow)),
                     motionEnabled = false,
                     onEvent = events::add,
                 )

@@ -14,11 +14,13 @@ class ConversationComposerUseCaseTest {
     @Test
     fun `workflow selection keeps only compatible reference slots and options`() {
         val state = ConversationUiState(
-            attachments = listOf(
-                DraftMediaAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "content://reference", "reference"),
-                DraftMediaAttachment(MediaRole.MOTION_REFERENCE, MediaKind.VIDEO, "content://motion", "motion"),
+            composer = ComposerUiState(
+                attachments = listOf(
+                    DraftMediaAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "content://reference", "reference"),
+                    DraftMediaAttachment(MediaRole.MOTION_REFERENCE, MediaKind.VIDEO, "content://motion", "motion"),
+                ),
+                options = GenerationOptions(aspectRatio = "16:9", resolution = "2k", durationSeconds = 8),
             ),
-            options = GenerationOptions(aspectRatio = "16:9", resolution = "2k", durationSeconds = 8),
         )
 
         val selection = useCase.selectWorkflow(state, previewWorkflow)
@@ -39,11 +41,13 @@ class ConversationComposerUseCaseTest {
             sourceOutputId = "output-1",
         )
         val state = ConversationUiState(
-            selectedWorkflow = previewWorkflow,
-            prompt = "Change the sky",
-            timeline = listOf(source),
-            activeSourceId = source.id,
-            attachments = listOf(DraftMediaAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "content://reference", "reference")),
+            composer = ComposerUiState(
+                selectedWorkflow = previewWorkflow,
+                prompt = "Change the sky",
+                activeSourceId = source.id,
+                attachments = listOf(DraftMediaAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "content://reference", "reference")),
+            ),
+            generation = GenerationUiState(timeline = listOf(source)),
         )
 
         val draft = useCase.draftFor(state, persistedSourceOutputId = null)!!
