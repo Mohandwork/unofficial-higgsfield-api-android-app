@@ -70,7 +70,10 @@ fun ConversationRoute(
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    LaunchedEffect(mediaKind, conversationId) { viewModel.initialize(mediaKind, conversationId) }
+    LaunchedEffect(mediaKind, conversationId) {
+        if (conversationId == null) viewModel.createConversation(mediaKind)
+        else viewModel.initialize(mediaKind, conversationId)
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var pendingRole by remember { mutableStateOf<MediaRole?>(null) }
     var pendingDownload by remember { mutableStateOf<TimelineItem?>(null) }
@@ -145,7 +148,7 @@ private fun ConversationScreen(
 ) {
     var pendingConversationSwitch by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
     var pendingConversationCreation by remember { mutableStateOf<MediaKind?>(null) }
-    var pendingRemoval by remember { mutableStateOf(false) }
+    var pendingRemoval by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
     var modelMenuOpen by rememberSaveable { mutableStateOf(false) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
     var historyOpen by rememberSaveable { mutableStateOf(false) }
@@ -170,16 +173,16 @@ private fun ConversationScreen(
             pendingConversationSwitch = id to kind
         }
     }
-    val requestConversationRemoval: () -> Unit = {
-        if (!pendingRemoval) pendingRemoval = true
+    val requestConversationRemoval: (String, MediaKind) -> Unit = { id, kind ->
+        if (pendingRemoval == null) pendingRemoval = id to kind
     }
     LaunchedEffect(pendingRemoval) {
-        if (pendingRemoval) {
+        pendingRemoval?.let { (id, kind) ->
             // Let the confirmation dialog (and, on compact screens, the history sheet) leave
             // composition before showing the workspace transition.
             withFrameNanos { }
-            pendingRemoval = false
-            onEvent(ConversationUiEvent.RemoveConversation)
+            pendingRemoval = null
+            onEvent(ConversationUiEvent.RemoveConversation(id, kind))
         }
     }
     LaunchedEffect(pendingConversationSwitch) {
@@ -229,9 +232,9 @@ private fun ConversationScreen(
                 dispatch(ConversationUiEvent.ShowHistory(false))
                 pendingConversationCreation = kind
             },
-            onRemoveConversation = {
+            onRemoveConversation = { id, kind ->
                 dispatch(ConversationUiEvent.ShowHistory(false))
-                requestConversationRemoval()
+                requestConversationRemoval(id, kind)
             },
             onDismiss = { dispatch(ConversationUiEvent.ShowHistory(false)) },
             onEvent = dispatch,

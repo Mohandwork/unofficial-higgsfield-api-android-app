@@ -16,8 +16,8 @@ sealed interface ConversationUiEvent {
     data class SelectMediaKind(val kind: MediaKind) : Chat
     data class OpenConversation(val id: String, val kind: MediaKind) : Chat
     data class CreateConversation(val kind: MediaKind) : Chat
-    data object RemoveConversation : Chat
-    data class RenameConversation(val title: String) : Chat
+    data class RemoveConversation(val id: String, val kind: MediaKind) : Chat
+    data class RenameConversation(val id: String, val title: String) : Chat
     data class ShowHistory(val show: Boolean) : Panel
 
     data class ChangePrompt(val value: String) : Composer

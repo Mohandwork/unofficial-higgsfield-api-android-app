@@ -122,8 +122,8 @@ class ConversationViewModel @Inject constructor(
             is ConversationUiEvent.SelectMediaKind -> openMostRecentConversation(event.kind)
             is ConversationUiEvent.OpenConversation -> openConversation(event.id, event.kind)
             is ConversationUiEvent.CreateConversation -> createConversation(event.kind)
-            ConversationUiEvent.RemoveConversation -> removeCurrentConversation()
-            is ConversationUiEvent.RenameConversation -> renameConversation(event.title)
+            is ConversationUiEvent.RemoveConversation -> removeConversation(event.id, event.kind)
+            is ConversationUiEvent.RenameConversation -> renameConversation(event.id, event.title)
         }
     }
 
@@ -159,8 +159,7 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
-    fun renameConversation(title: String) {
-        val id = conversationId ?: return
+    fun renameConversation(id: String, title: String) {
         viewModelScope.launch {
             try {
                 persistence.renameConversation(id, title)
@@ -184,7 +183,23 @@ class ConversationViewModel @Inject constructor(
     fun removeCurrentConversation() {
         val id = conversationId ?: return
         val kind = mutableState.value.mediaKind
-        navigate(kind) { conversationLifecycle.removeAndOpenNext(id, kind) }
+        removeConversation(id, kind)
+    }
+
+    fun removeConversation(id: String, kind: MediaKind) {
+        if (id == conversationId) {
+            navigate(kind) { conversationLifecycle.removeAndOpenNext(id, kind) }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                persistence.deleteConversation(id)
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (_: Exception) {
+                mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
+            }
+        }
     }
 
     private fun navigate(kind: MediaKind, destination: suspend () -> String) {

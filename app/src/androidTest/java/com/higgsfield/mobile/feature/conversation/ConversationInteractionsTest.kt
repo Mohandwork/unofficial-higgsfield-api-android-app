@@ -5,9 +5,13 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.higgsfield.mobile.R
+import com.higgsfield.mobile.core.database.ConversationSummary
 import com.higgsfield.mobile.core.model.CreativeBrief
 import com.higgsfield.mobile.core.model.GenerationDraft
 import com.higgsfield.mobile.core.model.GenerationOutput
@@ -58,6 +62,39 @@ class ConversationInteractionsTest {
         compose.onNodeWithTag("new_conversation").performClick()
 
         compose.runOnIdle { assertEquals(1, createCount) }
+    }
+
+    @Test
+    fun chatRowRenamesAndSwipeRequestsRemovalOfThatChat() {
+        val events = mutableListOf<ConversationUiEvent>()
+        val removals = mutableListOf<String>()
+        val older = ConversationSummary("image-older", MediaKind.IMAGE, "Older chat", System.currentTimeMillis())
+        compose.setContent {
+            HiggsfieldTheme {
+                ConversationRail(
+                    state = ConversationUiState(chat = ChatUiState(
+                        mediaKind = MediaKind.IMAGE,
+                        id = "image-current",
+                        conversations = listOf(older),
+                    )),
+                    onSelectConversation = { _, _ -> },
+                    onCreateConversation = {},
+                    onRemoveConversation = { id, _ -> removals += id },
+                    onEvent = events::add,
+                )
+            }
+        }
+
+        compose.onNodeWithTag("rename_chat_image-older").performClick()
+        compose.onNodeWithTag("rename_chat_input").performTextClearance()
+        compose.onNodeWithTag("rename_chat_input").performTextInput("Renamed")
+        compose.onNodeWithText("Done").performClick()
+        compose.runOnIdle { assertTrue(ConversationUiEvent.RenameConversation("image-older", "Renamed") in events) }
+
+        compose.onNodeWithTag("chat_row_image-older").performTouchInput { swipeLeft() }
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        compose.onNodeWithText(context.getString(R.string.remove_chat_confirm)).performClick()
+        compose.runOnIdle { assertEquals(listOf("image-older"), removals) }
     }
 
     @Test

@@ -355,7 +355,7 @@ class ConversationViewModelTest {
         val viewModel = ConversationViewModel(persistence)
         viewModel.initialize(MediaKind.IMAGE)
 
-        viewModel.onEvent(ConversationUiEvent.RemoveConversation)
+        viewModel.onEvent(ConversationUiEvent.RemoveConversation("image-default", MediaKind.IMAGE))
 
         assertEquals("image-default", viewModel.state.value.conversationId)
         assertEquals(false, viewModel.state.value.isTransitioning)
@@ -466,6 +466,22 @@ class ConversationViewModelTest {
     }
 
     @Test
+    fun `chat row actions target the selected conversation without switching chats`() {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+        val transitioningBefore = viewModel.state.value.isTransitioning
+
+        viewModel.onEvent(ConversationUiEvent.RenameConversation("image-older", "Renamed"))
+        viewModel.onEvent(ConversationUiEvent.RemoveConversation("image-older", MediaKind.IMAGE))
+
+        assertEquals("image-older" to "Renamed", persistence.lastRename)
+        assertEquals(listOf("image-older"), persistence.deletedIds)
+        assertEquals("image-default", viewModel.state.value.conversationId)
+        assertEquals(transitioningBefore, viewModel.state.value.isTransitioning)
+    }
+
+    @Test
     fun `reference workflow keeps multiple photos and videos and removes one item`() {
         val viewModel = ConversationViewModel(FakeConversationPersistence())
         viewModel.initialize(MediaKind.VIDEO)
@@ -571,6 +587,8 @@ private class FakeConversationPersistence : ConversationPersistence {
     var createFailure: Exception? = null
     var deleteFailure: Exception? = null
     var titleFailure: Exception? = null
+    var lastRename: Pair<String, String>? = null
+    val deletedIds = mutableListOf<String>()
     override fun observe(conversationId: String): Flow<PersistedConversationSnapshot?> =
         snapshots.getOrPut(conversationId) { MutableStateFlow(null) }
     override fun observeConversations(): Flow<List<ConversationSummary>> = emptyFlow()
@@ -580,12 +598,15 @@ private class FakeConversationPersistence : ConversationPersistence {
         return "${kind.name.lowercase()}-new"
     }
     override suspend fun mostRecentConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String = "${kind.name.lowercase()}-new"
-    override suspend fun renameConversation(conversationId: String, title: String) = Unit
+    override suspend fun renameConversation(conversationId: String, title: String) {
+        lastRename = conversationId to title
+    }
     override suspend fun deriveTitleFromFirstPrompt(conversationId: String, prompt: String) {
         titleFailure?.let { throw it }
     }
     override suspend fun deleteConversation(conversationId: String) {
         deleteFailure?.let { throw it }
+        deletedIds += conversationId
     }
     override suspend fun saveBrief(conversationId: String, brief: CreativeBrief) = Unit
     override suspend fun saveDraft(conversationId: String, draft: PersistedComposerDraft) {
