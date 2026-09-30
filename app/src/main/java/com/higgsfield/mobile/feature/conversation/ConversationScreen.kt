@@ -5,10 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
-import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
-import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -85,19 +83,23 @@ fun ConversationRoute(
         }
         pendingDownload = null
     }
-    val imagePicker = rememberLauncherForActivityResult(PickVisualMedia()) { uri: Uri? ->
+    val imagePicker = rememberLauncherForActivityResult(OpenMultipleDocuments()) { uris: List<Uri> ->
         val role = pendingRole
-        if (uri != null && role != null) {
-            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            viewModel.onEvent(ConversationUiEvent.MediaPicked(role, MediaKind.IMAGE, uri.toString(), uri.lastPathSegment ?: uri.toString()))
+        if (role != null) {
+            uris.forEach { uri ->
+                runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                viewModel.onEvent(ConversationUiEvent.MediaPicked(role, MediaKind.IMAGE, uri.toString(), uri.lastPathSegment ?: uri.toString()))
+            }
         }
         pendingRole = null
     }
-    val videoPicker = rememberLauncherForActivityResult(OpenDocument()) { uri: Uri? ->
+    val videoPicker = rememberLauncherForActivityResult(OpenMultipleDocuments()) { uris: List<Uri> ->
         val role = pendingRole
-        if (uri != null && role != null) {
-            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            viewModel.onEvent(ConversationUiEvent.MediaPicked(role, MediaKind.VIDEO, uri.toString(), uri.lastPathSegment ?: uri.toString()))
+        if (role != null) {
+            uris.forEach { uri ->
+                runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                viewModel.onEvent(ConversationUiEvent.MediaPicked(role, MediaKind.VIDEO, uri.toString(), uri.lastPathSegment ?: uri.toString()))
+            }
         }
         pendingRole = null
     }
@@ -108,7 +110,7 @@ fun ConversationRoute(
                 is ConversationUiEffect.LaunchMediaPicker -> {
                     pendingRole = effect.role
                     when (effect.kind) {
-                        MediaKind.IMAGE -> imagePicker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly))
+                        MediaKind.IMAGE -> imagePicker.launch(arrayOf("image/*"))
                         MediaKind.VIDEO -> videoPicker.launch(arrayOf(VIDEO_MIME_TYPE))
                         MediaKind.AUDIO -> pendingRole = null
                     }

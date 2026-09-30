@@ -8,7 +8,7 @@ import com.higgsfield.mobile.core.error.AppError
 value class WorkflowId(val value: String)
 
 enum class MediaKind { IMAGE, VIDEO, AUDIO }
-enum class WorkflowFamily { SOUL, MARKETING_STUDIO, QWEN, SEEDANCE, KLING, CINEMA_STUDIO, WAN }
+enum class WorkflowFamily { SOUL, MARKETING_STUDIO, QWEN, SEEDANCE, KLING, CINEMA_STUDIO, WAN, HAPPY_HORSE, Z_IMAGE }
 enum class WorkflowCapability {
     TEXT_TO_IMAGE, IMAGE_TO_IMAGE, TEXT_TO_VIDEO, IMAGE_TO_VIDEO,
     REFERENCE_IMAGE, NEGATIVE_PROMPT, SEED, AUDIO,
@@ -27,13 +27,14 @@ data class StaticEstimateMetadata(
     val verifiedOn: String = "",
 )
 
-enum class MediaRole { SOURCE, START_FRAME, END_FRAME, REFERENCE, MOTION_REFERENCE, AUDIO }
+enum class MediaRole { SOURCE, START_FRAME, END_FRAME, REFERENCE, VIDEO_REFERENCE, MOTION_REFERENCE, AUDIO }
 
 data class MediaRequirement(
     val role: MediaRole,
     val kind: MediaKind,
     val minimumCount: Int = 0,
-    val maximumCount: Int = 1,
+    /** Null means the published workflow schema does not state a numeric limit. */
+    val maximumCount: Int? = 1,
 )
 
 data class WorkflowDescriptor(

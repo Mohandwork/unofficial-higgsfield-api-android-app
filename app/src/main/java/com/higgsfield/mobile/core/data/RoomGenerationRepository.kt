@@ -86,9 +86,6 @@ class RoomGenerationRepository @Inject constructor(
     override suspend fun estimate(draft: GenerationDraft): EstimateState = EstimateState.Idle
 
     override suspend fun submit(conversationId: String, draft: GenerationDraft): Result<GenerationRecord> {
-        if ((draft.composedPromptOverride ?: PromptComposer.compose(draft.creativeBrief, draft.instruction)).isBlank()) {
-            return Result.failure(GenerationSubmissionException(ErrorMapper.instructionRequired()))
-        }
         val adapter = workflowAdapter(draft).getOrElse { return Result.failure(it) }
         val sourceOutput = draft.activeSourceId?.let { mediaDao.getOutput(it) }
         if (draft.activeSourceId != null) {

@@ -158,4 +158,11 @@
     <string name="error_not_enough_credits">Not enough Higgsfield credits. Add credits, then try again.</string>
     <string name="error_network_unavailable">A network error occurred. Check your connection and try again.</string>
     <string name="error_unknown">Something went wrong. Try again.</string>
+    <string name="message_reference_limit">This model has reached its reference limit.</string>
+    <string name="message_photo_reference_limit">This model allows up to %1$d photos. Remove one to add another.</string>
+    <string name="message_video_reference_limit">This model allows up to %1$d videos. Remove one to add another.</string>
+    <string name="attachment_count_limited">%1$s: %2$d of %3$d</string>
+    <string name="attachment_count_unspecified">%1$s: %2$d selected (API max not stated)</string>
+    <string name="media_role_reference_video">Reference video</string>
+    <string name="duration_seconds">Duration (seconds)</string>
 </resources>

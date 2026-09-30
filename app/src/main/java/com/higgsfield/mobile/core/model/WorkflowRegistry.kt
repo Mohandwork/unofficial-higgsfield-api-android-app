@@ -12,6 +12,10 @@ object WorkflowRegistry {
     private const val SOUL_CINEMA_ENDPOINT = "higgsfield-ai/soul/cinema"
     private const val SEEDANCE_2_ENDPOINT = "bytedance/seedance-2.0/text-to-video"
     private const val SEEDANCE_2_5_ENDPOINT = "bytedance/seedance-2.5/text-to-video"
+    private const val SEEDANCE_2_REFERENCE_ENDPOINT = "bytedance/seedance-2.0/reference-to-video"
+    private const val SEEDANCE_2_5_REFERENCE_ENDPOINT = "bytedance/seedance-2.5/reference-to-video"
+    private const val HAPPY_HORSE_1_ENDPOINT = "alibaba/happy-horse/text-to-video"
+    private const val Z_IMAGE_TURBO_ENDPOINT = "z-image/turbo"
     private const val KLING_2_5_TURBO_ENDPOINT = "kling-video/v2.5-turbo/pro/text-to-video"
     private const val KLING_2_6_ENDPOINT = "kling-video/v2.6/pro/text-to-video"
     private const val KLING_3_ENDPOINT = "kling-video/v3.0/pro/text-to-video"
@@ -26,6 +30,7 @@ object WorkflowRegistry {
     private const val WAN_3_PRIME_ENDPOINT = "alibaba/wan-3.0-prime/text-to-video"
     private const val SOUL_STANDARD_SCHEMA_VERIFIED_ON = "2026-09-25"
     private const val SOUL_V2_SCHEMA_VERIFIED_ON = "2026-09-25"
+    private const val NEW_SCHEMA_VERIFIED_ON = "2026-09-30"
     private val PRICING_FACTORS = listOf("resolution", "duration", "model options")
     private val imageEdit = setOf(WorkflowCapability.TEXT_TO_IMAGE, WorkflowCapability.IMAGE_TO_IMAGE, WorkflowCapability.REFERENCE_IMAGE)
     private val textToVideo = setOf(WorkflowCapability.TEXT_TO_VIDEO)
@@ -34,11 +39,20 @@ object WorkflowRegistry {
     private val imageOptions = setOf(WorkflowOption.ASPECT_RATIO, WorkflowOption.RESOLUTION)
     private val imageOptionsWithSeed = imageOptions + WorkflowOption.SEED
     private val qwenOptions = imageOptionsWithSeed + WorkflowOption.NEGATIVE_PROMPT
-    private val sourceImageRequired = listOf(MediaRequirement(MediaRole.SOURCE, MediaKind.IMAGE, minimumCount = 1))
+    private val sourceImageRequired = listOf(MediaRequirement(MediaRole.SOURCE, MediaKind.IMAGE, minimumCount = 1, maximumCount = 3))
     private val motionControlRequired = listOf(
         MediaRequirement(MediaRole.SOURCE, MediaKind.IMAGE, minimumCount = 1),
         MediaRequirement(MediaRole.MOTION_REFERENCE, MediaKind.VIDEO, minimumCount = 1),
     )
+    private val seedance2References = listOf(
+        MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE, maximumCount = 9),
+        MediaRequirement(MediaRole.VIDEO_REFERENCE, MediaKind.VIDEO, maximumCount = 3),
+    )
+    private val seedance2_5References = listOf(
+        MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE, maximumCount = 30),
+        MediaRequirement(MediaRole.VIDEO_REFERENCE, MediaKind.VIDEO, maximumCount = 10),
+    )
+    private val referenceVideoOptions = setOf(WorkflowOption.DURATION, WorkflowOption.RESOLUTION, WorkflowOption.ASPECT_RATIO)
 
     val all: List<WorkflowDescriptor> = listOf(
         image(
@@ -56,13 +70,17 @@ object WorkflowRegistry {
             schemaVerifiedOn = SOUL_STANDARD_SCHEMA_VERIFIED_ON,
         ),
         image(WorkflowCatalog.SOUL_CINEMA, WorkflowFamily.SOUL, setOf(WorkflowCapability.TEXT_TO_IMAGE), options = imageOptionsWithSeed, endpointPath = SOUL_CINEMA_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        image(WorkflowCatalog.MARKETING_STUDIO_2_ALPHA, WorkflowFamily.MARKETING_STUDIO, imageEdit, options = imageOptions, endpointPath = MARKETING_STUDIO_ALPHA_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        image(WorkflowCatalog.MARKETING_STUDIO_2_5_FLARE, WorkflowFamily.MARKETING_STUDIO, imageEdit, options = imageOptions, endpointPath = MARKETING_STUDIO_FLARE_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        image(WorkflowCatalog.MARKETING_STUDIO_2_5_SUNBURST, WorkflowFamily.MARKETING_STUDIO, imageEdit, options = imageOptions, endpointPath = MARKETING_STUDIO_SUNBURST_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+        image(WorkflowCatalog.MARKETING_STUDIO_2_ALPHA, WorkflowFamily.MARKETING_STUDIO, imageEdit, listOf(MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE, maximumCount = 16)), options = imageOptions, endpointPath = MARKETING_STUDIO_ALPHA_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+        image(WorkflowCatalog.MARKETING_STUDIO_2_5_FLARE, WorkflowFamily.MARKETING_STUDIO, imageEdit, listOf(MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE, maximumCount = 16)), options = imageOptions, endpointPath = MARKETING_STUDIO_FLARE_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+        image(WorkflowCatalog.MARKETING_STUDIO_2_5_SUNBURST, WorkflowFamily.MARKETING_STUDIO, imageEdit, listOf(MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE, maximumCount = 16)), options = imageOptions, endpointPath = MARKETING_STUDIO_SUNBURST_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         image(WorkflowCatalog.QWEN_IMAGE_3, WorkflowFamily.QWEN, setOf(WorkflowCapability.TEXT_TO_IMAGE, WorkflowCapability.NEGATIVE_PROMPT), options = qwenOptions, endpointPath = QWEN_IMAGE_3_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         image(WorkflowCatalog.QWEN_IMAGE_3_EDIT, WorkflowFamily.QWEN, imageEdit, sourceImageRequired, options = qwenOptions, endpointPath = QWEN_IMAGE_3_EDIT_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        video(WorkflowCatalog.SEEDANCE_2, WorkflowFamily.SEEDANCE, endpointPath = SEEDANCE_2_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        video(WorkflowCatalog.SEEDANCE_2_5, WorkflowFamily.SEEDANCE, endpointPath = SEEDANCE_2_5_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+        image(WorkflowCatalog.Z_IMAGE_TURBO, WorkflowFamily.Z_IMAGE, setOf(WorkflowCapability.TEXT_TO_IMAGE), options = imageOptionsWithSeed, endpointPath = Z_IMAGE_TURBO_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
+        video(WorkflowCatalog.SEEDANCE_2, WorkflowFamily.SEEDANCE, options = referenceVideoOptions, endpointPath = SEEDANCE_2_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
+        video(WorkflowCatalog.SEEDANCE_2_5, WorkflowFamily.SEEDANCE, options = referenceVideoOptions, endpointPath = SEEDANCE_2_5_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
+        video(WorkflowCatalog.SEEDANCE_2_REFERENCE, WorkflowFamily.SEEDANCE, seedance2References, capabilities = setOf(WorkflowCapability.REFERENCE_IMAGE), options = referenceVideoOptions, endpointPath = SEEDANCE_2_REFERENCE_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
+        video(WorkflowCatalog.SEEDANCE_2_5_REFERENCE, WorkflowFamily.SEEDANCE, seedance2_5References, capabilities = setOf(WorkflowCapability.REFERENCE_IMAGE), options = referenceVideoOptions, endpointPath = SEEDANCE_2_5_REFERENCE_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
+        video(WorkflowCatalog.HAPPY_HORSE_1, WorkflowFamily.HAPPY_HORSE, options = referenceVideoOptions + WorkflowOption.SEED, endpointPath = HAPPY_HORSE_1_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.KLING_2_5_TURBO, WorkflowFamily.KLING, endpointPath = KLING_2_5_TURBO_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.KLING_2_6, WorkflowFamily.KLING, endpointPath = KLING_2_6_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.KLING_2_6_MOTION, WorkflowFamily.KLING, motionControlRequired, capabilities = motionControl, endpointPath = KLING_2_6_MOTION_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
@@ -100,6 +118,7 @@ object WorkflowRegistry {
         required: List<MediaRequirement> = emptyList(),
         tier: String? = null,
         capabilities: Set<WorkflowCapability> = textToVideo,
+        options: Set<WorkflowOption> = emptySet(),
         endpointPath: String? = null,
         schemaVerifiedOn: String? = null,
     ) = descriptor(
@@ -108,6 +127,7 @@ object WorkflowRegistry {
         kind = MediaKind.VIDEO,
         capabilities = capabilities,
         required = required,
+        options = options,
         tier = tier,
         endpointPath = endpointPath,
         schemaVerifiedOn = schemaVerifiedOn,
@@ -148,8 +168,12 @@ object WorkflowRegistry {
             WorkflowCatalog.MARKETING_STUDIO_2_5_SUNBURST.id -> Triple("\$0.0107/image", "Up to 4K", null)
             WorkflowCatalog.QWEN_IMAGE_3.id,
             WorkflowCatalog.QWEN_IMAGE_3_EDIT.id -> Triple("\$0.04/image", "Up to 2K", null)
+            WorkflowCatalog.Z_IMAGE_TURBO.id -> Triple("Pricing unavailable", "Up to 2K", null)
             WorkflowCatalog.SEEDANCE_2.id -> Triple("\$0.0985/s", "Up to 4K", "4s / 15s")
+            WorkflowCatalog.SEEDANCE_2_REFERENCE.id -> Triple("Pricing unavailable", "Up to 4K", "4s / 15s")
             WorkflowCatalog.SEEDANCE_2_5.id -> Triple("\$0.144/s", "Up to 1080p", "4s / 30s")
+            WorkflowCatalog.SEEDANCE_2_5_REFERENCE.id -> Triple("Pricing unavailable", "Up to 1080p", "4s / 30s")
+            WorkflowCatalog.HAPPY_HORSE_1.id -> Triple("Pricing unavailable", "Up to 1080p", "3s / 15s")
             WorkflowCatalog.KLING_2_5_TURBO.id -> Triple("\$0.0231/s", "Up to 1080p", "5s / 10s")
             WorkflowCatalog.KLING_2_6.id,
             WorkflowCatalog.KLING_2_6_MOTION.id -> Triple("\$0.0385/s", null, "1s / 5s / 10s")
@@ -168,9 +192,19 @@ object WorkflowRegistry {
             fromPrice = price,
             maximumResolution = resolution,
             supportedDurations = durations,
-            sourceLabel = "User-provided Higgsfield pricing and model-specification screenshots",
+            sourceLabel = if (key.id in setOf(
+                    WorkflowCatalog.Z_IMAGE_TURBO.id,
+                    WorkflowCatalog.SEEDANCE_2_REFERENCE.id,
+                    WorkflowCatalog.SEEDANCE_2_5_REFERENCE.id,
+                    WorkflowCatalog.HAPPY_HORSE_1.id,
+                )) "Higgsfield model API documentation; price not verified" else "User-provided Higgsfield pricing and model-specification screenshots",
             sourceUrl = WorkflowCatalog.DOCUMENTATION_URL,
-            verifiedOn = schemaVerifiedOn ?: "2026-09-26",
+            verifiedOn = if (key.id in setOf(
+                    WorkflowCatalog.Z_IMAGE_TURBO.id,
+                    WorkflowCatalog.SEEDANCE_2_REFERENCE.id,
+                    WorkflowCatalog.SEEDANCE_2_5_REFERENCE.id,
+                    WorkflowCatalog.HAPPY_HORSE_1.id,
+                )) "2026-09-30" else schemaVerifiedOn ?: "2026-09-26",
         )
     }
 }

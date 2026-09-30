@@ -464,6 +464,35 @@ class ConversationViewModelTest {
     }
 
     @Test
+    fun `reference workflow keeps multiple photos and videos and removes one item`() {
+        val viewModel = ConversationViewModel(FakeConversationPersistence())
+        viewModel.initialize(MediaKind.VIDEO)
+        viewModel.selectWorkflow(WorkflowRegistry.find(WorkflowCatalog.SEEDANCE_2_REFERENCE.id)!!)
+
+        viewModel.attachMedia(MediaRole.REFERENCE, MediaKind.IMAGE, "content://photo/one", "one.jpg")
+        viewModel.attachMedia(MediaRole.REFERENCE, MediaKind.IMAGE, "content://photo/two", "two.jpg")
+        viewModel.attachMedia(MediaRole.VIDEO_REFERENCE, MediaKind.VIDEO, "content://video/one", "one.mp4")
+        viewModel.removeMedia(MediaRole.REFERENCE, "content://photo/one")
+
+        assertEquals(listOf("content://photo/two", "content://video/one"), viewModel.state.value.attachments.map { it.uri })
+        assertEquals(2, viewModel.currentDraft()!!.attachments.map { it.id }.distinct().size)
+    }
+
+    @Test
+    fun `seedance 2 5 accepts ten video references and rejects the eleventh`() {
+        val viewModel = ConversationViewModel(FakeConversationPersistence())
+        viewModel.initialize(MediaKind.VIDEO)
+        viewModel.selectWorkflow(WorkflowRegistry.find(WorkflowCatalog.SEEDANCE_2_5_REFERENCE.id)!!)
+
+        (1..11).forEach { index ->
+            viewModel.attachMedia(MediaRole.VIDEO_REFERENCE, MediaKind.VIDEO, "content://video/$index", "$index.mp4")
+        }
+
+        assertEquals(10, viewModel.state.value.attachments.size)
+        assertEquals(ConversationText.Resource(R.string.message_video_reference_limit, listOf(10)), viewModel.state.value.message)
+    }
+
+    @Test
     fun `generate submits the selected draft and shows the centralized authentication error`() {
         val repository = FakeGenerationRepository(Result.failure(GenerationSubmissionException(ErrorMapper.credentialsRejected())))
         val viewModel = ConversationViewModel(

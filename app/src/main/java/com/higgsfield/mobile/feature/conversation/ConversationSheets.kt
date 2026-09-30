@@ -98,6 +98,7 @@ private fun DetailRow(label: String, value: String) {
 internal fun OptionsDialog(workflow: WorkflowDescriptor?, initial: GenerationOptions, onDismiss: () -> Unit, onUpdateOptions: (GenerationOptions) -> Unit) {
     var aspectRatio by remember(initial) { mutableStateOf(initial.aspectRatio) }
     var resolution by remember(initial) { mutableStateOf(initial.resolution.orEmpty()) }
+    var duration by remember(initial) { mutableStateOf(initial.durationSeconds?.toString().orEmpty()) }
     var seed by remember(initial) { mutableStateOf(initial.seed?.toString().orEmpty()) }
     var negativePrompt by remember(initial) { mutableStateOf(initial.negativePrompt.orEmpty()) }
     val supported = workflow?.supportedOptions.orEmpty()
@@ -111,10 +112,11 @@ internal fun OptionsDialog(workflow: WorkflowDescriptor?, initial: GenerationOpt
             Text(workflow?.displayName ?: stringResource(R.string.model), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             if (WorkflowOption.ASPECT_RATIO in supported) OutlinedTextField(aspectRatio, { aspectRatio = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.aspect_ratio)) })
             if (WorkflowOption.RESOLUTION in supported) OutlinedTextField(resolution, { resolution = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.resolution)) })
+            if (WorkflowOption.DURATION in supported) OutlinedTextField(duration, { duration = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.duration_seconds)) })
             if (WorkflowOption.SEED in supported) OutlinedTextField(seed, { seed = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.seed)) })
             if (WorkflowOption.NEGATIVE_PROMPT in supported) OutlinedTextField(negativePrompt, { negativePrompt = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.negative_prompt)) })
             if (supported.isEmpty()) Text(stringResource(R.string.no_model_settings))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = { onUpdateOptions(GenerationOptions(aspectRatio = aspectRatio, resolution = resolution.ifBlank { null }, seed = seed.toLongOrNull(), negativePrompt = negativePrompt.ifBlank { null })); onDismiss() }) { Text(stringResource(R.string.done)) } }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = { onUpdateOptions(GenerationOptions(aspectRatio = aspectRatio, resolution = resolution.ifBlank { null }, durationSeconds = duration.toIntOrNull(), seed = seed.toLongOrNull(), negativePrompt = negativePrompt.ifBlank { null })); onDismiss() }) { Text(stringResource(R.string.done)) } }
         }
     }
 }

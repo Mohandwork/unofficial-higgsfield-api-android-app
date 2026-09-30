@@ -4,6 +4,8 @@ import com.higgsfield.mobile.R
 import com.higgsfield.mobile.core.model.GenerationOptions
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.MediaRole
+import com.higgsfield.mobile.core.model.WorkflowCatalog
+import com.higgsfield.mobile.core.model.WorkflowRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -53,7 +55,22 @@ class ConversationComposerUseCaseTest {
         val draft = useCase.draftFor(state, persistedSourceOutputId = null)!!
 
         assertEquals("output-1", draft.activeSourceId)
-        assertEquals("local-attachment-reference", draft.attachments.single().id)
+        assertEquals("local-attachment-reference-content://reference", draft.attachments.single().id)
         assertTrue(draft.attachments.single().uri.startsWith("content://"))
+    }
+
+    @Test
+    fun `qwen edit exposes its three source photos without a second unlimited photo slot`() {
+        val qwenEdit = WorkflowRegistry.find(WorkflowCatalog.QWEN_IMAGE_3_EDIT.id)!!
+
+        assertEquals(listOf(MediaRole.SOURCE), useCase.slotsFor(qwenEdit).map { it.role })
+        assertEquals(3, useCase.slotsFor(qwenEdit).single().maximumCount)
+    }
+
+    @Test
+    fun `kling image reference does not claim an undocumented upload maximum`() {
+        val kling = WorkflowRegistry.find(WorkflowCatalog.KLING_O3.id)!!
+
+        assertEquals(null, useCase.slotsFor(kling).single().maximumCount)
     }
 }

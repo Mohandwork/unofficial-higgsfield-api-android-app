@@ -14,6 +14,9 @@ import com.higgsfield.mobile.core.model.GenerationOutput
 import com.higgsfield.mobile.core.model.GenerationRecord
 import com.higgsfield.mobile.core.model.GenerationStatus
 import com.higgsfield.mobile.core.model.MediaKind
+import com.higgsfield.mobile.core.model.MediaRole
+import com.higgsfield.mobile.core.model.WorkflowCatalog
+import com.higgsfield.mobile.core.model.WorkflowRegistry
 import com.higgsfield.mobile.ui.theme.HiggsfieldTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -55,6 +58,31 @@ class ConversationInteractionsTest {
         compose.onNodeWithTag("new_conversation").performClick()
 
         compose.runOnIdle { assertEquals(1, createCount) }
+    }
+
+    @Test
+    fun composerShowsTypeAndModelSpecificReferenceCounts() {
+        val workflow = WorkflowRegistry.find(WorkflowCatalog.SEEDANCE_2_REFERENCE.id)!!
+        compose.setContent {
+            HiggsfieldTheme {
+                ComposerDock(
+                    state = ConversationUiState(composer = ComposerUiState(
+                        selectedWorkflow = workflow,
+                        attachmentSlots = workflow.mediaRequirements,
+                        attachments = listOf(
+                            DraftMediaAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "content://photo/one", "one.jpg"),
+                            DraftMediaAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "content://photo/two", "two.jpg"),
+                            DraftMediaAttachment(MediaRole.VIDEO_REFERENCE, MediaKind.VIDEO, "content://video/one", "one.mp4"),
+                        ),
+                    )),
+                    motionEnabled = false,
+                    onEvent = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Reference image: 2 of 9").assertExists()
+        compose.onNodeWithText("Reference video: 1 of 3").assertExists()
     }
 
     @Test

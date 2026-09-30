@@ -26,7 +26,7 @@ sealed interface ConversationUiEvent {
     data class UpdateOptions(val options: GenerationOptions) : Composer
     data class PickMedia(val role: MediaRole, val kind: MediaKind) : Composer
     data class MediaPicked(val role: MediaRole, val kind: MediaKind, val uri: String, val label: String) : Composer
-    data class RemoveMedia(val role: MediaRole) : Composer
+    data class RemoveMedia(val role: MediaRole, val uri: String) : Composer
     data object DetachSource : Composer
     data class EditImage(val item: TimelineItem) : Composer
     data class ReuseParameters(val item: TimelineItem) : Composer

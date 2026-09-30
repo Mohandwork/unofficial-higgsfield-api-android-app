@@ -31,6 +31,9 @@ class SchemaWorkflowAdapter(
             errors = buildList {
                 if (draft.workflowId != descriptor.id) add(ErrorMapper.protocol(WORKFLOW_MISMATCH_MESSAGE))
                 resolvedFields.forEach { (field, value) -> addAll(field.validate(value)) }
+                if (schema.requiresImageOrVideoReference && draft.attachments.none {
+                        it.kind in setOf(MediaKind.IMAGE, MediaKind.VIDEO) && !it.remoteUrl.isNullOrBlank()
+                    }) add(ErrorMapper.referenceImageRequired())
             },
         )
     }
@@ -62,7 +65,11 @@ class SchemaWorkflowAdapter(
     }
 }
 
-data class WorkflowRequestSchema(val workflowId: WorkflowId, val fields: List<WorkflowRequestField>)
+data class WorkflowRequestSchema(
+    val workflowId: WorkflowId,
+    val fields: List<WorkflowRequestField>,
+    val requiresImageOrVideoReference: Boolean = false,
+)
 
 data class WorkflowRequestField(
     val name: String,
@@ -92,6 +99,7 @@ object WorkflowRequestValues {
     val aspectRatio = WorkflowRequestValue { draft, _ -> JsonPrimitive(draft.options.aspectRatio) }
 
     val seed = WorkflowRequestValue { draft, _ -> draft.options.seed?.let(::JsonPrimitive) }
+    val duration = WorkflowRequestValue { draft, _ -> draft.options.durationSeconds?.let(::JsonPrimitive) }
 
     val negativePrompt = WorkflowRequestValue { draft, _ ->
         draft.options.negativePrompt?.takeIf(String::isNotBlank)?.let(::JsonPrimitive)
@@ -100,6 +108,14 @@ object WorkflowRequestValues {
     val uploadedImageUrls = WorkflowRequestValue { draft, _ ->
         draft.attachments
             .filter { it.kind == MediaKind.IMAGE }
+            .mapNotNull { it.remoteUrl?.takeIf(String::isNotBlank) }
+            .takeIf(List<String>::isNotEmpty)
+            ?.let { urls -> JsonArray(urls.map(::JsonPrimitive)) }
+    }
+
+    val uploadedVideoUrls = WorkflowRequestValue { draft, _ ->
+        draft.attachments
+            .filter { it.kind == MediaKind.VIDEO }
             .mapNotNull { it.remoteUrl?.takeIf(String::isNotBlank) }
             .takeIf(List<String>::isNotEmpty)
             ?.let { urls -> JsonArray(urls.map(::JsonPrimitive)) }
@@ -126,6 +142,18 @@ object WorkflowRequestValues {
     fun optionalUploadedImageUrls() = WorkflowRequestField(
         name = IMAGE_URLS_FIELD,
         value = uploadedImageUrls,
+    )
+
+    fun optionalUploadedImageUrls(maximumCount: Int) = WorkflowRequestField(
+        name = IMAGE_URLS_FIELD,
+        value = uploadedImageUrls,
+        validate = { value -> if (value is JsonArray && value.size > maximumCount) listOf(ErrorMapper.referenceImageLimit()) else emptyList() },
+    )
+
+    fun optionalUploadedVideoUrls(maximumCount: Int) = WorkflowRequestField(
+        name = VIDEO_URLS_FIELD,
+        value = uploadedVideoUrls,
+        validate = { value -> if (value is JsonArray && value.size > maximumCount) listOf(ErrorMapper.protocol("Too many video references for this model.")) else emptyList() },
     )
 
     fun constantString(name: String, value: String) = WorkflowRequestField(
@@ -156,4 +184,5 @@ object WorkflowRequestValues {
 
     private const val PROMPT_FIELD = "prompt"
     private const val IMAGE_URLS_FIELD = "image_urls"
+    private const val VIDEO_URLS_FIELD = "video_urls"
 }

@@ -137,7 +137,7 @@ class ConversationViewModel @Inject constructor(
                 effectChannel.send(ConversationUiEffect.LaunchMediaPicker(event.role, event.kind))
             }
             is ConversationUiEvent.MediaPicked -> attachMedia(event.role, event.kind, event.uri, event.label)
-            is ConversationUiEvent.RemoveMedia -> removeMedia(event.role)
+            is ConversationUiEvent.RemoveMedia -> removeMedia(event.role, event.uri)
             ConversationUiEvent.DetachSource -> detachSource()
             is ConversationUiEvent.EditImage -> useOutput(event.item)
             is ConversationUiEvent.ReuseParameters -> reuseParameters(event.item)
@@ -232,20 +232,29 @@ class ConversationViewModel @Inject constructor(
         mutableState.update { current ->
             val slot = current.attachmentSlots.firstOrNull { it.role == role && it.kind == kind }
                 ?: return@update current
+            if (current.attachments.any { it.uri == uri && it.role == role }) return@update current
+            val sameRole = current.attachments.filter { it.role == role && it.kind == kind }
+            if (slot.maximumCount != null && slot.maximumCount > 1 && sameRole.size >= slot.maximumCount) return@update current.copy(
+                message = ConversationText.Resource(
+                    if (kind == MediaKind.VIDEO) R.string.message_video_reference_limit else R.string.message_photo_reference_limit,
+                    listOf(slot.maximumCount),
+                ),
+            )
             current.copy(
                 composer = current.composer.copy(
-                    attachments = current.attachments.filterNot { it.role == role } +
+                    attachments = (if (slot.maximumCount == 1) current.attachments.filterNot { it.role == role && it.kind == kind } else current.attachments) +
                         DraftMediaAttachment(role, slot.kind, uri, label),
                 ),
+                message = null,
             )
         }
         persistDraft()
     }
 
-    fun removeMedia(role: MediaRole) {
+    fun removeMedia(role: MediaRole, uri: String) {
         draftTouched = true
         mutableState.update { current ->
-            current.copy(composer = current.composer.copy(attachments = current.attachments.filterNot { it.role == role }))
+            current.copy(composer = current.composer.copy(attachments = current.attachments.filterNot { it.role == role && it.uri == uri }))
         }
         persistDraft()
     }

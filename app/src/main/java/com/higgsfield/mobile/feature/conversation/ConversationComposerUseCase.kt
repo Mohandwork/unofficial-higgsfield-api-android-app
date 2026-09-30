@@ -29,10 +29,10 @@ data class ReusableComposerParameters(
 class ConversationComposerUseCase @Inject constructor() {
     fun slotsFor(workflow: WorkflowDescriptor?): List<MediaRequirement> {
         if (workflow == null) return emptyList()
-        val referenceSlot = MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE)
+        val referenceSlot = MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE, maximumCount = null)
         return workflow.mediaRequirements + if (
             WorkflowCapability.REFERENCE_IMAGE in workflow.capabilities &&
-                workflow.mediaRequirements.none { it.role == MediaRole.REFERENCE }
+                workflow.mediaRequirements.none { it.kind == MediaKind.IMAGE }
         ) listOf(referenceSlot) else emptyList()
     }
 
@@ -40,8 +40,8 @@ class ConversationComposerUseCase @Inject constructor() {
         val slots = slotsFor(workflow)
         return ComposerWorkflowSelection(
             slots = slots,
-            attachments = state.attachments.filter { attachment ->
-                slots.any { it.role == attachment.role && it.kind == attachment.kind }
+            attachments = slots.flatMap { slot ->
+                state.attachments.filter { it.role == slot.role && it.kind == slot.kind }.take(slot.maximumCount ?: Int.MAX_VALUE)
             },
             options = retainOptionsFor(state.options, workflow),
             activeImageIncompatible = state.activeSourceId != null && state.mediaKind == MediaKind.IMAGE &&
@@ -57,7 +57,7 @@ class ConversationComposerUseCase @Inject constructor() {
             workflowId = workflow.id,
             attachments = state.attachments.map { attachment ->
                 GenerationAttachment(
-                    id = "local-attachment-${attachment.role.name.lowercase()}",
+                    id = "local-attachment-${attachment.role.name.lowercase()}-${attachment.uri}",
                     uri = attachment.uri,
                     kind = attachment.kind,
                     role = attachment.role,

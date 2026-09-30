@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material3.AssistChip
@@ -73,6 +74,7 @@ internal fun ConversationHeader(
                     AssistChip(
                         onClick = { onEvent(ConversationUiEvent.ToggleModelMenu) },
                         label = { Text(state.selectedWorkflow?.displayName ?: stringResource(R.string.choose_model), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        trailingIcon = { Icon(Icons.Rounded.ArrowDropDown, stringResource(R.string.choose_model)) },
                         modifier = Modifier.fillMaxWidth(),
                     )
                     DropdownMenu(expanded = modelMenuOpen, onDismissRequest = { onEvent(ConversationUiEvent.ToggleModelMenu) }) {
