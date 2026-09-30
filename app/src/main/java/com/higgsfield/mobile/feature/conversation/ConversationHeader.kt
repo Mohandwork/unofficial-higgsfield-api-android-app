@@ -148,4 +148,10 @@ private fun modelFamilyLabel(family: WorkflowFamily): String = stringResource(wh
     WorkflowFamily.WAN -> R.string.model_family_wan
     WorkflowFamily.HAPPY_HORSE -> R.string.model_family_happy_horse
     WorkflowFamily.Z_IMAGE -> R.string.model_family_z_image
+    WorkflowFamily.GROK -> R.string.model_family_grok
+    WorkflowFamily.IDEOGRAM -> R.string.model_family_ideogram
+    WorkflowFamily.RECRAFT -> R.string.model_family_recraft
+    WorkflowFamily.GENJUTSU -> R.string.model_family_genjutsu
+    WorkflowFamily.MINIMAX -> R.string.model_family_minimax
+    WorkflowFamily.PIXVERSE -> R.string.model_family_pixverse
 })

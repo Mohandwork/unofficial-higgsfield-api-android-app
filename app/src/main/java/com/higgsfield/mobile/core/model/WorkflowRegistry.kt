@@ -47,12 +47,18 @@ object WorkflowRegistry {
     private val seedance2References = listOf(
         MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE, maximumCount = 9),
         MediaRequirement(MediaRole.VIDEO_REFERENCE, MediaKind.VIDEO, maximumCount = 3),
+        MediaRequirement(MediaRole.AUDIO, MediaKind.AUDIO, maximumCount = null),
     )
     private val seedance2_5References = listOf(
         MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE, maximumCount = 30),
         MediaRequirement(MediaRole.VIDEO_REFERENCE, MediaKind.VIDEO, maximumCount = 10),
+        MediaRequirement(MediaRole.AUDIO, MediaKind.AUDIO, maximumCount = null),
     )
     private val referenceVideoOptions = setOf(WorkflowOption.DURATION, WorkflowOption.RESOLUTION, WorkflowOption.ASPECT_RATIO)
+    private val seedanceOptions = referenceVideoOptions + WorkflowOption.GENERATE_AUDIO
+    private val seedance2_5Options = seedanceOptions + WorkflowOption.OUTPUT_FORMAT
+    private val imageAspectRatios = listOf("1:1", "2:3", "3:2", "3:4", "4:3", "7:9", "9:7", "9:16", "16:9", "21:9")
+    private val videoAspectRatios = listOf("16:9", "4:3", "1:1", "3:4", "9:16", "21:9")
 
     val all: List<WorkflowDescriptor> = listOf(
         image(
@@ -75,11 +81,11 @@ object WorkflowRegistry {
         image(WorkflowCatalog.MARKETING_STUDIO_2_5_SUNBURST, WorkflowFamily.MARKETING_STUDIO, imageEdit, listOf(MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE, maximumCount = 16)), options = imageOptions, endpointPath = MARKETING_STUDIO_SUNBURST_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         image(WorkflowCatalog.QWEN_IMAGE_3, WorkflowFamily.QWEN, setOf(WorkflowCapability.TEXT_TO_IMAGE, WorkflowCapability.NEGATIVE_PROMPT), options = qwenOptions, endpointPath = QWEN_IMAGE_3_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         image(WorkflowCatalog.QWEN_IMAGE_3_EDIT, WorkflowFamily.QWEN, imageEdit, sourceImageRequired, options = qwenOptions, endpointPath = QWEN_IMAGE_3_EDIT_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        image(WorkflowCatalog.Z_IMAGE_TURBO, WorkflowFamily.Z_IMAGE, setOf(WorkflowCapability.TEXT_TO_IMAGE), options = imageOptionsWithSeed, endpointPath = Z_IMAGE_TURBO_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
-        video(WorkflowCatalog.SEEDANCE_2, WorkflowFamily.SEEDANCE, options = referenceVideoOptions, endpointPath = SEEDANCE_2_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
-        video(WorkflowCatalog.SEEDANCE_2_5, WorkflowFamily.SEEDANCE, options = referenceVideoOptions, endpointPath = SEEDANCE_2_5_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
-        video(WorkflowCatalog.SEEDANCE_2_REFERENCE, WorkflowFamily.SEEDANCE, seedance2References, capabilities = setOf(WorkflowCapability.REFERENCE_IMAGE), options = referenceVideoOptions, endpointPath = SEEDANCE_2_REFERENCE_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
-        video(WorkflowCatalog.SEEDANCE_2_5_REFERENCE, WorkflowFamily.SEEDANCE, seedance2_5References, capabilities = setOf(WorkflowCapability.REFERENCE_IMAGE), options = referenceVideoOptions, endpointPath = SEEDANCE_2_5_REFERENCE_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
+        image(WorkflowCatalog.Z_IMAGE_TURBO, WorkflowFamily.Z_IMAGE, setOf(WorkflowCapability.TEXT_TO_IMAGE), options = imageOptionsWithSeed + WorkflowOption.PROMPT_EXTEND, endpointPath = Z_IMAGE_TURBO_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
+        video(WorkflowCatalog.SEEDANCE_2, WorkflowFamily.SEEDANCE, options = seedanceOptions, endpointPath = SEEDANCE_2_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
+        video(WorkflowCatalog.SEEDANCE_2_5, WorkflowFamily.SEEDANCE, options = seedance2_5Options, endpointPath = SEEDANCE_2_5_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
+        video(WorkflowCatalog.SEEDANCE_2_REFERENCE, WorkflowFamily.SEEDANCE, seedance2References, capabilities = setOf(WorkflowCapability.REFERENCE_IMAGE), options = seedanceOptions, endpointPath = SEEDANCE_2_REFERENCE_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
+        video(WorkflowCatalog.SEEDANCE_2_5_REFERENCE, WorkflowFamily.SEEDANCE, seedance2_5References, capabilities = setOf(WorkflowCapability.REFERENCE_IMAGE), options = seedance2_5Options, endpointPath = SEEDANCE_2_5_REFERENCE_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.HAPPY_HORSE_1, WorkflowFamily.HAPPY_HORSE, options = referenceVideoOptions + WorkflowOption.SEED, endpointPath = HAPPY_HORSE_1_ENDPOINT, schemaVerifiedOn = NEW_SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.KLING_2_5_TURBO, WorkflowFamily.KLING, endpointPath = KLING_2_5_TURBO_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.KLING_2_6, WorkflowFamily.KLING, endpointPath = KLING_2_6_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
@@ -91,9 +97,9 @@ object WorkflowRegistry {
         video(WorkflowCatalog.CINEMA_STUDIO_4, WorkflowFamily.CINEMA_STUDIO, endpointPath = CINEMA_STUDIO_4_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.WAN_2_6, WorkflowFamily.WAN, endpointPath = WAN_2_6_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
         video(WorkflowCatalog.WAN_2_7, WorkflowFamily.WAN, endpointPath = WAN_2_7_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        video(WorkflowCatalog.WAN_3, WorkflowFamily.WAN, endpointPath = WAN_3_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-        video(WorkflowCatalog.WAN_3_PRIME, WorkflowFamily.WAN, tier = PRIME_TIER, endpointPath = WAN_3_PRIME_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
-    )
+        video(WorkflowCatalog.WAN_3, WorkflowFamily.WAN, options = setOf(WorkflowOption.ASPECT_RATIO, WorkflowOption.RESOLUTION, WorkflowOption.DURATION, WorkflowOption.SEED, WorkflowOption.GENERATE_AUDIO, WorkflowOption.ENABLE_THINKING), endpointPath = WAN_3_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+        video(WorkflowCatalog.WAN_3_PRIME, WorkflowFamily.WAN, tier = PRIME_TIER, options = setOf(WorkflowOption.ASPECT_RATIO, WorkflowOption.RESOLUTION, WorkflowOption.DURATION, WorkflowOption.SEED, WorkflowOption.GENERATE_AUDIO, WorkflowOption.ENABLE_THINKING), endpointPath = WAN_3_PRIME_ENDPOINT, schemaVerifiedOn = SCHEMA_VERIFIED_ON),
+    ) + DirectModelRoutes.all
 
     fun forKind(kind: MediaKind) = all.filter { it.mediaKind == kind }
     fun find(id: WorkflowId) = all.firstOrNull { it.id == id }
@@ -149,6 +155,26 @@ object WorkflowRegistry {
             tier = tier, capabilities = capabilities, mediaRequirements = required, endpointPath = endpointPath,
             pricingFactors = PRICING_FACTORS,
             supportedOptions = options,
+            optionConstraints = when (key.id) {
+                WorkflowCatalog.WAN_3.id, WorkflowCatalog.WAN_3_PRIME.id -> DirectModelRoutes.wan3Image.optionConstraints
+                WorkflowCatalog.Z_IMAGE_TURBO.id -> mapOf(
+                    WorkflowOption.RESOLUTION to OptionConstraint(listOf("1k", "2k")),
+                    WorkflowOption.ASPECT_RATIO to OptionConstraint(imageAspectRatios),
+                    WorkflowOption.SEED to OptionConstraint(minimum = 0, maximum = Int.MAX_VALUE),
+                )
+                WorkflowCatalog.SEEDANCE_2.id, WorkflowCatalog.SEEDANCE_2_REFERENCE.id,
+                WorkflowCatalog.SEEDANCE_2_5.id, WorkflowCatalog.SEEDANCE_2_5_REFERENCE.id -> mapOf(
+                    WorkflowOption.DURATION to OptionConstraint(minimum = 4, maximum = if (key.id in setOf(WorkflowCatalog.SEEDANCE_2.id, WorkflowCatalog.SEEDANCE_2_REFERENCE.id)) 15 else 30),
+                    WorkflowOption.RESOLUTION to OptionConstraint(when (key.id) {
+                        WorkflowCatalog.SEEDANCE_2.id, WorkflowCatalog.SEEDANCE_2_REFERENCE.id -> listOf("480p", "720p", "1080p", "4k")
+                        WorkflowCatalog.SEEDANCE_2_5_REFERENCE.id -> listOf("480p", "720p", "1080p")
+                        else -> listOf("480p", "720p")
+                    }),
+                    WorkflowOption.ASPECT_RATIO to OptionConstraint(videoAspectRatios),
+                    WorkflowOption.OUTPUT_FORMAT to OptionConstraint(listOf("mp4", "mov")),
+                )
+                else -> emptyMap()
+            },
             staticEstimate = staticMetadataFor(key, schemaVerifiedOn),
             documentationUrl = WorkflowCatalog.DOCUMENTATION_URL,
             schemaVerifiedOn = schemaVerifiedOn,
@@ -159,37 +185,28 @@ object WorkflowRegistry {
 
     /** Static pricing/specification transcription supplied by the user on 2026-09-26. */
     private fun staticMetadataFor(key: WorkflowKey, schemaVerifiedOn: String?): StaticEstimateMetadata {
-        val (price, resolution, durations) = when (key.id) {
-            WorkflowCatalog.SOUL.id -> Triple("\$0.0938/image", "Up to 1080p", null)
-            WorkflowCatalog.SOUL_V2.id -> Triple("\$0.0032/image", "Up to 1080p", null)
-            WorkflowCatalog.SOUL_CINEMA.id -> Triple("Pricing varies", null, null)
+        val (resolution, durations) = when (key.id) {
+            WorkflowCatalog.SOUL.id, WorkflowCatalog.SOUL_V2.id -> "Up to 1080p" to null
             WorkflowCatalog.MARKETING_STUDIO_2_ALPHA.id,
             WorkflowCatalog.MARKETING_STUDIO_2_5_FLARE.id,
-            WorkflowCatalog.MARKETING_STUDIO_2_5_SUNBURST.id -> Triple("\$0.0107/image", "Up to 4K", null)
-            WorkflowCatalog.QWEN_IMAGE_3.id,
-            WorkflowCatalog.QWEN_IMAGE_3_EDIT.id -> Triple("\$0.04/image", "Up to 2K", null)
-            WorkflowCatalog.Z_IMAGE_TURBO.id -> Triple("Pricing unavailable", "Up to 2K", null)
-            WorkflowCatalog.SEEDANCE_2.id -> Triple("\$0.0985/s", "Up to 4K", "4s / 15s")
-            WorkflowCatalog.SEEDANCE_2_REFERENCE.id -> Triple("Pricing unavailable", "Up to 4K", "4s / 15s")
-            WorkflowCatalog.SEEDANCE_2_5.id -> Triple("\$0.144/s", "Up to 1080p", "4s / 30s")
-            WorkflowCatalog.SEEDANCE_2_5_REFERENCE.id -> Triple("Pricing unavailable", "Up to 1080p", "4s / 30s")
-            WorkflowCatalog.HAPPY_HORSE_1.id -> Triple("Pricing unavailable", "Up to 1080p", "3s / 15s")
-            WorkflowCatalog.KLING_2_5_TURBO.id -> Triple("\$0.0231/s", "Up to 1080p", "5s / 10s")
-            WorkflowCatalog.KLING_2_6.id,
-            WorkflowCatalog.KLING_2_6_MOTION.id -> Triple("\$0.0385/s", null, "1s / 5s / 10s")
-            WorkflowCatalog.KLING_3.id,
-            WorkflowCatalog.KLING_3_MOTION.id -> Triple("\$0.0462/s", "Up to 1080p", "1s / 3s / 15s")
-            WorkflowCatalog.KLING_O3.id -> Triple("\$0.0462/s", null, "1s / 3s / 5s / 10s")
-            WorkflowCatalog.KLING_OMNI.id -> Triple("\$0.0462/s", null, "1s / 3s / 5s / 10s")
-            WorkflowCatalog.CINEMA_STUDIO_4.id -> Triple("\$0.2057/s", "Up to 720p", "4s / 30s")
-            WorkflowCatalog.WAN_2_6.id -> Triple("\$0.05/s", "Up to 1080p", "5s / 10s / 15s")
-            WorkflowCatalog.WAN_2_7.id -> Triple("\$0.05/s", "Up to 1080p", "2s / 10s / 15s")
-            WorkflowCatalog.WAN_3.id -> Triple("\$0.025/s", "Up to 1080p", "2s / 30s")
-            WorkflowCatalog.WAN_3_PRIME.id -> Triple("\$0.0476/s", "Up to 1080p", "2s / 30s")
-            else -> Triple("Pricing unavailable", null, null)
+            WorkflowCatalog.MARKETING_STUDIO_2_5_SUNBURST.id -> "Up to 4K" to null
+            WorkflowCatalog.QWEN_IMAGE_3.id, WorkflowCatalog.QWEN_IMAGE_3_EDIT.id,
+            WorkflowCatalog.Z_IMAGE_TURBO.id -> "Up to 2K" to null
+            WorkflowCatalog.SEEDANCE_2.id, WorkflowCatalog.SEEDANCE_2_REFERENCE.id -> "Up to 4K" to "4s / 15s"
+            WorkflowCatalog.SEEDANCE_2_5.id, WorkflowCatalog.SEEDANCE_2_5_REFERENCE.id -> "Up to 1080p" to "4s / 30s"
+            WorkflowCatalog.HAPPY_HORSE_1.id -> "Up to 1080p" to "3s / 15s"
+            WorkflowCatalog.KLING_2_5_TURBO.id -> "Up to 1080p" to "5s / 10s"
+            WorkflowCatalog.KLING_2_6.id, WorkflowCatalog.KLING_2_6_MOTION.id -> null to "1s / 5s / 10s"
+            WorkflowCatalog.KLING_3.id, WorkflowCatalog.KLING_3_MOTION.id -> "Up to 1080p" to "1s / 3s / 15s"
+            WorkflowCatalog.KLING_O3.id, WorkflowCatalog.KLING_OMNI.id -> null to "1s / 3s / 5s / 10s"
+            WorkflowCatalog.CINEMA_STUDIO_4.id -> "Up to 720p" to "4s / 30s"
+            WorkflowCatalog.WAN_2_6.id -> "Up to 1080p" to "5s / 10s / 15s"
+            WorkflowCatalog.WAN_2_7.id -> "Up to 1080p" to "2s / 10s / 15s"
+            WorkflowCatalog.WAN_3.id, WorkflowCatalog.WAN_3_PRIME.id -> "Up to 1080p" to "2s / 30s"
+            else -> null to null
         }
         return StaticEstimateMetadata(
-            fromPrice = price,
+            fromPrice = ModelStartingRates.priceFor(key.id),
             maximumResolution = resolution,
             supportedDurations = durations,
             sourceLabel = if (key.id in setOf(

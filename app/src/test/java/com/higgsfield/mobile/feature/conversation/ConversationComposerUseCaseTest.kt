@@ -2,6 +2,7 @@ package com.higgsfield.mobile.feature.conversation
 
 import com.higgsfield.mobile.R
 import com.higgsfield.mobile.core.model.GenerationOptions
+import com.higgsfield.mobile.core.model.DirectModelRoutes
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.MediaRole
 import com.higgsfield.mobile.core.model.WorkflowCatalog
@@ -72,5 +73,19 @@ class ConversationComposerUseCaseTest {
         val kling = WorkflowRegistry.find(WorkflowCatalog.KLING_O3.id)!!
 
         assertEquals(null, useCase.slotsFor(kling).single().maximumCount)
+    }
+
+    @Test
+    fun `switching to MiniMax keeps supported values and removes unsupported Wan controls`() {
+        val options = GenerationOptions(aspectRatio = "adaptive", resolution = "1080p", durationSeconds = 20,
+            modelOptions = mapOf("generate_audio" to "false", "aigc_watermark" to "true"))
+
+        val retained = useCase.retainOptionsFor(options, DirectModelRoutes.miniImage)
+
+        assertEquals("adaptive", retained.aspectRatio)
+        assertEquals(null, retained.resolution)
+        assertEquals(null, retained.durationSeconds)
+        assertEquals(mapOf("aigc_watermark" to "true"), retained.modelOptions)
+        assertEquals(listOf(MediaRole.START_FRAME, MediaRole.END_FRAME), useCase.slotsFor(DirectModelRoutes.miniImage).map { it.role })
     }
 }

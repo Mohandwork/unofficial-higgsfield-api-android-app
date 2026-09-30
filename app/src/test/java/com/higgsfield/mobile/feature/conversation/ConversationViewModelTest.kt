@@ -25,6 +25,7 @@ import com.higgsfield.mobile.core.model.WorkflowCatalog
 import com.higgsfield.mobile.core.model.WorkflowId
 import com.higgsfield.mobile.core.model.WorkflowRegistry
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -514,6 +516,25 @@ class ConversationViewModelTest {
     }
 
     @Test
+    fun `submission stays loading until the request is accepted`() = runTest {
+        val acceptance = CompletableDeferred<Unit>()
+        val draft = GenerationDraft("A green apple", CreativeBrief(), WorkflowCatalog.SOUL.id)
+        val repository = FakeGenerationRepository(
+            Result.success(GenerationRecord(id = "accepted", draft = draft, status = GenerationStatus.Queued)),
+            acceptance,
+        )
+        val viewModel = ConversationViewModel(FakeConversationPersistence(), generationRepository = repository)
+        viewModel.initialize(MediaKind.IMAGE)
+        viewModel.updatePrompt(draft.instruction)
+
+        viewModel.submitGeneration()
+        assertTrue(viewModel.state.value.isSubmitting)
+
+        acceptance.complete(Unit)
+        assertFalse(viewModel.state.value.isSubmitting)
+    }
+
+    @Test
     fun `accepted generation clears submitted prompt for the next edit`() {
         val originalPrompt = "A green apple on a cream background"
         val repository = FakeGenerationRepository(Result.success(GenerationRecord(
@@ -590,6 +611,7 @@ private class FakeConversationPersistence : ConversationPersistence {
 
 private class FakeGenerationRepository(
     private val submitResult: Result<GenerationRecord>,
+    private val acceptance: CompletableDeferred<Unit>? = null,
 ) : GenerationRepository {
     var conversationId: String? = null
     var draft: GenerationDraft? = null
@@ -599,6 +621,7 @@ private class FakeGenerationRepository(
     override suspend fun submit(conversationId: String, draft: GenerationDraft): Result<GenerationRecord> {
         this.conversationId = conversationId
         this.draft = draft
+        acceptance?.await()
         return submitResult
     }
     override suspend fun cancel(generationId: String): Result<Unit> = Result.success(Unit)

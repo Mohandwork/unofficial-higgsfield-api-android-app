@@ -234,6 +234,11 @@ class ConversationViewModel @Inject constructor(
                 ?: return@update current
             if (current.attachments.any { it.uri == uri && it.role == role }) return@update current
             val sameRole = current.attachments.filter { it.role == role && it.kind == kind }
+            val combinedMaximum = current.selectedWorkflow?.maximumCombinedReferences
+            if (combinedMaximum != null && role in setOf(MediaRole.REFERENCE, MediaRole.VIDEO_REFERENCE) &&
+                current.attachments.count { it.role in setOf(MediaRole.REFERENCE, MediaRole.VIDEO_REFERENCE) } >= combinedMaximum) {
+                return@update current.copy(message = ConversationText.Resource(R.string.message_photo_reference_limit, listOf(combinedMaximum)))
+            }
             if (slot.maximumCount != null && slot.maximumCount > 1 && sameRole.size >= slot.maximumCount) return@update current.copy(
                 message = ConversationText.Resource(
                     if (kind == MediaKind.VIDEO) R.string.message_video_reference_limit else R.string.message_photo_reference_limit,

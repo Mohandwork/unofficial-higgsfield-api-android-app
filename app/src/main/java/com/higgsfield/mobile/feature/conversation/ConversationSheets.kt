@@ -15,6 +15,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Switch
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -23,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -69,7 +73,7 @@ internal fun ModelInfoDialog(workflow: WorkflowDescriptor?, onDismiss: () -> Uni
             DetailRow(stringResource(R.string.capabilities), workflow?.capabilities?.joinToString { it.name.lowercase().replace('_', ' ') } ?: stringResource(R.string.unknown))
             Text(stringResource(R.string.model_price_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             estimate?.let {
-                Text(stringResource(R.string.model_source_user_provided), style = MaterialTheme.typography.labelSmall)
+                Text(it.sourceLabel ?: stringResource(R.string.model_source_user_provided), style = MaterialTheme.typography.labelSmall)
                 Text(stringResource(R.string.estimate_verified, it.verifiedOn), style = MaterialTheme.typography.labelSmall)
             }
             if (workflow?.isSubmissionEnabled == false) Text(stringResource(R.string.adapter_not_enabled), color = MaterialTheme.colorScheme.error)
@@ -101,7 +105,9 @@ internal fun OptionsDialog(workflow: WorkflowDescriptor?, initial: GenerationOpt
     var duration by remember(initial) { mutableStateOf(initial.durationSeconds?.toString().orEmpty()) }
     var seed by remember(initial) { mutableStateOf(initial.seed?.toString().orEmpty()) }
     var negativePrompt by remember(initial) { mutableStateOf(initial.negativePrompt.orEmpty()) }
+    var modelOptions by remember(initial) { mutableStateOf(initial.modelOptions) }
     val supported = workflow?.supportedOptions.orEmpty()
+    val constraints = workflow?.optionConstraints.orEmpty()
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             Modifier.fillMaxWidth().fillMaxHeight(0.85f).imePadding()
@@ -110,13 +116,50 @@ internal fun OptionsDialog(workflow: WorkflowDescriptor?, initial: GenerationOpt
         ) {
             Text(stringResource(R.string.generation_specs), style = MaterialTheme.typography.titleLarge)
             Text(workflow?.displayName ?: stringResource(R.string.model), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            if (WorkflowOption.ASPECT_RATIO in supported) OutlinedTextField(aspectRatio, { aspectRatio = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.aspect_ratio)) })
-            if (WorkflowOption.RESOLUTION in supported) OutlinedTextField(resolution, { resolution = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.resolution)) })
-            if (WorkflowOption.DURATION in supported) OutlinedTextField(duration, { duration = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.duration_seconds)) })
+            if (WorkflowOption.ASPECT_RATIO in supported) ModelChoiceField(stringResource(R.string.aspect_ratio), aspectRatio, constraints[WorkflowOption.ASPECT_RATIO]?.choices.orEmpty(), { aspectRatio = it })
+            if (WorkflowOption.RESOLUTION in supported) ModelChoiceField(stringResource(R.string.resolution), resolution, constraints[WorkflowOption.RESOLUTION]?.choices.orEmpty(), { resolution = it })
+            if (WorkflowOption.DURATION in supported) {
+                val durationConstraint = constraints[WorkflowOption.DURATION]
+                if (durationConstraint?.choices?.isNotEmpty() == true)
+                    ModelChoiceField(stringResource(R.string.duration_seconds), duration, durationConstraint.choices, { duration = it })
+                else OutlinedTextField(duration, { duration = it.filter(Char::isDigit) }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.duration_seconds)) }, supportingText = { durationConstraint?.let { Text("${it.minimum ?: 0}–${it.maximum ?: "?"} seconds") } })
+            }
             if (WorkflowOption.SEED in supported) OutlinedTextField(seed, { seed = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.seed)) })
             if (WorkflowOption.NEGATIVE_PROMPT in supported) OutlinedTextField(negativePrompt, { negativePrompt = it }, Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.negative_prompt)) })
+            supported.filter { it in setOf(WorkflowOption.GENERATE_AUDIO, WorkflowOption.AIGC_WATERMARK, WorkflowOption.ENABLE_THINKING, WorkflowOption.PROMPT_EXTEND) }.forEach { option ->
+                val key = option.name.lowercase()
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(option.name.lowercase().replace('_', ' ').replaceFirstChar(Char::uppercase), Modifier.weight(1f))
+                    Switch(checked = modelOptions[key]?.toBooleanStrictOrNull() ?: (option == WorkflowOption.GENERATE_AUDIO),
+                        onCheckedChange = { modelOptions = modelOptions + (key to it.toString()) })
+                }
+            }
+            supported.filter { it in setOf(WorkflowOption.QUALITY, WorkflowOption.RENDERING_SPEED, WorkflowOption.OUTPUT_FORMAT, WorkflowOption.SOUND, WorkflowOption.MODE, WorkflowOption.CFG_SCALE, WorkflowOption.KEEP_ORIGINAL_SOUND, WorkflowOption.CHARACTER_ORIENTATION) }.forEach { option ->
+                val key = option.name.lowercase()
+                ModelChoiceField(option.name.lowercase().replace('_', ' ').replaceFirstChar(Char::uppercase), modelOptions[key].orEmpty(), constraints[option]?.choices.orEmpty()) {
+                    modelOptions = modelOptions + (key to it)
+                }
+            }
+            if (WorkflowOption.IMAGE_WEIGHT in supported) OutlinedTextField(modelOptions["image_weight"].orEmpty(), { modelOptions = modelOptions + ("image_weight" to it.filter(Char::isDigit)) }, Modifier.fillMaxWidth(), label = { Text("Image weight") }, supportingText = { Text("1–100") })
             if (supported.isEmpty()) Text(stringResource(R.string.no_model_settings))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = { onUpdateOptions(GenerationOptions(aspectRatio = aspectRatio, resolution = resolution.ifBlank { null }, durationSeconds = duration.toIntOrNull(), seed = seed.toLongOrNull(), negativePrompt = negativePrompt.ifBlank { null })); onDismiss() }) { Text(stringResource(R.string.done)) } }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { TextButton(onClick = { onUpdateOptions(GenerationOptions(aspectRatio = aspectRatio, resolution = resolution.ifBlank { null }, durationSeconds = duration.toIntOrNull(), seed = seed.toLongOrNull(), negativePrompt = negativePrompt.ifBlank { null }, modelOptions = modelOptions)); onDismiss() }) { Text(stringResource(R.string.done)) } }
+        }
+    }
+}
+
+@Composable
+private fun ModelChoiceField(label: String, value: String, choices: List<String>, onChange: (String) -> Unit) {
+    if (choices.isEmpty()) {
+        OutlinedTextField(value, onChange, Modifier.fillMaxWidth(), label = { Text(label) })
+        return
+    }
+    var expanded by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxWidth()) {
+        OutlinedTextField(value.ifBlank { "Default" }, {}, Modifier.fillMaxWidth(), readOnly = true,
+            label = { Text(label) }, trailingIcon = { TextButton(onClick = { expanded = true }) { Text("Choose") } })
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(text = { Text("Default") }, onClick = { onChange(""); expanded = false })
+            choices.forEach { choice -> DropdownMenuItem(text = { Text(choice) }, onClick = { onChange(choice); expanded = false }) }
         }
     }
 }

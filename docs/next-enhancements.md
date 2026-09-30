@@ -47,6 +47,10 @@ The next review found these state-consistency risks. They are recorded for later
 
 After the correctness work, optional readability cleanup: move the ViewModel's snapshot/record projection into a pure mapper, and have generation action events carry stable IDs instead of whole `TimelineItem` snapshots, resolving current data when handling an action. Keep the existing single `:app` module and grouped event types; do not create one file per event or one-line forwarding use cases solely for pattern conformity.
 
+## Future model picker enhancement
+
+Replace the long list of separate route entries with a model-first picker. Show each main model or version once (for example, Wan 3.0 Prime), then offer a clearly labeled action control containing only that model's supported operations, such as Text to Image, Image to Video, Reference to Video, Edit, or Extend. Selecting an action resolves to its existing exact API route and updates the composer slots, settings, and limits from that route's schema. Preserve stable route IDs in saved drafts and generation history, and restore the selected model and action when reopening a conversation. Guided marketing workflows remain a separate future UI flow rather than an action that silently changes the direct route.
+
 ## Scope boundary
 
 These stages deliberately do **not** include public-release authentication, replacing intentional debug diagnostics, adding background polling while the app is closed, or implementing every other review recommendation. Those require a separate product decision. The user chose to start Stage 2 before Stage 1; the polling/data-integrity risk remains open and should be addressed separately. The follow-up findings are a backlog, not a claim that those fixes were implemented.

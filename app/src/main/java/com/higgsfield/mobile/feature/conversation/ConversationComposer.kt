@@ -16,6 +16,7 @@ import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AssistChip
@@ -122,7 +123,11 @@ private fun PromptInput(state: ConversationUiState, onPromptChange: (String) -> 
         val referencesAreEnough = state.selectedWorkflow?.id in setOf(
             WorkflowCatalog.SEEDANCE_2_REFERENCE.id,
             WorkflowCatalog.SEEDANCE_2_5_REFERENCE.id,
-        ) && state.attachments.isNotEmpty()
+        ) && state.attachments.any { it.kind == MediaKind.IMAGE || it.kind == MediaKind.VIDEO } || state.selectedWorkflow?.let { workflow -> !workflow.promptRequired &&
+            workflow.mediaRequirements.any { it.minimumCount > 0 } &&
+            workflow.mediaRequirements.filter { it.minimumCount > 0 }.all { slot ->
+                state.attachments.count { it.role == slot.role && it.kind == slot.kind } >= slot.minimumCount
+            } } == true
         FilledTonalIconButton(onClick = {
             focusManager.clearFocus()
             keyboardController?.hide()
@@ -138,7 +143,7 @@ private fun ComposerActions(state: ConversationUiState, onShowBrief: (Boolean) -
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         state.attachmentSlots.forEach { slot ->
             val selectedCount = state.attachments.count { it.role == slot.role && it.kind == slot.kind }
-            val slotLabel = attachmentRoleText(slot.role)
+            val slotLabel = attachmentRoleText(slot.role, slot.kind)
             AssistChip(
                 onClick = { onPickMedia(slot.role, slot.kind) },
                 enabled = slot.maximumCount == null || slot.maximumCount == 1 || selectedCount < slot.maximumCount,
@@ -149,9 +154,17 @@ private fun ComposerActions(state: ConversationUiState, onShowBrief: (Boolean) -
                         maxLines = 2,
                     )
                 },
-                leadingIcon = { Icon(if (slot.kind == MediaKind.VIDEO) Icons.Rounded.PlayArrow else Icons.Rounded.AddPhotoAlternate, null) },
+                leadingIcon = { Icon(when (slot.kind) {
+                    MediaKind.IMAGE -> Icons.Rounded.AddPhotoAlternate
+                    MediaKind.VIDEO -> Icons.Rounded.PlayArrow
+                    MediaKind.AUDIO -> Icons.Rounded.MusicNote
+                }, null) },
                 modifier = Modifier.fillMaxWidth().testTag("media_slot_${slot.role}_${slot.kind}"),
             )
+        }
+        state.selectedWorkflow?.maximumCombinedReferences?.let { maximum ->
+            Text(stringResource(R.string.reference_combined_limit, maximum), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (state.selectedWorkflow?.supportedOptions?.isNotEmpty() == true) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -176,9 +189,9 @@ private fun ComposerActions(state: ConversationUiState, onShowBrief: (Boolean) -
 private fun DraftAttachmentCard(attachment: DraftMediaAttachment, onRemove: (MediaRole, String) -> Unit) {
     Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(16.dp)) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(model = attachment.uri, contentDescription = attachmentRoleText(attachment.role), modifier = Modifier.size(56.dp).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+            AsyncImage(model = attachment.uri, contentDescription = attachmentRoleText(attachment.role, attachment.kind), modifier = Modifier.size(56.dp).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
             Column(Modifier.weight(1f)) {
-                Text(attachmentRoleText(attachment.role), style = MaterialTheme.typography.labelLarge)
+                Text(attachmentRoleText(attachment.role, attachment.kind), style = MaterialTheme.typography.labelLarge)
                 Text(attachment.label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
             }
             IconButton(onClick = { onRemove(attachment.role, attachment.uri) }) { Icon(Icons.Rounded.Close, stringResource(R.string.remove_attachment)) }
@@ -192,9 +205,9 @@ private fun AttachmentList(attachments: List<DraftMediaAttachment>, onRemove: (M
 }
 
 @Composable
-internal fun attachmentRoleText(role: MediaRole): String = stringResource(
+internal fun attachmentRoleText(role: MediaRole, kind: MediaKind = MediaKind.IMAGE): String = stringResource(
     when (role) {
-        MediaRole.SOURCE -> R.string.media_role_source_image
+        MediaRole.SOURCE -> if (kind == MediaKind.VIDEO) R.string.media_role_source_video else R.string.media_role_source_image
         MediaRole.MOTION_REFERENCE -> R.string.media_role_motion_video
         MediaRole.REFERENCE -> R.string.media_role_reference_image
         MediaRole.VIDEO_REFERENCE -> R.string.media_role_reference_video

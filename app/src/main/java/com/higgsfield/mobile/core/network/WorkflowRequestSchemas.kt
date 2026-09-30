@@ -2,6 +2,7 @@ package com.higgsfield.mobile.core.network
 
 import com.higgsfield.mobile.core.error.ErrorMapper
 import com.higgsfield.mobile.core.model.WorkflowCatalog
+import com.higgsfield.mobile.core.model.WorkflowRegistry
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.intOrNull
@@ -51,6 +52,7 @@ object WorkflowRequestSchemas {
             choice(RESOLUTION_FIELD, WorkflowRequestValues.resolution, setOf("1k", "2k")),
             choice(ASPECT_RATIO_FIELD, WorkflowRequestValues.aspectRatio, setOf("1:1", "2:3", "3:2", "3:4", "4:3", "7:9", "9:7", "9:16", "16:9", "21:9")),
             integerRange(SEED_FIELD, WorkflowRequestValues.seed, 0, 2147483647),
+            WorkflowRequestValues.optional("prompt_extend", WorkflowRequestValues.modelBoolean("prompt_extend")),
         ),
     )
 
@@ -90,9 +92,9 @@ object WorkflowRequestSchemas {
 
     val wan2_7 = textToVideoSchema(WorkflowCatalog.WAN_2_7.id)
 
-    val wan3 = textToVideoSchema(WorkflowCatalog.WAN_3.id)
+    val wan3 = DirectModelRequestSchemas.schemaFor(requireNotNull(WorkflowRegistry.find(WorkflowCatalog.WAN_3.id)))
 
-    val wan3Prime = textToVideoSchema(WorkflowCatalog.WAN_3_PRIME.id)
+    val wan3Prime = DirectModelRequestSchemas.schemaFor(requireNotNull(WorkflowRegistry.find(WorkflowCatalog.WAN_3_PRIME.id)))
 
     val all: List<WorkflowRequestSchema> = listOf(
         soulStandard,
@@ -121,7 +123,7 @@ object WorkflowRequestSchemas {
         wan2_7,
         wan3,
         wan3Prime,
-    )
+    ) + DirectModelRequestSchemas.all
 
     fun find(workflowId: com.higgsfield.mobile.core.model.WorkflowId): WorkflowRequestSchema? =
         all.firstOrNull { it.workflowId == workflowId }
@@ -168,10 +170,12 @@ object WorkflowRequestSchemas {
                 WorkflowRequestValues.optional(PROMPT_FIELD, WorkflowRequestValues.composedPrompt),
                 WorkflowRequestValues.optionalUploadedImageUrls(maximumImages),
                 WorkflowRequestValues.optionalUploadedVideoUrls(maximumVideos),
+                WorkflowRequestValues.optional("audio_urls", WorkflowRequestValues.uploadedAudioUrls),
                 integerRange(DURATION_FIELD, WorkflowRequestValues.duration, 4, maximumDuration),
                 choice(RESOLUTION_FIELD, WorkflowRequestValues.resolution, if (supports4k) setOf("480p", "720p", "1080p", "4k") else setOf("480p", "720p", "1080p")),
                 choice(ASPECT_RATIO_FIELD, WorkflowRequestValues.aspectRatio, setOf("16:9", "4:3", "1:1", "3:4", "9:16", "21:9")),
-            ),
+                WorkflowRequestValues.optional("generate_audio", WorkflowRequestValues.modelBoolean("generate_audio")),
+            ) + if (supports4k) emptyList() else listOf(choice("output_format", WorkflowRequestValues.modelString("output_format"), setOf("mp4", "mov"))),
             requiresImageOrVideoReference = true,
         )
 
@@ -181,9 +185,10 @@ object WorkflowRequestSchemas {
             fields = listOf(
                 WorkflowRequestValues.requiredComposedPrompt(),
                 integerRange(DURATION_FIELD, WorkflowRequestValues.duration, 4, maximumDuration),
-                choice(RESOLUTION_FIELD, WorkflowRequestValues.resolution, if (supports4k) setOf("480p", "720p", "1080p", "4k") else setOf("480p", "720p", "1080p")),
+                choice(RESOLUTION_FIELD, WorkflowRequestValues.resolution, if (supports4k) setOf("480p", "720p", "1080p", "4k") else setOf("480p", "720p")),
                 choice(ASPECT_RATIO_FIELD, WorkflowRequestValues.aspectRatio, setOf("16:9", "4:3", "1:1", "3:4", "9:16", "21:9")),
-            ),
+                WorkflowRequestValues.optional("generate_audio", WorkflowRequestValues.modelBoolean("generate_audio")),
+            ) + if (supports4k) emptyList() else listOf(choice("output_format", WorkflowRequestValues.modelString("output_format"), setOf("mp4", "mov"))),
         )
 
     private fun choice(name: String, value: WorkflowRequestValue, allowed: Set<String>) = WorkflowRequestField(

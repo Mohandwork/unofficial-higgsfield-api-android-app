@@ -10,6 +10,7 @@ import com.higgsfield.mobile.core.model.WorkflowAdapter
 import com.higgsfield.mobile.core.model.WorkflowDescriptor
 import com.higgsfield.mobile.core.model.WorkflowId
 import com.higgsfield.mobile.core.model.WorkflowCapability
+import com.higgsfield.mobile.core.model.MediaRole
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -34,6 +35,15 @@ class SchemaWorkflowAdapter(
                 if (schema.requiresImageOrVideoReference && draft.attachments.none {
                         it.kind in setOf(MediaKind.IMAGE, MediaKind.VIDEO) && !it.remoteUrl.isNullOrBlank()
                     }) add(ErrorMapper.referenceImageRequired())
+                descriptor.mediaRequirements.forEach { requirement ->
+                    val count = draft.attachments.count { it.role == requirement.role && it.kind == requirement.kind && !it.remoteUrl.isNullOrBlank() }
+                    if (count < requirement.minimumCount) add(ErrorMapper.protocol("${requirement.role.name.lowercase().replace('_', ' ')} requires ${requirement.minimumCount} ${requirement.kind.name.lowercase()} file(s)."))
+                    if (requirement.maximumCount != null && count > requirement.maximumCount) add(ErrorMapper.protocol("Too many ${requirement.role.name.lowercase().replace('_', ' ')} files; maximum ${requirement.maximumCount}."))
+                }
+                descriptor.maximumCombinedReferences?.let { maximum ->
+                    val count = draft.attachments.count { it.role in setOf(MediaRole.REFERENCE, MediaRole.VIDEO_REFERENCE) && !it.remoteUrl.isNullOrBlank() }
+                    if (count > maximum) add(ErrorMapper.protocol("This model accepts up to $maximum reference files in total."))
+                }
             },
         )
     }
@@ -113,12 +123,49 @@ object WorkflowRequestValues {
             ?.let { urls -> JsonArray(urls.map(::JsonPrimitive)) }
     }
 
+    fun modelString(name: String) = WorkflowRequestValue { draft, _ ->
+        draft.options.modelOptions[name]?.takeIf(String::isNotBlank)?.let(::JsonPrimitive)
+    }
+
+    fun modelBoolean(name: String) = WorkflowRequestValue { draft, _ ->
+        draft.options.modelOptions[name]?.toBooleanStrictOrNull()?.let(::JsonPrimitive)
+    }
+
+    fun modelInteger(name: String) = WorkflowRequestValue { draft, _ ->
+        draft.options.modelOptions[name]?.toIntOrNull()?.let(::JsonPrimitive)
+    }
+
+    fun modelDecimal(name: String) = WorkflowRequestValue { draft, _ ->
+        draft.options.modelOptions[name]?.toDoubleOrNull()?.let(::JsonPrimitive)
+    }
+
+    fun uploadedUrl(role: MediaRole, kind: MediaKind) = WorkflowRequestValue { draft, _ ->
+        draft.attachments.firstOrNull { it.role == role && it.kind == kind }
+            ?.remoteUrl?.takeIf(String::isNotBlank)?.let(::JsonPrimitive)
+    }
+
+    fun uploadedUrls(role: MediaRole, kind: MediaKind) = WorkflowRequestValue { draft, _ ->
+        draft.attachments.filter { it.role == role && it.kind == kind }
+            .mapNotNull { it.remoteUrl?.takeIf(String::isNotBlank) }
+            .takeIf(List<String>::isNotEmpty)?.let { urls -> JsonArray(urls.map(::JsonPrimitive)) }
+    }
+
+    fun requiredUploadedUrl(name: String, role: MediaRole, kind: MediaKind, error: AppError) = WorkflowRequestField(
+        name = name, value = uploadedUrl(role, kind), validate = required(error),
+    )
+
     val uploadedVideoUrls = WorkflowRequestValue { draft, _ ->
         draft.attachments
             .filter { it.kind == MediaKind.VIDEO }
             .mapNotNull { it.remoteUrl?.takeIf(String::isNotBlank) }
             .takeIf(List<String>::isNotEmpty)
             ?.let { urls -> JsonArray(urls.map(::JsonPrimitive)) }
+    }
+
+    val uploadedAudioUrls = WorkflowRequestValue { draft, _ ->
+        draft.attachments.filter { it.kind == MediaKind.AUDIO }
+            .mapNotNull { it.remoteUrl?.takeIf(String::isNotBlank) }
+            .takeIf(List<String>::isNotEmpty)?.let { urls -> JsonArray(urls.map(::JsonPrimitive)) }
     }
 
     fun requiredUploadedUrl(name: String, kind: MediaKind, error: AppError) = WorkflowRequestField(

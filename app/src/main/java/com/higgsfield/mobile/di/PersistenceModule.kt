@@ -9,6 +9,7 @@ import com.higgsfield.mobile.core.database.GenerationDao
 import com.higgsfield.mobile.core.database.HiggsfieldDatabase
 import com.higgsfield.mobile.core.database.MediaDao
 import com.higgsfield.mobile.core.database.MIGRATION_1_2
+import com.higgsfield.mobile.core.database.MIGRATION_2_3
 import com.higgsfield.mobile.core.data.GenerationRepository
 import com.higgsfield.mobile.core.data.RoomGenerationRepository
 import dagger.Module
@@ -26,7 +27,7 @@ object PersistenceModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): HiggsfieldDatabase =
         Room.databaseBuilder(context, HiggsfieldDatabase::class.java, DATABASE_NAME)
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
 
     @Provides fun provideConversationDao(database: HiggsfieldDatabase): ConversationDao = database.conversationDao()

@@ -31,6 +31,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -103,6 +105,16 @@ fun ConversationRoute(
         }
         pendingRole = null
     }
+    val audioPicker = rememberLauncherForActivityResult(OpenMultipleDocuments()) { uris: List<Uri> ->
+        val role = pendingRole
+        if (role != null) {
+            uris.forEach { uri ->
+                runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                viewModel.onEvent(ConversationUiEvent.MediaPicked(role, MediaKind.AUDIO, uri.toString(), uri.lastPathSegment ?: uri.toString()))
+            }
+        }
+        pendingRole = null
+    }
     LaunchedEffect(viewModel) {
         viewModel.effects.collect { effect ->
             when (effect) {
@@ -112,7 +124,7 @@ fun ConversationRoute(
                     when (effect.kind) {
                         MediaKind.IMAGE -> imagePicker.launch(arrayOf("image/*"))
                         MediaKind.VIDEO -> videoPicker.launch(arrayOf(VIDEO_MIME_TYPE))
-                        MediaKind.AUDIO -> pendingRole = null
+                        MediaKind.AUDIO -> audioPicker.launch(arrayOf("audio/*"))
                     }
                 }
                 is ConversationUiEffect.LaunchDownload -> {
@@ -226,6 +238,31 @@ private fun ConversationScreen(
         )
     }
     if (briefOpen) CreativeBriefSheet(state.brief, { dispatch(ConversationUiEvent.ShowBrief(false)) }, { dispatch(ConversationUiEvent.UpdateBrief(it)) })
+    if (state.isSubmitting && !state.isTransitioning) SubmissionOverlay()
+}
+
+@Composable
+private fun SubmissionOverlay() {
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+    ) {
+        Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface) {
+            Column(
+                Modifier.fillMaxWidth().padding(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                CircularProgressIndicator()
+                Text(stringResource(R.string.submitting_request), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.waiting_for_request_acceptance),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
 
 @Composable
