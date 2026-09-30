@@ -48,6 +48,17 @@
     <string name="versions">Versions</string>
     <string name="local_demo_versions">%1$d local demo version(s)</string>
     <string name="choose_model">Choose model</string>
+    <string name="all_model_families">All model families</string>
+    <string name="model_family_count">%1$s (%2$d)</string>
+    <string name="model_family_soul">SOUL</string>
+    <string name="model_family_marketing_studio">Marketing Studio</string>
+    <string name="model_family_qwen">Qwen</string>
+    <string name="model_family_seedance">Seedance</string>
+    <string name="model_family_kling">Kling</string>
+    <string name="model_family_cinema_studio">Cinema Studio</string>
+    <string name="model_family_wan">Wan</string>
+    <string name="model_family_happy_horse">Happy Horse</string>
+    <string name="model_family_z_image">Z-Image</string>
     <string name="adapter_verification_pending">Adapter verification pending</string>
     <string name="adapter_verified">Adapter verified</string>
     <string name="model_details_and_cost">Model details and cost</string>

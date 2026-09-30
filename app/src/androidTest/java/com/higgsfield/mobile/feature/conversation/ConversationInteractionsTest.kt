@@ -61,6 +61,36 @@ class ConversationInteractionsTest {
     }
 
     @Test
+    fun modelPickerNavigatesFamiliesAndSelectsAWorkflow() {
+        val events = mutableListOf<ConversationUiEvent>()
+        val workflows = WorkflowRegistry.forKind(MediaKind.VIDEO)
+        compose.setContent {
+            HiggsfieldTheme {
+                ConversationHeader(
+                    state = ConversationUiState(
+                        chat = ChatUiState(mediaKind = MediaKind.VIDEO),
+                        composer = ComposerUiState(workflows = workflows, selectedWorkflow = workflows.first()),
+                    ),
+                    onEvent = events::add,
+                    modelMenuOpen = true,
+                    onCreateConversation = {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag("model_kling-3").assertDoesNotExist()
+        compose.onNodeWithTag("model_family_KLING").performClick()
+        compose.onNodeWithTag("model_kling-3").assertExists()
+        compose.onNodeWithTag("model_family_back").performClick()
+        compose.onNodeWithTag("model_family_SEEDANCE").performClick()
+        compose.onNodeWithTag("model_seedance-2-reference").performClick()
+
+        compose.runOnIdle {
+            assertTrue(ConversationUiEvent.SelectWorkflow(WorkflowRegistry.find(WorkflowCatalog.SEEDANCE_2_REFERENCE.id)!!) in events)
+        }
+    }
+
+    @Test
     fun composerShowsTypeAndModelSpecificReferenceCounts() {
         val workflow = WorkflowRegistry.find(WorkflowCatalog.SEEDANCE_2_REFERENCE.id)!!
         compose.setContent {
