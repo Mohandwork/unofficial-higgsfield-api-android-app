@@ -1,6 +1,6 @@
 # Next enhancements — two stages
 
-Status: **Stage 1 planned; Stage 2 refactor complete in the working tree; follow-up architecture findings recorded below.** Manual UI verification remains the chosen validation method. This note captures the follow-up discussion from the codebase review.
+Status: **Stage 2 refactor complete; follow-up items 2–4 implemented in the working tree.** The owner reports Stage 1 (follow-up item 5) complete in separate work; this change does not review that implementation. Follow-up item 1 remains planned. Manual UI verification remains the chosen validation method.
 
 ## Decisions from the discussion
 
@@ -35,15 +35,15 @@ Goal: a new contributor can find a conversation operation, understand its inputs
 
 Done when: the ViewModel primarily coordinates state and use cases; UI contracts live in their own files; no long callback list is passed across the main timeline layers; chat/generation behavior is unchanged; unit and UI tests cover the critical transitions. Do not make a new Gradle module a prerequisite for this stage.
 
-## Follow-up architecture findings — not yet implemented
+## Follow-up architecture findings — current status
 
 The next review found these state-consistency risks. They are recorded for later selection, not added to the completed Stage 2 scope. Address them in the order below, with deterministic JVM tests for the affected transitions; additional Compose tests are not required by the current manual-UI-validation preference.
 
-1. **Serialize draft persistence.** `ComposerDraftWriter`'s debounced loop and `flush()` can persist concurrently. An older draft may finish after a newer flush and overwrite it; a chat switch also launches the previous chat's flush without awaiting it. Serialize writes per conversation, make a switch wait for its relevant flush, and test overlapping debounce/flush and rapid chat switching. Relevant code: `ConversationWorkspaceCoordinator.kt` (`ComposerDraftWriter`) and `ConversationViewModel.kt` (`initialize`, `persistDraft`).
-2. **Make source/parameter transitions atomic and recoverable.** `SourceSelectionUseCase.reuseParameters()` saves workflow, brief, and active source separately, so a failure can leave a partial database transition after the UI has shown success. Expose one transactional persistence operation for the combined change, and commit or restore optimistic UI state according to its result. Apply explicit failure handling to workflow and output selection as well. Relevant code: `SourceSelectionUseCase.kt`, `ConversationPersistence.kt`, and `ConversationViewModel.kt`.
-3. **Keep submission completion scoped to its chat.** A request submitted in one conversation can finish after navigation; `submitDraft()` currently updates the then-current screen's submitting state and message. Guard completion-side UI updates by the captured conversation ID while still persisting and polling the accepted request. Test switching chats while submission is in flight. Relevant code: `ConversationViewModel.kt` (`submitDraft`).
-4. **Protect locally edited briefs from late snapshots.** `restoreSnapshot()` protects the prompt draft with `draftTouched` but always assigns `snapshot.brief`; `updateBrief()` does not mark the brief as locally changed. Track brief edits separately or use a snapshot revision so a delayed Room emission cannot replace new text. Test editing the brief before the initial snapshot arrives. Relevant code: `ConversationViewModel.kt` (`updateBrief`, `restoreSnapshot`).
-5. **Complete Stage 1 generation reconciliation.** Visible-chat polling and app-wide recovery can act on the same request; status writes must be monotonic and repeated completion must retain local media pointers. The concrete work and completion criteria remain in Stage 1 above. Relevant code: `ConversationWorkspaceCoordinator.kt`, `LocalGenerationStore.kt`, and the app-wide recovery worker.
+1. **Planned — serialize draft persistence.** `ComposerDraftWriter`'s debounced loop and `flush()` can persist concurrently. An older draft may finish after a newer flush and overwrite it; a chat switch also launches the previous chat's flush without awaiting it. Serialize writes per conversation, make a switch wait for its relevant flush, and test overlapping debounce/flush and rapid chat switching. Relevant code: `ConversationWorkspaceCoordinator.kt` (`ComposerDraftWriter`) and `ConversationViewModel.kt` (`initialize`, `persistDraft`).
+2. **Implemented in this working tree — make source/parameter transitions atomic and recoverable.** Parameter reuse now writes workflow, brief, draft, and cleared active source in one Room transaction. Workflow and output selection update UI only after persistence succeeds; late source/model snapshots do not replace a newly saved selection. Failure and rollback paths have JVM tests. This does not serialize unrelated debounced draft writes from item 1.
+3. **Implemented in this working tree — keep submission completion scoped to its chat.** A result for a request started in another conversation still persists and polls, but cannot change the current chat's prompt, submitting flag, or message. A chat-switch test covers this transition.
+4. **Implemented in this working tree — protect locally edited briefs from late snapshots.** Brief edits are tracked separately from prompt edits so a late Room emission cannot replace local brief text; JVM tests cover a late snapshot and a failed brief write.
+5. **Owner reports complete — Stage 1 generation reconciliation.** Implemented separately by the owner and not reviewed or retested as part of this change. Stage 1 above remains the acceptance criteria for that work.
 
 After the correctness work, optional readability cleanup: move the ViewModel's snapshot/record projection into a pure mapper, and have generation action events carry stable IDs instead of whole `TimelineItem` snapshots, resolving current data when handling an action. Keep the existing single `:app` module and grouped event types; do not create one file per event or one-line forwarding use cases solely for pattern conformity.
 
@@ -53,4 +53,4 @@ Replace the long list of separate route entries with a model-first picker. Show 
 
 ## Scope boundary
 
-These stages deliberately do **not** include public-release authentication, replacing intentional debug diagnostics, adding background polling while the app is closed, or implementing every other review recommendation. Those require a separate product decision. The user chose to start Stage 2 before Stage 1; the polling/data-integrity risk remains open and should be addressed separately. The follow-up findings are a backlog, not a claim that those fixes were implemented.
+These stages deliberately do **not** include public-release authentication, replacing intentional debug diagnostics, adding background polling while the app is closed, or implementing every other review recommendation. Those require a separate product decision. Item 1 is deferred; items 2–4 are implemented here; the owner reports item 5 complete separately.

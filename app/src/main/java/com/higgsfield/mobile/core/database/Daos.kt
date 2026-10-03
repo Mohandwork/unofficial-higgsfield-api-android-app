@@ -58,6 +58,19 @@ interface ConversationDao {
         camera: String, requirements: String, exclusions: String, outputGoal: String, now: Long,
     ): Int
 
+    @Query("""
+        UPDATE conversations SET selectedWorkflowId = :workflowId,
+        briefSubject = :subject, briefStyle = :style, briefMood = :mood,
+        briefCameraDirection = :camera, briefRequirements = :requirements,
+        briefExclusions = :exclusions, briefOutputGoal = :outputGoal,
+        activeSourceOutputId = NULL, requiresSourceSelection = 0,
+        updatedAtEpochMillis = :now WHERE id = :conversationId
+    """)
+    suspend fun reuseParameters(
+        conversationId: String, workflowId: String, subject: String, style: String, mood: String,
+        camera: String, requirements: String, exclusions: String, outputGoal: String, now: Long,
+    ): Int
+
     @Query("UPDATE conversations SET title = :title, updatedAtEpochMillis = :now WHERE id = :conversationId")
     suspend fun rename(conversationId: String, title: String, now: Long): Int
 

@@ -28,10 +28,28 @@ internal class ConversationWorkspaceCoordinator(
     private val observations = mutableListOf<Job>()
     private val pollingJobs = mutableMapOf<String, Job>()
 
+    fun observeEmpty(
+        scope: CoroutineScope,
+        onHistory: (List<ConversationSummary>) -> Unit,
+        onConnectivity: (Boolean) -> Unit,
+        onFailure: () -> Unit,
+    ) {
+        stop()
+        observations += scope.launch { connectivity.isOnline.collect(onConnectivity) }
+        observations += scope.launch {
+            try {
+                persistence.observeConversations().collect(onHistory)
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (_: Exception) {
+                onFailure()
+            }
+        }
+    }
+
     fun observe(
         scope: CoroutineScope,
         id: String,
-        kind: MediaKind,
         onSnapshot: (PersistedConversationSnapshot?) -> Unit,
         onRecords: (List<GenerationRecord>) -> Unit,
         onHistory: (List<ConversationSummary>) -> Unit,
@@ -42,7 +60,6 @@ internal class ConversationWorkspaceCoordinator(
         observations += scope.launch { connectivity.isOnline.collect(onConnectivity) }
         observations += scope.launch {
             try {
-                persistence.ensureConversation(id, kind, WorkflowRegistry.forKind(kind).firstOrNull()?.id)
                 persistence.observe(id).collect(onSnapshot)
             } catch (canceled: CancellationException) {
                 throw canceled

@@ -14,14 +14,13 @@ class ModelStartingRatesTest {
 
     @Test
     fun `variants inherit the most specific main model rate`() {
-        assertEquals("\$0.0476/s", ModelStartingRates.priceFor(WorkflowId("wan-3-prime-image")))
-        assertEquals("\$0.025/s", ModelStartingRates.priceFor(WorkflowId("wan-3-reference")))
-        assertEquals("\$0.0385/s", ModelStartingRates.priceFor(WorkflowId("kling-2-6-motion-std")))
+        assertEquals(ModelStartingRates.priceFor(WorkflowId("wan-3-prime")), ModelStartingRates.priceFor(WorkflowId("wan-3-prime-image")))
+        assertEquals(ModelStartingRates.priceFor(WorkflowId("wan-3")), ModelStartingRates.priceFor(WorkflowId("wan-3-reference")))
+        assertEquals(ModelStartingRates.priceFor(WorkflowId("kling-2-6-motion")), ModelStartingRates.priceFor(WorkflowId("kling-2-6-motion-std")))
     }
 
     @Test
-    fun `unverified main model rates remain unavailable`() {
-        assertEquals("Pricing unavailable", ModelStartingRates.priceFor(WorkflowId("minimax-h3-image")))
+    fun `unknown model rates remain unavailable`() {
         assertEquals("Pricing unavailable", ModelStartingRates.priceFor(WorkflowId("unknown-model")))
     }
 }

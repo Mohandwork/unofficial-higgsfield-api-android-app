@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
@@ -45,6 +46,7 @@ import coil3.compose.AsyncImage
 import com.higgsfield.mobile.R
 import com.higgsfield.mobile.core.model.MediaKind
 import com.higgsfield.mobile.core.model.GenerationOutput
+import com.higgsfield.mobile.core.model.MediaRequirement
 import com.higgsfield.mobile.core.model.MediaRole
 import com.higgsfield.mobile.core.model.WorkflowDescriptor
 import com.higgsfield.mobile.core.model.WorkflowCatalog
@@ -82,7 +84,7 @@ internal fun ComposerDock(
                 color = MaterialTheme.colorScheme.error,
             )
         }
-        ComposerAttachments(state.attachments, motionEnabled) { role, uri -> onEvent(ConversationUiEvent.RemoveMedia(role, uri)) }
+        ComposerAttachments(state.attachments, state.attachmentSlots, motionEnabled) { role, uri -> onEvent(ConversationUiEvent.RemoveMedia(role, uri)) }
         PromptInput(state, { onEvent(ConversationUiEvent.ChangePrompt(it)) }, { onEvent(ConversationUiEvent.Generate) })
         ComposerActions(state, { onEvent(ConversationUiEvent.ShowBrief(it)) }, { onEvent(ConversationUiEvent.ShowOptions(it)) }) { role, kind ->
             onEvent(ConversationUiEvent.PickMedia(role, kind))
@@ -101,15 +103,17 @@ private fun ComposerMessage(message: ConversationText?) {
 }
 
 @Composable
-private fun ComposerAttachments(attachments: List<DraftMediaAttachment>, motionEnabled: Boolean, onRemoveMedia: (MediaRole, String) -> Unit) {
-    if (motionEnabled) AnimatedVisibility(attachments.isNotEmpty()) { AttachmentList(attachments, onRemoveMedia) }
-    else if (attachments.isNotEmpty()) AttachmentList(attachments, onRemoveMedia)
+private fun ComposerAttachments(attachments: List<DraftMediaAttachment>, slots: List<MediaRequirement>, motionEnabled: Boolean, onRemoveMedia: (MediaRole, String) -> Unit) {
+    val hasEndFrame = slots.any { it.role == MediaRole.END_FRAME }
+    if (motionEnabled) AnimatedVisibility(attachments.isNotEmpty()) { AttachmentList(attachments, hasEndFrame, onRemoveMedia) }
+    else if (attachments.isNotEmpty()) AttachmentList(attachments, hasEndFrame, onRemoveMedia)
 }
 
 @Composable
 private fun PromptInput(state: ConversationUiState, onPromptChange: (String) -> Unit, onGenerate: () -> Unit) {
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val hasStartFrame = state.attachmentSlots.any { it.role == MediaRole.START_FRAME }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedTextField(
             value = state.prompt,
@@ -117,7 +121,12 @@ private fun PromptInput(state: ConversationUiState, onPromptChange: (String) -> 
             modifier = Modifier.weight(1f).testTag("conversation_prompt"),
             minLines = 2,
             maxLines = 5,
-            placeholder = { Text(stringResource(if (state.activeSourceId != null) R.string.describe_change else R.string.describe_creation)) },
+            placeholder = { Text(stringResource(when {
+                state.activeSourceId != null -> R.string.describe_change
+                hasStartFrame && state.selectedWorkflow?.promptRequired == false -> R.string.describe_video_motion_optional
+                hasStartFrame -> R.string.describe_video_motion
+                else -> R.string.describe_creation
+            })) },
         )
         val sourceCompatible = state.activeSourceId == null || WorkflowCapability.IMAGE_TO_IMAGE in state.selectedWorkflow?.capabilities.orEmpty()
         val referencesAreEnough = state.selectedWorkflow?.id in setOf(
@@ -140,58 +149,68 @@ private fun PromptInput(state: ConversationUiState, onPromptChange: (String) -> 
 
 @Composable
 private fun ComposerActions(state: ConversationUiState, onShowBrief: (Boolean) -> Unit, onShowOptions: (Boolean) -> Unit, onPickMedia: (MediaRole, MediaKind) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        state.attachmentSlots.forEach { slot ->
-            val selectedCount = state.attachments.count { it.role == slot.role && it.kind == slot.kind }
-            val slotLabel = attachmentRoleText(slot.role, slot.kind)
+    val hasEndFrame = state.attachmentSlots.any { it.role == MediaRole.END_FRAME }
+    Column {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+        ) {
+            state.attachmentSlots.forEach { slot ->
+                val selectedCount = state.attachments.count { it.role == slot.role && it.kind == slot.kind }
+                val slotLabel = when {
+                    slot.role == MediaRole.START_FRAME && !hasEndFrame -> stringResource(R.string.media_role_input_image)
+                    slot.role == MediaRole.END_FRAME && slot.minimumCount == 0 -> stringResource(R.string.media_role_optional_end_frame)
+                    else -> attachmentRoleText(slot.role, slot.kind)
+                }
+                AssistChip(
+                    onClick = { onPickMedia(slot.role, slot.kind) },
+                    enabled = slot.maximumCount == null || slot.maximumCount == 1 || selectedCount < slot.maximumCount,
+                    label = {
+                        Text(
+                            if (slot.maximumCount == null) stringResource(R.string.attachment_count_unspecified, slotLabel, selectedCount)
+                            else stringResource(R.string.attachment_count_limited, slotLabel, selectedCount, slot.maximumCount),
+                            maxLines = 2,
+                        )
+                    },
+                    leadingIcon = { Icon(when (slot.kind) {
+                        MediaKind.IMAGE -> Icons.Rounded.AddPhotoAlternate
+                        MediaKind.VIDEO -> Icons.Rounded.PlayArrow
+                        MediaKind.AUDIO -> Icons.Rounded.MusicNote
+                    }, null) },
+                    modifier = Modifier.testTag("media_slot_${slot.role}_${slot.kind}"),
+                )
+            }
+            if (state.selectedWorkflow?.supportedOptions?.isNotEmpty() == true) {
+                AssistChip(onClick = { onShowOptions(true) }, label = { Text(stringResource(R.string.presets), maxLines = 1) }, leadingIcon = { Icon(Icons.Rounded.Tune, null) })
+            }
             AssistChip(
-                onClick = { onPickMedia(slot.role, slot.kind) },
-                enabled = slot.maximumCount == null || slot.maximumCount == 1 || selectedCount < slot.maximumCount,
+                onClick = { onShowBrief(true) },
                 label = {
                     Text(
-                        if (slot.maximumCount == null) stringResource(R.string.attachment_count_unspecified, slotLabel, selectedCount)
-                        else stringResource(R.string.attachment_count_limited, slotLabel, selectedCount, slot.maximumCount),
-                        maxLines = 2,
+                        stringResource(if (state.brief == com.higgsfield.mobile.core.model.CreativeBrief()) R.string.brief_empty_summary else R.string.brief_active_summary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
-                leadingIcon = { Icon(when (slot.kind) {
-                    MediaKind.IMAGE -> Icons.Rounded.AddPhotoAlternate
-                    MediaKind.VIDEO -> Icons.Rounded.PlayArrow
-                    MediaKind.AUDIO -> Icons.Rounded.MusicNote
-                }, null) },
-                modifier = Modifier.fillMaxWidth().testTag("media_slot_${slot.role}_${slot.kind}"),
             )
         }
         state.selectedWorkflow?.maximumCombinedReferences?.let { maximum ->
             Text(stringResource(R.string.reference_combined_limit, maximum), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (state.selectedWorkflow?.supportedOptions?.isNotEmpty() == true) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                AssistChip(onClick = { onShowOptions(true) }, label = { Text(stringResource(R.string.presets), maxLines = 1) }, leadingIcon = { Icon(Icons.Rounded.Tune, null) })
-            }
-        }
-        AssistChip(
-            onClick = { onShowBrief(true) },
-            label = {
-                Text(
-                    stringResource(if (state.brief == com.higgsfield.mobile.core.model.CreativeBrief()) R.string.brief_empty_summary else R.string.brief_active_summary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
     }
 }
 
 @Composable
-private fun DraftAttachmentCard(attachment: DraftMediaAttachment, onRemove: (MediaRole, String) -> Unit) {
+private fun DraftAttachmentCard(attachment: DraftMediaAttachment, hasEndFrame: Boolean, onRemove: (MediaRole, String) -> Unit) {
+    val roleLabel = if (attachment.role == MediaRole.START_FRAME && !hasEndFrame) stringResource(R.string.media_role_input_image)
+        else attachmentRoleText(attachment.role, attachment.kind)
     Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(16.dp)) {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            AsyncImage(model = attachment.uri, contentDescription = attachmentRoleText(attachment.role, attachment.kind), modifier = Modifier.size(56.dp).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+            AsyncImage(model = attachment.uri, contentDescription = roleLabel, modifier = Modifier.size(56.dp).background(MaterialTheme.colorScheme.surface, RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
             Column(Modifier.weight(1f)) {
-                Text(attachmentRoleText(attachment.role, attachment.kind), style = MaterialTheme.typography.labelLarge)
+                Text(roleLabel, style = MaterialTheme.typography.labelLarge)
                 Text(attachment.label, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
             }
             IconButton(onClick = { onRemove(attachment.role, attachment.uri) }) { Icon(Icons.Rounded.Close, stringResource(R.string.remove_attachment)) }
@@ -200,8 +219,8 @@ private fun DraftAttachmentCard(attachment: DraftMediaAttachment, onRemove: (Med
 }
 
 @Composable
-private fun AttachmentList(attachments: List<DraftMediaAttachment>, onRemove: (MediaRole, String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { attachments.forEach { DraftAttachmentCard(it, onRemove) } }
+private fun AttachmentList(attachments: List<DraftMediaAttachment>, hasEndFrame: Boolean, onRemove: (MediaRole, String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { attachments.forEach { DraftAttachmentCard(it, hasEndFrame, onRemove) } }
 }
 
 @Composable

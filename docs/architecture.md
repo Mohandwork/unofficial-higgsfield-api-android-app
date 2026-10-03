@@ -62,7 +62,9 @@ The conversation state derives local attachment slots from the selected workflow
 
 Higgsfield is stateless. `PromptComposer` deterministically joins non-empty Creative Brief fields and the current instruction. When supported, exclusions are mapped to the DTO's `negative_prompt`; they are not duplicated into hidden history. Each generation stores the exact composed prompt, negative prompt, options, source output ID, and attachments. Retry uses these submission-time values instead of recomposing with the conversation's current brief.
 
-Composer drafts are stored separately per conversation in Room (`conversation_drafts`), with a version 1-to-2 migration that preserves existing chats and generations. Draft writes are serialized so rapid typing and navigation cannot reorder saved values.
+Composer drafts are stored separately per conversation in Room (`conversation_drafts`), with a version 1-to-2 migration that preserves existing chats and generations. Normal draft writes are debounced and flushed at key transitions; serialization of overlapping writes remains planned. Reusing a generation's parameters writes its selected model, brief, draft, and cleared active source in one Room transaction. Workflow and source selection update the visible composer after their persistence call succeeds, and late snapshots are held until they confirm the new selection.
+
+App launch and New Chat open a local, unsaved workspace. Model, media, brief, and option browsing does not insert a conversation row. The first nonblank prompt creates a conversation and its initial draft in one transaction; a prompt-free media route also creates one when the user submits it. Opening a saved conversation only observes its existing row, and removing the last chat returns to the unsaved workspace.
 
 ## Attachment upload boundary
 

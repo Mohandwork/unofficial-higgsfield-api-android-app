@@ -286,17 +286,19 @@ class ConversationViewModelTest {
     }
 
     @Test
-    fun `create event emits one navigation effect after persistence succeeds`() = runTest {
-        val viewModel = ConversationViewModel(FakeConversationPersistence())
+    fun `new chat event opens an empty workspace without creating a row`() = runTest {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
         viewModel.initialize(MediaKind.IMAGE)
 
         viewModel.onEvent(ConversationUiEvent.CreateConversation(MediaKind.IMAGE))
 
         assertEquals(
-            ConversationUiEffect.NavigateToConversation("image-new", MediaKind.IMAGE),
+            ConversationUiEffect.NavigateToConversation(null, MediaKind.IMAGE),
             viewModel.effects.first(),
         )
         assertTrue(viewModel.state.value.isTransitioning)
+        assertEquals(0, persistence.createdFromDraftCount)
     }
 
     @Test
@@ -338,15 +340,70 @@ class ConversationViewModelTest {
     }
 
     @Test
-    fun `failed chat creation clears transition instead of trapping workspace`() {
+    fun `failed first prompt creation keeps the empty workspace and reports an error`() {
         val persistence = FakeConversationPersistence().apply { createFailure = IllegalStateException("disk unavailable") }
         val viewModel = ConversationViewModel(persistence)
-        viewModel.initialize(MediaKind.IMAGE)
+        viewModel.initializeEmpty(MediaKind.IMAGE)
 
-        viewModel.onEvent(ConversationUiEvent.CreateConversation(MediaKind.IMAGE))
+        viewModel.updatePrompt("A red kite")
 
+        assertEquals("", viewModel.state.value.conversationId)
+        assertEquals("A red kite", viewModel.state.value.prompt)
         assertEquals(false, viewModel.state.value.isTransitioning)
         assertEquals(ConversationText.Resource(R.string.error_unknown), viewModel.state.value.message)
+    }
+
+    @Test
+    fun `browsing models and options without a prompt does not create a chat`() {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initializeEmpty(MediaKind.IMAGE)
+
+        val model = WorkflowRegistry.find(WorkflowCatalog.QWEN_IMAGE_3_EDIT.id)!!
+        viewModel.selectWorkflow(model)
+        viewModel.updateBrief(CreativeBrief(mood = "Warm"))
+        viewModel.updateOptions(GenerationOptions(seed = 42L))
+        viewModel.updatePrompt("   ")
+
+        assertEquals("", viewModel.state.value.conversationId)
+        assertEquals(model, viewModel.state.value.selectedWorkflow)
+        assertEquals(0, persistence.createdFromDraftCount)
+    }
+
+    @Test
+    fun `first nonblank prompt creates one chat with chosen composer state`() {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initializeEmpty(MediaKind.IMAGE)
+        val model = WorkflowRegistry.find(WorkflowCatalog.QWEN_IMAGE_3_EDIT.id)!!
+        viewModel.selectWorkflow(model)
+        viewModel.updateBrief(CreativeBrief(mood = "Warm"))
+        viewModel.updateOptions(GenerationOptions(seed = 42L))
+
+        viewModel.updatePrompt("A red kite")
+        viewModel.updatePrompt("A red kite in flight")
+
+        assertEquals(1, persistence.createdFromDraftCount)
+        assertEquals("image-new", viewModel.state.value.conversationId)
+        assertEquals(model.id, persistence.selectedWorkflowId)
+        assertEquals(CreativeBrief(mood = "Warm"), persistence.savedBrief)
+        assertEquals("A red kite", persistence.savedDrafts["image-new"]?.prompt)
+    }
+
+    @Test
+    fun `typing during first chat creation saves the latest prompt`() = runTest {
+        val creationBarrier = CompletableDeferred<Unit>()
+        val persistence = FakeConversationPersistence().apply { this.creationBarrier = creationBarrier }
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initializeEmpty(MediaKind.IMAGE)
+
+        viewModel.updatePrompt("A")
+        viewModel.updatePrompt("A red kite")
+        creationBarrier.complete(Unit)
+
+        assertEquals(1, persistence.createdFromDraftCount)
+        assertEquals("A red kite", persistence.savedDrafts["image-new"]?.prompt)
+        assertEquals("A red kite", viewModel.state.value.prompt)
     }
 
     @Test
@@ -569,6 +626,162 @@ class ConversationViewModelTest {
         assertEquals("", viewModel.state.value.prompt)
         assertEquals("", persistence.savedDrafts["image-default"]?.prompt)
     }
+
+    @Test
+    fun `failed workflow selection keeps the previous model and attachments`() {
+        val persistence = FakeConversationPersistence().apply { workflowFailure = IllegalStateException("write failed") }
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+        val originalWorkflow = viewModel.state.value.selectedWorkflow
+        val requested = WorkflowRegistry.find(WorkflowCatalog.QWEN_IMAGE_3_EDIT.id)!!
+
+        viewModel.selectWorkflow(requested)
+
+        assertEquals(originalWorkflow, viewModel.state.value.selectedWorkflow)
+        assertTrue(viewModel.state.value.attachments.isEmpty())
+        assertEquals(ConversationText.Resource(R.string.error_unknown), viewModel.state.value.message)
+    }
+
+    @Test
+    fun `removing the last chat opens an unsaved workspace`() = runTest {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+
+        viewModel.removeCurrentConversation()
+
+        assertEquals(listOf("image-default"), persistence.deletedIds)
+        assertEquals(ConversationUiEffect.NavigateToConversation(null, MediaKind.IMAGE), viewModel.effects.first())
+        assertEquals(0, persistence.createdFromDraftCount)
+    }
+
+    @Test
+    fun `stale snapshot cannot replace a newly selected workflow`() {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+        val selected = WorkflowRegistry.find(WorkflowCatalog.QWEN_IMAGE_3_EDIT.id)!!
+
+        viewModel.selectWorkflow(selected)
+        persistence.emit(PersistedConversationSnapshot(
+            id = "image-default", title = "Images", mediaKind = MediaKind.IMAGE,
+            brief = CreativeBrief(),
+            selectedWorkflowId = WorkflowCatalog.SOUL.id, activeSourceOutputId = null,
+            requiresSourceSelection = false, timeline = emptyList(),
+        ))
+
+        assertEquals(selected, viewModel.state.value.selectedWorkflow)
+
+        persistence.emit(PersistedConversationSnapshot(
+            id = "image-default", title = "Images", mediaKind = MediaKind.IMAGE,
+            brief = CreativeBrief(),
+            selectedWorkflowId = selected.id, activeSourceOutputId = null,
+            requiresSourceSelection = false, timeline = emptyList(),
+        ))
+
+        assertEquals(selected, viewModel.state.value.selectedWorkflow)
+    }
+
+    @Test
+    fun `failed source selection and detach keep the active image`() {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+        viewModel.selectWorkflow(WorkflowRegistry.find(WorkflowCatalog.QWEN_IMAGE_3_EDIT.id)!!)
+        val image = TimelineItem(
+            id = "image-1", prompt = "Apple", modelName = "Qwen",
+            stateLabel = ConversationText.Resource(R.string.status_completed),
+            output = GenerationOutput("output-1", "https://example.test/apple.png", MediaKind.IMAGE),
+            sourceOutputId = "output-1",
+        )
+        viewModel.useOutput(image)
+        assertEquals("image-1", viewModel.state.value.activeSourceId)
+
+        persistence.sourceFailure = IllegalStateException("write failed")
+        viewModel.useOutput(image.copy(id = "image-2", sourceOutputId = "output-2",
+            output = GenerationOutput("output-2", "https://example.test/second.png", MediaKind.IMAGE)))
+        assertEquals("image-1", viewModel.state.value.activeSourceId)
+        assertEquals("output-1", viewModel.currentDraft()?.activeSourceId)
+
+        viewModel.detachSource()
+
+        assertEquals("image-1", viewModel.state.value.activeSourceId)
+        assertEquals("output-1", viewModel.currentDraft()?.activeSourceId)
+        assertEquals(ConversationText.Resource(R.string.error_unknown), viewModel.state.value.message)
+    }
+
+    @Test
+    fun `failed parameter reuse leaves composer unchanged`() {
+        val persistence = FakeConversationPersistence().apply { reuseFailure = IllegalStateException("write failed") }
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.VIDEO)
+        viewModel.updatePrompt("My current prompt")
+        val before = viewModel.state.value.composer
+        val draft = GenerationDraft("Older prompt", CreativeBrief(mood = "Moody"), WorkflowCatalog.SEEDANCE_2_5.id)
+        val item = TimelineItem(
+            id = "older", prompt = draft.instruction, modelName = "Seedance",
+            stateLabel = ConversationText.Resource(R.string.status_completed),
+            record = GenerationRecord("older", draft = draft, status = GenerationStatus.Completed(emptyList())),
+        )
+
+        viewModel.reuseParameters(item)
+
+        assertEquals(before, viewModel.state.value.composer)
+        assertEquals(ConversationText.Resource(R.string.error_unknown), viewModel.state.value.message)
+    }
+
+    @Test
+    fun `submission finishing after chat switch does not change the new chat`() = runTest {
+        val acceptance = CompletableDeferred<Unit>()
+        val repository = FakeGenerationRepository(
+            Result.failure(GenerationSubmissionException(ErrorMapper.credentialsRejected())), acceptance,
+        )
+        val viewModel = ConversationViewModel(FakeConversationPersistence(), generationRepository = repository)
+        viewModel.initialize(MediaKind.IMAGE)
+        viewModel.updatePrompt("An apple")
+        viewModel.submitGeneration()
+        assertTrue(viewModel.state.value.isSubmitting)
+
+        viewModel.initialize(MediaKind.VIDEO)
+        viewModel.updatePrompt("A lighthouse")
+        acceptance.complete(Unit)
+
+        assertEquals("image-default", repository.conversationId)
+        assertEquals("video-default", viewModel.state.value.conversationId)
+        assertEquals("A lighthouse", viewModel.state.value.prompt)
+        assertFalse(viewModel.state.value.isSubmitting)
+        assertNull(viewModel.state.value.message)
+    }
+
+    @Test
+    fun `late snapshot cannot replace a locally edited brief`() {
+        val persistence = FakeConversationPersistence()
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+        val edited = CreativeBrief(mood = "Warm")
+        viewModel.updateBrief(edited)
+
+        persistence.emit(PersistedConversationSnapshot(
+            id = "image-default", title = "Images", mediaKind = MediaKind.IMAGE,
+            brief = CreativeBrief(mood = "Old"), selectedWorkflowId = WorkflowCatalog.SOUL.id,
+            activeSourceOutputId = null, requiresSourceSelection = false, timeline = emptyList(),
+        ))
+
+        assertEquals(edited, viewModel.state.value.brief)
+        assertEquals(edited, persistence.savedBrief)
+    }
+
+    @Test
+    fun `brief write failure keeps local text and reports the error`() {
+        val persistence = FakeConversationPersistence().apply { briefFailure = IllegalStateException("write failed") }
+        val viewModel = ConversationViewModel(persistence)
+        viewModel.initialize(MediaKind.IMAGE)
+
+        viewModel.updateBrief(CreativeBrief(mood = "Warm"))
+
+        assertEquals("Warm", viewModel.state.value.brief.mood)
+        assertEquals(ConversationText.Resource(R.string.error_unknown), viewModel.state.value.message)
+    }
 }
 
 private class FakeConnectivityStatusProvider(isOnline: Boolean) : ConnectivityStatusProvider {
@@ -585,19 +798,33 @@ private class FakeConversationPersistence : ConversationPersistence {
     val savedDrafts = mutableMapOf<String, PersistedComposerDraft>()
     var selectedSourceOutputId: String? = null
     var createFailure: Exception? = null
+    var creationBarrier: CompletableDeferred<Unit>? = null
     var deleteFailure: Exception? = null
     var titleFailure: Exception? = null
+    var briefFailure: Exception? = null
+    var workflowFailure: Exception? = null
+    var sourceFailure: Exception? = null
+    var reuseFailure: Exception? = null
+    var selectedWorkflowId: WorkflowId? = null
+    var savedBrief: CreativeBrief? = null
     var lastRename: Pair<String, String>? = null
     val deletedIds = mutableListOf<String>()
     override fun observe(conversationId: String): Flow<PersistedConversationSnapshot?> =
         snapshots.getOrPut(conversationId) { MutableStateFlow(null) }
     override fun observeConversations(): Flow<List<ConversationSummary>> = emptyFlow()
     override suspend fun ensureConversation(conversationId: String, kind: MediaKind, initialWorkflowId: WorkflowId?) = Unit
-    override suspend fun createConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String {
+    override suspend fun mostRecentConversation(kind: MediaKind): String? = null
+    var createdFromDraftCount = 0
+    override suspend fun createConversationFromDraft(kind: MediaKind, workflowId: WorkflowId?, brief: CreativeBrief, draft: PersistedComposerDraft): String {
+        creationBarrier?.await()
         createFailure?.let { throw it }
-        return "${kind.name.lowercase()}-new"
+        createdFromDraftCount++
+        val id = "${kind.name.lowercase()}-new"
+        selectedWorkflowId = workflowId
+        savedBrief = brief
+        savedDrafts[id] = draft
+        return id
     }
-    override suspend fun mostRecentConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String = "${kind.name.lowercase()}-new"
     override suspend fun renameConversation(conversationId: String, title: String) {
         lastRename = conversationId to title
     }
@@ -608,11 +835,24 @@ private class FakeConversationPersistence : ConversationPersistence {
         deleteFailure?.let { throw it }
         deletedIds += conversationId
     }
-    override suspend fun saveBrief(conversationId: String, brief: CreativeBrief) = Unit
+    override suspend fun saveBrief(conversationId: String, brief: CreativeBrief) {
+        briefFailure?.let { throw it }
+        savedBrief = brief
+    }
     override suspend fun saveDraft(conversationId: String, draft: PersistedComposerDraft) {
         savedDrafts[conversationId] = draft
     }
-    override suspend fun saveSelectedWorkflow(conversationId: String, workflowId: WorkflowId) = Unit
+    override suspend fun saveSelectedWorkflow(conversationId: String, workflowId: WorkflowId) {
+        workflowFailure?.let { throw it }
+        selectedWorkflowId = workflowId
+    }
+    override suspend fun reuseParameters(conversationId: String, workflowId: WorkflowId, brief: CreativeBrief, draft: PersistedComposerDraft) {
+        reuseFailure?.let { throw it }
+        selectedWorkflowId = workflowId
+        savedBrief = brief
+        selectedSourceOutputId = null
+        savedDrafts[conversationId] = draft
+    }
     override suspend fun saveCompletedDemo(
         conversationId: String,
         generationId: String,
@@ -622,6 +862,7 @@ private class FakeConversationPersistence : ConversationPersistence {
         outputKind: MediaKind,
     ) = Unit
     override suspend fun selectActiveSource(conversationId: String, outputId: String?) {
+        sourceFailure?.let { throw it }
         selectedSourceOutputId = outputId
     }
 

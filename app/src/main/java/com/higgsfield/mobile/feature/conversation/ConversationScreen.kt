@@ -65,13 +65,13 @@ fun ConversationRoute(
     conversationId: String?,
     onBack: () -> Unit,
     onSelectMediaKind: (MediaKind) -> Unit,
-    onSelectConversation: (String, MediaKind) -> Unit,
+    onSelectConversation: (String?, MediaKind) -> Unit,
     viewModel: ConversationViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     LaunchedEffect(mediaKind, conversationId) {
-        if (conversationId == null) viewModel.createConversation(mediaKind)
+        if (conversationId == null) viewModel.initializeEmpty(mediaKind)
         else viewModel.initialize(mediaKind, conversationId)
     }
     val state by viewModel.state.collectAsStateWithLifecycle()

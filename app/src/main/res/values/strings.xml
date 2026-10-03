@@ -86,6 +86,8 @@
     <string name="model_source_user_provided">Source: pricing and specification screenshots supplied for this build.</string>
     <string name="describe_change">Describe what to change…</string>
     <string name="describe_creation">Describe what to create…</string>
+    <string name="describe_video_motion">Describe what should happen in the video…</string>
+    <string name="describe_video_motion_optional">Describe the video motion (optional)…</string>
     <string name="attach_reference_image">Attach a reference image</string>
     <string name="attach_media">Attach media</string>
     <string name="remove_attachment">Remove attachment</string>
@@ -94,6 +96,8 @@
     <string name="media_role_reference_image">Reference image</string>
     <string name="media_role_start_frame">Start frame</string>
     <string name="media_role_end_frame">End frame</string>
+    <string name="media_role_input_image">Input image</string>
+    <string name="media_role_optional_end_frame">End frame (optional)</string>
     <string name="media_role_audio">Audio reference</string>
     <string name="advanced_options_description">Advanced options</string>
     <string name="generation_specs">Generation specs</string>
