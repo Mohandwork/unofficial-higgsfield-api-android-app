@@ -7,10 +7,12 @@ Higgsfield Mobile is a focused Android client for image and video creation workf
 The refined product now includes:
 
 - Image and video workspaces with model/workflow selection.
+- Model selection grouped by family in a two-level menu, with a back action to compare families.
 - Persistent, section-scoped conversations with a compact history bottom sheet and an expanded rail.
 - New-chat, rename, and chat-removal flows with confirmation and transition feedback.
 - A Creative Brief for reusable intent, style, exclusions, and output guidance.
 - Reference-image selection, direct single-reference CTA behavior, and multi-reference support where a workflow allows it.
+- Multiple image and video references for Seedance 2.0/2.5 reference-to-video workflows, with model-specific attachment limits.
 - Static model capabilities, pricing, duration, and resolution metadata sourced from the supplied catalog material. Live estimates are intentionally not fabricated.
 - Generation lifecycle cards for queued, running, succeeded, failed, and cancelled requests, including server-provided error details.
 - Loading indicators for generation and larger workspace/history transitions.
@@ -22,6 +24,10 @@ The refined product now includes:
 The app is a Kotlin/Compose client organized around a presentation ViewModel, a Room-backed conversation/generation repository, and a small HTTP adapter for the Higgsfield endpoint. API calls are isolated behind the repository boundary so UI state can be exercised without a network request.
 
 Important behavior is documented in [docs/architecture.md](docs/architecture.md). The implementation plan is now an acceptance checklist rather than a list of unfinished product slices: [docs/implementation-plan.md](docs/implementation-plan.md). Current verification and known limitations are recorded in [docs/progress.md](docs/progress.md).
+
+## Editing starting rates
+
+Edit `app/src/main/java/com/higgsfield/mobile/core/model/WorkflowRegistry.kt`, in `staticMetadataFor`. Each model's `Triple` contains its starting price text, maximum resolution, and duration guidance. These are display-only starting rates; the app does not calculate a live checkout price. New workflows have `Pricing unavailable` until you enter a verified rate. `WorkflowCatalog.kt` holds the names, and `WorkflowRequestSchemas.kt` holds API request fields.
 
 ## Safety and operational notes
 

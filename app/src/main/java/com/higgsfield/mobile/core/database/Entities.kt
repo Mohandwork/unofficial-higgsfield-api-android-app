@@ -43,6 +43,7 @@ data class ConversationDraftEntity(
     val seed: Long? = null,
     val negativePrompt: String? = null,
     val attachmentsJson: String = "[]",
+    val modelOptionsJson: String = "{}",
 )
 
 enum class PersistedGenerationStatus { DRAFT, QUEUED, IN_PROGRESS, COMPLETED, FAILED, NSFW, CANCELED, UNKNOWN_SUBMISSION_OUTCOME }

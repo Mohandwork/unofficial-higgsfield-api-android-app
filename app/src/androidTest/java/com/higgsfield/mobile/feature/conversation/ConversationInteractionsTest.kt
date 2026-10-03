@@ -5,15 +5,22 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextClearance
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeLeft
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.higgsfield.mobile.R
+import com.higgsfield.mobile.core.database.ConversationSummary
 import com.higgsfield.mobile.core.model.CreativeBrief
 import com.higgsfield.mobile.core.model.GenerationDraft
 import com.higgsfield.mobile.core.model.GenerationOutput
 import com.higgsfield.mobile.core.model.GenerationRecord
 import com.higgsfield.mobile.core.model.GenerationStatus
 import com.higgsfield.mobile.core.model.MediaKind
+import com.higgsfield.mobile.core.model.MediaRole
+import com.higgsfield.mobile.core.model.WorkflowCatalog
+import com.higgsfield.mobile.core.model.WorkflowRegistry
 import com.higgsfield.mobile.ui.theme.HiggsfieldTheme
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -55,6 +62,94 @@ class ConversationInteractionsTest {
         compose.onNodeWithTag("new_conversation").performClick()
 
         compose.runOnIdle { assertEquals(1, createCount) }
+    }
+
+    @Test
+    fun chatRowRenamesAndSwipeRequestsRemovalOfThatChat() {
+        val events = mutableListOf<ConversationUiEvent>()
+        val removals = mutableListOf<String>()
+        val older = ConversationSummary("image-older", MediaKind.IMAGE, "Older chat", System.currentTimeMillis())
+        compose.setContent {
+            HiggsfieldTheme {
+                ConversationRail(
+                    state = ConversationUiState(chat = ChatUiState(
+                        mediaKind = MediaKind.IMAGE,
+                        id = "image-current",
+                        conversations = listOf(older),
+                    )),
+                    onSelectConversation = { _, _ -> },
+                    onCreateConversation = {},
+                    onRemoveConversation = { id, _ -> removals += id },
+                    onEvent = events::add,
+                )
+            }
+        }
+
+        compose.onNodeWithTag("rename_chat_image-older").performClick()
+        compose.onNodeWithTag("rename_chat_input").performTextClearance()
+        compose.onNodeWithTag("rename_chat_input").performTextInput("Renamed")
+        compose.onNodeWithText("Done").performClick()
+        compose.runOnIdle { assertTrue(ConversationUiEvent.RenameConversation("image-older", "Renamed") in events) }
+
+        compose.onNodeWithTag("chat_row_image-older").performTouchInput { swipeLeft() }
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        compose.onNodeWithText(context.getString(R.string.remove_chat_confirm)).performClick()
+        compose.runOnIdle { assertEquals(listOf("image-older"), removals) }
+    }
+
+    @Test
+    fun modelPickerNavigatesFamiliesAndSelectsAWorkflow() {
+        val events = mutableListOf<ConversationUiEvent>()
+        val workflows = WorkflowRegistry.forKind(MediaKind.VIDEO)
+        compose.setContent {
+            HiggsfieldTheme {
+                ConversationHeader(
+                    state = ConversationUiState(
+                        chat = ChatUiState(mediaKind = MediaKind.VIDEO),
+                        composer = ComposerUiState(workflows = workflows, selectedWorkflow = workflows.first()),
+                    ),
+                    onEvent = events::add,
+                    modelMenuOpen = true,
+                    onCreateConversation = {},
+                )
+            }
+        }
+
+        compose.onNodeWithTag("model_kling-3").assertDoesNotExist()
+        compose.onNodeWithTag("model_family_KLING").performClick()
+        compose.onNodeWithTag("model_kling-3").assertExists()
+        compose.onNodeWithTag("model_family_back").performClick()
+        compose.onNodeWithTag("model_family_SEEDANCE").performClick()
+        compose.onNodeWithTag("model_seedance-2-reference").performClick()
+
+        compose.runOnIdle {
+            assertTrue(ConversationUiEvent.SelectWorkflow(WorkflowRegistry.find(WorkflowCatalog.SEEDANCE_2_REFERENCE.id)!!) in events)
+        }
+    }
+
+    @Test
+    fun composerShowsTypeAndModelSpecificReferenceCounts() {
+        val workflow = WorkflowRegistry.find(WorkflowCatalog.SEEDANCE_2_REFERENCE.id)!!
+        compose.setContent {
+            HiggsfieldTheme {
+                ComposerDock(
+                    state = ConversationUiState(composer = ComposerUiState(
+                        selectedWorkflow = workflow,
+                        attachmentSlots = workflow.mediaRequirements,
+                        attachments = listOf(
+                            DraftMediaAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "content://photo/one", "one.jpg"),
+                            DraftMediaAttachment(MediaRole.REFERENCE, MediaKind.IMAGE, "content://photo/two", "two.jpg"),
+                            DraftMediaAttachment(MediaRole.VIDEO_REFERENCE, MediaKind.VIDEO, "content://video/one", "one.mp4"),
+                        ),
+                    )),
+                    motionEnabled = false,
+                    onEvent = {},
+                )
+            }
+        }
+
+        compose.onNodeWithText("Reference image: 2 of 9").assertExists()
+        compose.onNodeWithText("Reference video: 1 of 3").assertExists()
     }
 
     @Test

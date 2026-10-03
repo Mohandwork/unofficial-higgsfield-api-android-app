@@ -8,13 +8,19 @@ import com.higgsfield.mobile.core.error.AppError
 value class WorkflowId(val value: String)
 
 enum class MediaKind { IMAGE, VIDEO, AUDIO }
-enum class WorkflowFamily { SOUL, MARKETING_STUDIO, QWEN, SEEDANCE, KLING, CINEMA_STUDIO, WAN }
+enum class WorkflowFamily { SOUL, MARKETING_STUDIO, QWEN, SEEDANCE, KLING, CINEMA_STUDIO, WAN, HAPPY_HORSE, Z_IMAGE, GROK, IDEOGRAM, RECRAFT, GENJUTSU, MINIMAX, PIXVERSE }
 enum class WorkflowCapability {
     TEXT_TO_IMAGE, IMAGE_TO_IMAGE, TEXT_TO_VIDEO, IMAGE_TO_VIDEO,
     REFERENCE_IMAGE, NEGATIVE_PROMPT, SEED, AUDIO,
 }
 
-enum class WorkflowOption { ASPECT_RATIO, RESOLUTION, DURATION, SEED, NEGATIVE_PROMPT }
+enum class WorkflowOption { ASPECT_RATIO, RESOLUTION, DURATION, SEED, NEGATIVE_PROMPT, GENERATE_AUDIO, AIGC_WATERMARK, ENABLE_THINKING, PROMPT_EXTEND, RENDERING_SPEED, IMAGE_WEIGHT, OUTPUT_FORMAT, QUALITY, SOUND, MODE, CFG_SCALE, KEEP_ORIGINAL_SOUND, CHARACTER_ORIENTATION }
+
+data class OptionConstraint(
+    val choices: List<String> = emptyList(),
+    val minimum: Int? = null,
+    val maximum: Int? = null,
+)
 
 data class StaticEstimateMetadata(
     val fromPrice: String? = null,
@@ -27,13 +33,14 @@ data class StaticEstimateMetadata(
     val verifiedOn: String = "",
 )
 
-enum class MediaRole { SOURCE, START_FRAME, END_FRAME, REFERENCE, MOTION_REFERENCE, AUDIO }
+enum class MediaRole { SOURCE, START_FRAME, END_FRAME, REFERENCE, VIDEO_REFERENCE, MOTION_REFERENCE, AUDIO }
 
 data class MediaRequirement(
     val role: MediaRole,
     val kind: MediaKind,
     val minimumCount: Int = 0,
-    val maximumCount: Int = 1,
+    /** Null means the published workflow schema does not state a numeric limit. */
+    val maximumCount: Int? = 1,
 )
 
 data class WorkflowDescriptor(
@@ -47,6 +54,10 @@ data class WorkflowDescriptor(
     val endpointPath: String? = null,
     val pricingFactors: List<String> = emptyList(),
     val supportedOptions: Set<WorkflowOption> = emptySet(),
+    val optionConstraints: Map<WorkflowOption, OptionConstraint> = emptyMap(),
+    /** A shared maximum across image and video reference roles, when the API states one. */
+    val maximumCombinedReferences: Int? = null,
+    val promptRequired: Boolean = true,
     val staticEstimate: StaticEstimateMetadata? = null,
     val documentationUrl: String,
     val schemaVerifiedOn: String? = null,
@@ -78,6 +89,8 @@ data class GenerationOptions(
     val durationSeconds: Int? = null,
     val seed: Long? = null,
     val negativePrompt: String? = null,
+    /** Optional route-specific controls, stored by API field name. */
+    val modelOptions: Map<String, String> = emptyMap(),
 )
 
 data class GenerationDraft(

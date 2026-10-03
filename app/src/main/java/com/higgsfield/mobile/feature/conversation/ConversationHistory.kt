@@ -1,27 +1,41 @@
 package com.higgsfield.mobile.feature.conversation
 
 import android.text.format.DateUtils
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -29,10 +43,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.higgsfield.mobile.R
+import com.higgsfield.mobile.core.database.ConversationSummary
 import com.higgsfield.mobile.core.model.MediaKind
 
 @Composable
@@ -41,7 +57,7 @@ internal fun ConversationHistorySheet(
     state: ConversationUiState,
     onSelectConversation: (String, MediaKind) -> Unit,
     onCreateConversation: (MediaKind) -> Unit,
-    onRemoveConversation: () -> Unit,
+    onRemoveConversation: (String, MediaKind) -> Unit,
     onDismiss: () -> Unit,
     onEvent: (ConversationUiEvent) -> Unit,
 ) {
@@ -61,7 +77,7 @@ internal fun ConversationRail(
     state: ConversationUiState,
     onSelectConversation: (String, MediaKind) -> Unit,
     onCreateConversation: (MediaKind) -> Unit,
-    onRemoveConversation: () -> Unit,
+    onRemoveConversation: (String, MediaKind) -> Unit,
     onEvent: (ConversationUiEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -75,14 +91,14 @@ private fun ConversationHistoryContent(
     state: ConversationUiState,
     onSelectConversation: (String, MediaKind) -> Unit,
     onCreateConversation: (MediaKind) -> Unit,
-    onRemoveConversation: () -> Unit,
+    onRemoveConversation: (String, MediaKind) -> Unit,
     onEvent: (ConversationUiEvent) -> Unit,
     modifier: Modifier = Modifier,
     scrollEnabled: Boolean = true,
 ) {
-    var renameOpen by remember { mutableStateOf(false) }
-    var removeOpen by remember { mutableStateOf(false) }
-    var renameValue by remember(state.conversationTitle) { mutableStateOf(state.conversationTitle) }
+    var renameTarget by remember { mutableStateOf<ConversationSummary?>(null) }
+    var removeTarget by remember { mutableStateOf<ConversationSummary?>(null) }
+    var renameValue by remember { mutableStateOf("") }
     Column(modifier.verticalScroll(rememberScrollState(), enabled = scrollEnabled)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.conversations), style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
@@ -93,45 +109,70 @@ private fun ConversationHistoryContent(
             if (conversations.isEmpty()) return@forEach
             Text(if (kind == MediaKind.IMAGE) stringResource(R.string.image) else stringResource(R.string.video), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp))
             conversations.forEach { conversation ->
-                Card(
-                    onClick = { onSelectConversation(conversation.id, conversation.mediaKind) },
-                    colors = CardDefaults.cardColors(containerColor = if (conversation.id == state.conversationId) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface),
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(conversation.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            DateUtils.getRelativeTimeSpanString(conversation.updatedAtEpochMillis, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString(),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                key(conversation.id) {
+                    val swipeState = rememberSwipeToDismissBoxState()
+                    LaunchedEffect(swipeState.currentValue) {
+                        if (swipeState.currentValue == SwipeToDismissBoxValue.EndToStart) {
+                            removeTarget = conversation
+                            swipeState.reset()
+                        }
+                    }
+                    SwipeToDismissBox(
+                        state = swipeState,
+                        enableDismissFromStartToEnd = false,
+                        enableDismissFromEndToStart = true,
+                        backgroundContent = {
+                            Box(Modifier.fillMaxSize().padding(top = 8.dp), contentAlignment = Alignment.CenterEnd) {
+                                Icon(Icons.Rounded.Delete, stringResource(R.string.remove_chat), tint = MaterialTheme.colorScheme.error, modifier = Modifier.padding(end = 20.dp))
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).testTag("chat_row_${conversation.id}"),
+                    ) {
+                        Card(
+                            onClick = { onSelectConversation(conversation.id, conversation.mediaKind) },
+                            colors = CardDefaults.cardColors(containerColor = if (conversation.id == state.conversationId) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface),
+                        ) {
+                            Column(Modifier.padding(start = 12.dp, top = 4.dp, bottom = 10.dp, end = 4.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(conversation.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                    IconButton(onClick = { renameValue = conversation.title; renameTarget = conversation }, modifier = Modifier.testTag("rename_chat_${conversation.id}")) {
+                                        Icon(Icons.Rounded.Edit, stringResource(R.string.rename_chat))
+                                    }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                    Text(
+                                        DateUtils.getRelativeTimeSpanString(conversation.updatedAtEpochMillis, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS).toString(),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(stringResource(R.string.swipe_left_to_remove_chat), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
-        if (state.conversationTitle.isNotBlank()) TextButton(onClick = { renameOpen = true }) { Text(stringResource(R.string.rename_chat)) }
-        if (state.conversationTitle.isNotBlank()) {
-            Text(stringResource(R.string.chat_removal), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 20.dp))
-            Text(stringResource(R.string.remove_chat_description), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(onClick = { removeOpen = true }) { Text(stringResource(R.string.remove_chat), color = MaterialTheme.colorScheme.error) }
-        }
     }
-    if (renameOpen) {
+    renameTarget?.let { target ->
         AlertDialog(
-            onDismissRequest = { renameOpen = false },
+            onDismissRequest = { renameTarget = null },
             title = { Text(stringResource(R.string.rename_chat)) },
-            text = { OutlinedTextField(renameValue, { renameValue = it }, Modifier.fillMaxWidth()) },
-            dismissButton = { TextButton(onClick = { renameOpen = false }) { Text(stringResource(R.string.cancel)) } },
-            confirmButton = { TextButton(onClick = { onEvent(ConversationUiEvent.RenameConversation(renameValue)); renameOpen = false }) { Text(stringResource(R.string.done)) } },
+            text = { OutlinedTextField(renameValue, { renameValue = it }, Modifier.fillMaxWidth().testTag("rename_chat_input")) },
+            dismissButton = { TextButton(onClick = { renameTarget = null }) { Text(stringResource(R.string.cancel)) } },
+            confirmButton = { TextButton(onClick = { onEvent(ConversationUiEvent.RenameConversation(target.id, renameValue)); renameTarget = null }, enabled = renameValue.isNotBlank()) { Text(stringResource(R.string.done)) } },
         )
     }
-    if (removeOpen) {
+    removeTarget?.let { target ->
         AlertDialog(
-            onDismissRequest = { removeOpen = false },
+            onDismissRequest = { removeTarget = null },
             title = { Text(stringResource(R.string.remove_chat_confirm_title)) },
             text = { Text(stringResource(R.string.remove_chat_description)) },
-            dismissButton = { TextButton(onClick = { removeOpen = false }) { Text(stringResource(R.string.cancel)) } },
-            confirmButton = { TextButton(onClick = { removeOpen = false; onRemoveConversation() }) { Text(stringResource(R.string.remove_chat_confirm), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { removeTarget = null }) { Text(stringResource(R.string.cancel)) } },
+            confirmButton = { TextButton(onClick = { removeTarget = null; onRemoveConversation(target.id, target.mediaKind) }) { Text(stringResource(R.string.remove_chat_confirm), color = MaterialTheme.colorScheme.error) } },
         )
     }
 }

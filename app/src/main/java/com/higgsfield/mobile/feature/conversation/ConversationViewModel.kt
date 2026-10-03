@@ -25,6 +25,7 @@ import com.higgsfield.mobile.core.model.MediaRequirement
 import com.higgsfield.mobile.core.model.MediaRole
 import com.higgsfield.mobile.core.model.WorkflowCapability
 import com.higgsfield.mobile.core.model.WorkflowDescriptor
+import com.higgsfield.mobile.core.model.WorkflowId
 import com.higgsfield.mobile.core.model.WorkflowOption
 import com.higgsfield.mobile.core.model.WorkflowRegistry
 import com.higgsfield.mobile.core.network.RequestStatusPoller
@@ -57,11 +58,20 @@ class ConversationViewModel @Inject constructor(
     private var conversationId: String? = null
     private val workspace = ConversationWorkspaceCoordinator(persistence, connectivity, generationRepository, statusPoller)
     private val draftWriter = ComposerDraftWriter(persistence)
-    private var detachAwaitingDatabaseConfirmation = false
+    private var sourceConfirmationPending = false
+    private var pendingSourceOutputId: String? = null
+    private var lastObservedSourceOutputId: String? = null
+    private var workflowConfirmationPending = false
+    private var pendingWorkflowId: WorkflowId? = null
+    private var lastObservedWorkflowId: WorkflowId? = null
     private var persistedActiveSourceOutputId: String? = null
     private var draftTouched = false
+    private var briefTouched = false
     private var snapshotLoaded = false
     private var recordsLoaded = false
+    private var creatingConversation = false
+    private var submitAfterCreation = false
+    private var workspaceVersion = 0
     init {
         draftWriter.start(viewModelScope, ::onDraftWriteFailure)
     }
@@ -69,6 +79,7 @@ class ConversationViewModel @Inject constructor(
     fun initialize(kind: MediaKind, requestedConversationId: String? = null) {
         val id = requestedConversationId ?: kind.name.lowercase() + "-default"
         if (conversationId == id && mutableState.value.workflows.isNotEmpty()) return
+        workspaceVersion++
         conversationId?.takeIf { it != id }?.let { previousId ->
             viewModelScope.launch { draftWriter.flush(previousId, ::onDraftWriteFailure) }
         }
@@ -83,13 +94,48 @@ class ConversationViewModel @Inject constructor(
         )
         conversationId = id
         draftTouched = false
+        briefTouched = false
         snapshotLoaded = false
         recordsLoaded = generationRepository == null
         persistedActiveSourceOutputId = null
+        sourceConfirmationPending = false
+        pendingSourceOutputId = null
+        lastObservedSourceOutputId = null
+        workflowConfirmationPending = false
+        pendingWorkflowId = null
+        lastObservedWorkflowId = null
+        observeSavedConversation(id)
+    }
+
+    fun initializeEmpty(kind: MediaKind, force: Boolean = false) {
+        if (!force && conversationId == null && mutableState.value.workflows.isNotEmpty() && mutableState.value.mediaKind == kind) return
+        workspaceVersion++
+        conversationId = null
+        creatingConversation = false
+        submitAfterCreation = false
+        draftTouched = false
+        briefTouched = false
+        val workflows = WorkflowRegistry.forKind(kind)
+        mutableState.value = ConversationUiState(
+            chat = ChatUiState(mediaKind = kind),
+            composer = ComposerUiState(
+                workflows = workflows,
+                selectedWorkflow = workflows.firstOrNull(),
+                attachmentSlots = composerUseCase.slotsFor(workflows.firstOrNull()),
+            ),
+        )
+        workspace.observeEmpty(
+            viewModelScope,
+            onHistory = { conversations -> mutableState.update { it.copy(chat = it.chat.copy(conversations = conversations)) } },
+            onConnectivity = { online -> mutableState.update { it.copy(isOnline = online) } },
+            onFailure = { mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) } },
+        )
+    }
+
+    private fun observeSavedConversation(id: String) {
         workspace.observe(
             scope = viewModelScope,
             id = id,
-            kind = kind,
             onSnapshot = ::restoreSnapshot,
             onRecords = { records -> if (conversationId == id) restoreGenerationRecords(records) },
             onHistory = { conversations -> mutableState.update { it.copy(chat = it.chat.copy(conversations = conversations)) } },
@@ -106,6 +152,7 @@ class ConversationViewModel @Inject constructor(
         draftTouched = true
         mutableState.update { it.copy(composer = it.composer.copy(prompt = value), message = null) }
         persistDraft()
+        if (conversationId == null && value.isNotBlank()) createFromComposer()
     }
 
     fun onEvent(event: ConversationUiEvent) {
@@ -119,11 +166,11 @@ class ConversationViewModel @Inject constructor(
 
     private fun onChatEvent(event: ConversationUiEvent.Chat) {
         when (event) {
-            is ConversationUiEvent.SelectMediaKind -> openMostRecentConversation(event.kind)
+            is ConversationUiEvent.SelectMediaKind -> selectMediaKind(event.kind)
             is ConversationUiEvent.OpenConversation -> openConversation(event.id, event.kind)
             is ConversationUiEvent.CreateConversation -> createConversation(event.kind)
-            ConversationUiEvent.RemoveConversation -> removeCurrentConversation()
-            is ConversationUiEvent.RenameConversation -> renameConversation(event.title)
+            is ConversationUiEvent.RemoveConversation -> removeConversation(event.id, event.kind)
+            is ConversationUiEvent.RenameConversation -> renameConversation(event.id, event.title)
         }
     }
 
@@ -137,7 +184,7 @@ class ConversationViewModel @Inject constructor(
                 effectChannel.send(ConversationUiEffect.LaunchMediaPicker(event.role, event.kind))
             }
             is ConversationUiEvent.MediaPicked -> attachMedia(event.role, event.kind, event.uri, event.label)
-            is ConversationUiEvent.RemoveMedia -> removeMedia(event.role)
+            is ConversationUiEvent.RemoveMedia -> removeMedia(event.role, event.uri)
             ConversationUiEvent.DetachSource -> detachSource()
             is ConversationUiEvent.EditImage -> useOutput(event.item)
             is ConversationUiEvent.ReuseParameters -> reuseParameters(event.item)
@@ -159,8 +206,7 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
-    fun renameConversation(title: String) {
-        val id = conversationId ?: return
+    fun renameConversation(id: String, title: String) {
         viewModelScope.launch {
             try {
                 persistence.renameConversation(id, title)
@@ -172,11 +218,17 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
-    fun createConversation(kind: MediaKind) = navigate(kind) { conversationLifecycle.create(kind) }
+    fun createConversation(kind: MediaKind) {
+        if (conversationId == null && kind == mutableState.value.mediaKind) {
+            initializeEmpty(kind, force = true)
+        } else {
+            navigate(kind) { null }
+        }
+    }
 
-    fun openMostRecentConversation(kind: MediaKind) {
+    fun selectMediaKind(kind: MediaKind) {
         if (kind == mutableState.value.mediaKind) return
-        navigate(kind) { conversationLifecycle.mostRecent(kind) }
+        navigate(kind) { null }
     }
 
     fun openConversation(id: String, kind: MediaKind) = navigate(kind) { id }
@@ -184,10 +236,26 @@ class ConversationViewModel @Inject constructor(
     fun removeCurrentConversation() {
         val id = conversationId ?: return
         val kind = mutableState.value.mediaKind
-        navigate(kind) { conversationLifecycle.removeAndOpenNext(id, kind) }
+        removeConversation(id, kind)
     }
 
-    private fun navigate(kind: MediaKind, destination: suspend () -> String) {
+    fun removeConversation(id: String, kind: MediaKind) {
+        if (id == conversationId) {
+            navigate(kind) { conversationLifecycle.removeAndOpenNext(id, kind) }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                persistence.deleteConversation(id)
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (_: Exception) {
+                mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
+            }
+        }
+    }
+
+    private fun navigate(kind: MediaKind, destination: suspend () -> String?) {
         mutableState.update { it.copy(chat = it.chat.copy(isTransitioning = true)) }
         viewModelScope.launch {
             try {
@@ -206,25 +274,49 @@ class ConversationViewModel @Inject constructor(
     }
 
     fun selectWorkflow(workflow: WorkflowDescriptor) {
-        draftTouched = true
-        mutableState.update { current ->
-            val selection = composerUseCase.selectWorkflow(current, workflow)
-            current.copy(
-                composer = current.composer.copy(
+        val id = conversationId
+        if (id == null) {
+            draftTouched = true
+            mutableState.update { current ->
+                val selection = composerUseCase.selectWorkflow(current, workflow)
+                current.copy(composer = current.composer.copy(
                     selectedWorkflow = workflow,
                     attachmentSlots = selection.slots,
                     attachments = selection.attachments,
                     options = selection.options,
-                ),
-                message = if (selection.activeImageIncompatible) {
-                    ConversationText.Resource(R.string.message_model_cannot_edit_active_image)
-                } else null,
-            )
+                ))
+            }
+            return
         }
-        conversationId?.let { id ->
-            viewModelScope.launch { persistence.saveSelectedWorkflow(id, workflow.id) }
+        viewModelScope.launch {
+            try {
+                sourceSelectionUseCase.selectWorkflow(id, workflow)
+                if (conversationId != id) return@launch
+                awaitWorkflowConfirmation(workflow.id)
+                draftTouched = true
+                mutableState.update { current ->
+                    val selection = composerUseCase.selectWorkflow(current, workflow)
+                    current.copy(
+                        composer = current.composer.copy(
+                            selectedWorkflow = workflow,
+                            attachmentSlots = selection.slots,
+                            attachments = selection.attachments,
+                            options = selection.options,
+                        ),
+                        message = if (selection.activeImageIncompatible) {
+                            ConversationText.Resource(R.string.message_model_cannot_edit_active_image)
+                        } else null,
+                    )
+                }
+                persistDraft()
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (_: Exception) {
+                if (conversationId == id) mutableState.update {
+                    it.copy(message = ConversationText.Resource(R.string.error_unknown))
+                }
+            }
         }
-        persistDraft()
     }
 
     fun attachMedia(role: MediaRole, kind: MediaKind, uri: String, label: String) {
@@ -232,20 +324,34 @@ class ConversationViewModel @Inject constructor(
         mutableState.update { current ->
             val slot = current.attachmentSlots.firstOrNull { it.role == role && it.kind == kind }
                 ?: return@update current
+            if (current.attachments.any { it.uri == uri && it.role == role }) return@update current
+            val sameRole = current.attachments.filter { it.role == role && it.kind == kind }
+            val combinedMaximum = current.selectedWorkflow?.maximumCombinedReferences
+            if (combinedMaximum != null && role in setOf(MediaRole.REFERENCE, MediaRole.VIDEO_REFERENCE) &&
+                current.attachments.count { it.role in setOf(MediaRole.REFERENCE, MediaRole.VIDEO_REFERENCE) } >= combinedMaximum) {
+                return@update current.copy(message = ConversationText.Resource(R.string.message_photo_reference_limit, listOf(combinedMaximum)))
+            }
+            if (slot.maximumCount != null && slot.maximumCount > 1 && sameRole.size >= slot.maximumCount) return@update current.copy(
+                message = ConversationText.Resource(
+                    if (kind == MediaKind.VIDEO) R.string.message_video_reference_limit else R.string.message_photo_reference_limit,
+                    listOf(slot.maximumCount),
+                ),
+            )
             current.copy(
                 composer = current.composer.copy(
-                    attachments = current.attachments.filterNot { it.role == role } +
+                    attachments = (if (slot.maximumCount == 1) current.attachments.filterNot { it.role == role && it.kind == kind } else current.attachments) +
                         DraftMediaAttachment(role, slot.kind, uri, label),
                 ),
+                message = null,
             )
         }
         persistDraft()
     }
 
-    fun removeMedia(role: MediaRole) {
+    fun removeMedia(role: MediaRole, uri: String) {
         draftTouched = true
         mutableState.update { current ->
-            current.copy(composer = current.composer.copy(attachments = current.attachments.filterNot { it.role == role }))
+            current.copy(composer = current.composer.copy(attachments = current.attachments.filterNot { it.role == role && it.uri == uri }))
         }
         persistDraft()
     }
@@ -261,13 +367,33 @@ class ConversationViewModel @Inject constructor(
     fun currentDraft(): GenerationDraft? = composerUseCase.draftFor(mutableState.value, persistedActiveSourceOutputId)
 
     fun updateBrief(brief: CreativeBrief) {
+        briefTouched = true
         mutableState.update { it.copy(composer = it.composer.copy(brief = brief)) }
-        conversationId?.let { id -> viewModelScope.launch { persistence.saveBrief(id, brief) } }
+        conversationId?.let { id ->
+            viewModelScope.launch {
+                try {
+                    persistence.saveBrief(id, brief)
+                } catch (canceled: CancellationException) {
+                    throw canceled
+                } catch (_: Exception) {
+                    if (conversationId == id && mutableState.value.brief == brief) mutableState.update {
+                        it.copy(message = ConversationText.Resource(R.string.error_unknown))
+                    }
+                }
+            }
+        }
     }
 
     fun submitGeneration() {
-        val id = conversationId ?: return
         val current = mutableState.value
+        if (conversationId == null) {
+            if (composerUseCase.draftFor(current, null) != null) {
+                submitAfterCreation = true
+                createFromComposer()
+            }
+            return
+        }
+        val id = conversationId ?: return
         if (current.activeSourceId != null && current.timeline.none {
                 it.id == current.activeSourceId && it.sourceOutputId != null
             }) {
@@ -325,8 +451,9 @@ class ConversationViewModel @Inject constructor(
                 Result.failure(error)
             }
             mutableState.update { current ->
+                if (current.conversationId != conversationId) return@update current
                 current.copy(
-                    composer = current.composer.copy(prompt = if (result.isSuccess && clearPromptOnSuccess && current.conversationId == conversationId && current.prompt == draft.instruction) "" else current.prompt),
+                    composer = current.composer.copy(prompt = if (result.isSuccess && clearPromptOnSuccess && current.prompt == draft.instruction) "" else current.prompt),
                     generation = current.generation.copy(isSubmitting = false),
                     message = result.exceptionOrNull()?.toConversationText(),
                 )
@@ -345,17 +472,20 @@ class ConversationViewModel @Inject constructor(
 
     fun detachSource() {
         val id = conversationId ?: return
-        detachAwaitingDatabaseConfirmation = true
-        persistedActiveSourceOutputId = null
-        mutableState.update {
-            it.copy(composer = it.composer.copy(activeSourceId = null, activeSourceLabel = null), message = ConversationText.Resource(R.string.message_fresh_generation_started))
-        }
         viewModelScope.launch {
-            runCatching { sourceSelectionUseCase.detach(id) }
-                .onFailure {
-                    detachAwaitingDatabaseConfirmation = false
-                    mutableState.update { state -> state.copy(message = ConversationText.Resource(R.string.error_unknown)) }
+            try {
+                sourceSelectionUseCase.detach(id)
+                if (conversationId != id) return@launch
+                awaitSourceConfirmation(null)
+                mutableState.update { current ->
+                    current.copy(composer = current.composer.copy(activeSourceId = null, activeSourceLabel = null),
+                        message = ConversationText.Resource(R.string.message_fresh_generation_started))
                 }
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (_: Exception) {
+                if (conversationId == id) mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
+            }
         }
     }
 
@@ -365,18 +495,26 @@ class ConversationViewModel @Inject constructor(
             mutableState.update { it.copy(message = ConversationText.Resource(R.string.message_choose_compatible_editor)) }
             return
         }
-        persistedActiveSourceOutputId = item.sourceOutputId
-        draftTouched = true
-        mutableState.update { current ->
-            current.copy(
-                composer = current.composer.copy(activeSourceId = item.id, activeSourceLabel = item.outputLabel),
-                message = ConversationText.Resource(R.string.message_older_output_selected),
-            )
+        val id = conversationId ?: return
+        viewModelScope.launch {
+            try {
+                sourceSelectionUseCase.selectOutput(id, item.sourceOutputId)
+                if (conversationId != id) return@launch
+                awaitSourceConfirmation(item.sourceOutputId)
+                draftTouched = true
+                mutableState.update { current ->
+                    current.copy(
+                        composer = current.composer.copy(activeSourceId = item.id, activeSourceLabel = item.outputLabel),
+                        message = ConversationText.Resource(R.string.message_older_output_selected),
+                    )
+                }
+                persistDraft(flush = true)
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (_: Exception) {
+                if (conversationId == id) mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
+            }
         }
-        conversationId?.let { id ->
-            viewModelScope.launch { sourceSelectionUseCase.selectOutput(id, item.sourceOutputId) }
-        }
-        persistDraft(flush = true)
     }
 
     fun reuseParameters(item: TimelineItem) {
@@ -384,35 +522,49 @@ class ConversationViewModel @Inject constructor(
         val reusable = composerUseCase.reusable(item, mutableState.value.mediaKind) ?: return
         val draft = reusable.draft
         val workflow = reusable.workflow
-        draftTouched = true
-        detachAwaitingDatabaseConfirmation = true
-        persistedActiveSourceOutputId = null
-        mutableState.update { current ->
-            current.copy(
-                composer = current.composer.copy(
-                    selectedWorkflow = workflow,
-                    prompt = draft.instruction,
-                    brief = draft.creativeBrief,
-                    options = draft.options,
-                    attachmentSlots = reusable.slots,
-                    attachments = emptyList(),
-                    activeSourceId = null,
-                    activeSourceLabel = null,
-                ),
-                message = ConversationText.Resource(R.string.message_parameters_reused),
-            )
-        }
         viewModelScope.launch {
             try {
-                sourceSelectionUseCase.reuseParameters(id, workflow, draft.creativeBrief)
+                sourceSelectionUseCase.reuseParameters(
+                    id, workflow, draft.creativeBrief,
+                    PersistedComposerDraft(prompt = draft.instruction, options = draft.options),
+                )
+                if (conversationId != id) return@launch
+                awaitSourceConfirmation(null)
+                awaitWorkflowConfirmation(workflow.id)
+                draftTouched = true
+                briefTouched = true
+                mutableState.update { current ->
+                    current.copy(
+                        composer = current.composer.copy(
+                            selectedWorkflow = workflow,
+                            prompt = draft.instruction,
+                            brief = draft.creativeBrief,
+                            options = draft.options,
+                            attachmentSlots = reusable.slots,
+                            attachments = emptyList(),
+                            activeSourceId = null,
+                            activeSourceLabel = null,
+                        ),
+                        message = ConversationText.Resource(R.string.message_parameters_reused),
+                    )
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
-                detachAwaitingDatabaseConfirmation = false
-                mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
+                if (conversationId == id) mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
             }
         }
-        persistDraft(flush = true)
+    }
+
+    private fun awaitSourceConfirmation(outputId: String?) {
+        persistedActiveSourceOutputId = outputId
+        pendingSourceOutputId = outputId
+        sourceConfirmationPending = !snapshotLoaded || lastObservedSourceOutputId != outputId
+    }
+
+    private fun awaitWorkflowConfirmation(workflowId: WorkflowId) {
+        pendingWorkflowId = workflowId
+        workflowConfirmationPending = !snapshotLoaded || lastObservedWorkflowId != workflowId
     }
 
     fun addDemoResult() {
@@ -473,10 +625,20 @@ class ConversationViewModel @Inject constructor(
     private fun restoreSnapshot(snapshot: PersistedConversationSnapshot?) {
         if (snapshot == null) return
         if (snapshot.id != conversationId) return
-        persistedActiveSourceOutputId = if (detachAwaitingDatabaseConfirmation) null else snapshot.activeSourceOutputId
+        lastObservedSourceOutputId = snapshot.activeSourceOutputId
+        lastObservedWorkflowId = snapshot.selectedWorkflowId
+        if (sourceConfirmationPending && snapshot.activeSourceOutputId == pendingSourceOutputId) {
+            sourceConfirmationPending = false
+        }
+        if (workflowConfirmationPending && snapshot.selectedWorkflowId == pendingWorkflowId) {
+            workflowConfirmationPending = false
+        }
+        val activeSourceOutputId = if (sourceConfirmationPending) pendingSourceOutputId else snapshot.activeSourceOutputId
+        persistedActiveSourceOutputId = activeSourceOutputId
         mutableState.update { current ->
             val restoredDraft = if (draftTouched) null else snapshot.draft
-            val restoredWorkflow = snapshot.selectedWorkflowId?.let(WorkflowRegistry::find) ?: current.selectedWorkflow
+            val restoredWorkflowId = if (workflowConfirmationPending) pendingWorkflowId else snapshot.selectedWorkflowId
+            val restoredWorkflow = restoredWorkflowId?.let(WorkflowRegistry::find) ?: current.selectedWorkflow
             val timeline = if (generationRepository == null) snapshot.timeline.map { item ->
                 TimelineItem(
                     id = item.id,
@@ -499,26 +661,23 @@ class ConversationViewModel @Inject constructor(
                     lifecycle = item.status.toLifecycle(),
                 )
             } else current.timeline
-            val activeGeneration = snapshot.activeSourceOutputId?.let { activeOutputId ->
+            val activeGeneration = activeSourceOutputId?.let { activeOutputId ->
                 timeline.firstOrNull { it.sourceOutputId == activeOutputId }
-            }
-            if (detachAwaitingDatabaseConfirmation && snapshot.activeSourceOutputId == null) {
-                detachAwaitingDatabaseConfirmation = false
             }
             current.copy(
                 chat = current.chat.copy(id = snapshot.id, title = snapshot.title),
                 composer = current.composer.copy(
-                    brief = snapshot.brief,
+                    brief = if (briefTouched) current.brief else snapshot.brief,
                     selectedWorkflow = restoredWorkflow,
-                    activeSourceId = if (detachAwaitingDatabaseConfirmation) null else activeGeneration?.id,
-                    activeSourceLabel = if (detachAwaitingDatabaseConfirmation) null else activeGeneration?.outputLabel,
+                    activeSourceId = activeGeneration?.id,
+                    activeSourceLabel = activeGeneration?.outputLabel,
                     prompt = restoredDraft?.prompt ?: current.prompt,
                     options = restoredDraft?.options?.let { composerUseCase.retainOptionsFor(it, restoredWorkflow) } ?: current.options,
                     attachments = restoredDraft?.attachments?.map { DraftMediaAttachment(it.role, it.kind, it.uri, it.label, it.remoteUrl) } ?: current.attachments,
                     attachmentSlots = composerUseCase.slotsFor(restoredWorkflow),
                 ),
                 generation = current.generation.copy(timeline = timeline),
-                message = if (snapshot.requiresSourceSelection) {
+                message = if (snapshot.requiresSourceSelection && !sourceConfirmationPending) {
                     ConversationText.Resource(R.string.message_select_output_before_continuing)
                 } else current.message,
             )
@@ -546,14 +705,67 @@ class ConversationViewModel @Inject constructor(
         if (snapshotLoaded && recordsLoaded) mutableState.update { it.copy(chat = it.chat.copy(isTransitioning = false)) }
     }
 
+    private fun createFromComposer() {
+        if (conversationId != null || creatingConversation) return
+        creatingConversation = true
+        val version = workspaceVersion
+        viewModelScope.launch {
+            val initial = mutableState.value
+            try {
+                val id = conversationLifecycle.createFromDraft(
+                    initial.mediaKind,
+                    initial.selectedWorkflow?.id,
+                    initial.brief,
+                    persistedDraft(initial),
+                )
+                if (workspaceVersion != version) return@launch
+                conversationId = id
+                mutableState.update { it.copy(chat = it.chat.copy(id = id)) }
+                draftTouched = true
+                briefTouched = true
+                snapshotLoaded = false
+                recordsLoaded = generationRepository == null
+                val latest = mutableState.value
+                var latestSaved = true
+                if (latest.composer != initial.composer) {
+                    try {
+                        val workflowId = latest.selectedWorkflow?.id ?: error("A model is required")
+                        persistence.reuseParameters(id, workflowId, latest.brief, persistedDraft(latest))
+                    } catch (canceled: CancellationException) {
+                        throw canceled
+                    } catch (_: Exception) {
+                        latestSaved = false
+                        mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
+                    }
+                }
+                creatingConversation = false
+                observeSavedConversation(id)
+                if (submitAfterCreation && latestSaved) {
+                    submitAfterCreation = false
+                    submitGeneration()
+                } else {
+                    submitAfterCreation = false
+                }
+            } catch (canceled: CancellationException) {
+                throw canceled
+            } catch (_: Exception) {
+                creatingConversation = false
+                submitAfterCreation = false
+                mutableState.update { it.copy(message = ConversationText.Resource(R.string.error_unknown)) }
+            }
+        }
+    }
+
+    private fun persistedDraft(state: ConversationUiState) = PersistedComposerDraft(
+        prompt = state.prompt,
+        options = state.options,
+        attachments = state.attachments.map { PersistedDraftAttachment(it.role, it.kind, it.uri, it.label, it.remoteUrl) },
+    )
+
     private fun persistDraft(flush: Boolean = false) {
         val id = conversationId ?: return
         val current = mutableState.value
-        draftWriter.enqueue(id, current.mediaKind, PersistedComposerDraft(
-            prompt = current.prompt,
-            options = current.options,
-            attachments = current.attachments.map { PersistedDraftAttachment(it.role, it.kind, it.uri, it.label, it.remoteUrl) },
-        ))
+        draftWriter.enqueue(id, current.mediaKind, persistedDraft(current))
         if (flush) viewModelScope.launch { draftWriter.flush(id, ::onDraftWriteFailure) }
     }
 

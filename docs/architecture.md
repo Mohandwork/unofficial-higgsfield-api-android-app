@@ -62,7 +62,9 @@ The conversation state derives local attachment slots from the selected workflow
 
 Higgsfield is stateless. `PromptComposer` deterministically joins non-empty Creative Brief fields and the current instruction. When supported, exclusions are mapped to the DTO's `negative_prompt`; they are not duplicated into hidden history. Each generation stores the exact composed prompt, negative prompt, options, source output ID, and attachments. Retry uses these submission-time values instead of recomposing with the conversation's current brief.
 
-Composer drafts are stored separately per conversation in Room (`conversation_drafts`), with a version 1-to-2 migration that preserves existing chats and generations. Draft writes are serialized so rapid typing and navigation cannot reorder saved values.
+Composer drafts are stored separately per conversation in Room (`conversation_drafts`), with a version 1-to-2 migration that preserves existing chats and generations. Normal draft writes are debounced and flushed at key transitions; serialization of overlapping writes remains planned. Reusing a generation's parameters writes its selected model, brief, draft, and cleared active source in one Room transaction. Workflow and source selection update the visible composer after their persistence call succeeds, and late snapshots are held until they confirm the new selection.
+
+App launch and New Chat open a local, unsaved workspace. Model, media, brief, and option browsing does not insert a conversation row. The first nonblank prompt creates a conversation and its initial draft in one transaction; a prompt-free media route also creates one when the user submits it. Opening a saved conversation only observes its existing row, and removing the last chat returns to the unsaved workspace.
 
 ## Attachment upload boundary
 
@@ -140,6 +142,10 @@ Completed cards render the actual persisted `GenerationOutput`: Coil loads image
 ## Model-aware settings and estimates
 
 `WorkflowDescriptor` declares its verified adjustable options and static estimate metadata. The conversation stores those selected options in `GenerationDraft` and clears only options unsupported by a newly selected workflow. The settings sheet renders no unsupported controls. Prices, credits, and latency remain unavailable until manually entered with a documentation URL and verification date; the UI never treats them as live values or manufactures a cost.
+
+Direct model variants are registered as separate descriptors in `DirectModelRoutes.kt` and serialized by `DirectModelRequestSchemas.kt`. Each descriptor declares its endpoint, named media roles, required and maximum counts, supported controls, allowed choices, and numeric bounds. The composer renders those roles and validates them before submission; the request adapter validates again after uploaded URLs are available. The settings sheet keeps route-specific values in the draft, and Room migration 2→3 stores them as JSON so a restored draft or retry uses the same controls. `ModelStartingRates.kt` owns the manually editable starting-price labels. Each route inherits its main model's rate unless a verified route override is added. Unverified rates display as unavailable. These are display estimates, not a billing calculation.
+
+Guided workflows are a separate future feature. Their API behavior and required UI states are recorded in `docs/workflow-api-future.md`; direct model variants remain available without a preset-fetching flow. `docs/model-route-inventory.md` tracks endpoint coverage and `docs/model-controls-audit.md` tracks control gaps. Undocumented media maxima remain unspecified in the UI rather than being guessed.
 
 ## Workspace composition
 
