@@ -1,6 +1,6 @@
-# Higgsfield Mobile
+# Prompt Studio
 
-Higgsfield Mobile is a focused Android client for image and video creation workflows. It is designed for personal use with an explicit, opt-in API boundary: drafts, chat history, model metadata, and UI state work locally; a generation request is sent only when the user submits it.
+Prompt Studio is an unofficial Android client for the Higgsfield API. It is free and open source, with no ads, subscriptions, or in-app purchases. Drafts, chat history, model metadata, and UI state work locally; a generation request is sent only when the user submits it. The app is independently developed and is not affiliated with or endorsed by the API provider. API usage may still incur charges under a user's own provider account.
 
 ## Product state
 
@@ -19,17 +19,25 @@ The refined product now includes:
 
 ## Architecture
 
-The app is a Kotlin/Compose client organized around a presentation ViewModel, a Room-backed conversation/generation repository, and a small HTTP adapter for the Higgsfield endpoint. API calls are isolated behind the repository boundary so UI state can be exercised without a network request.
+The app is a Kotlin/Compose client organized around a presentation ViewModel, a Room-backed conversation/generation repository, and a small HTTP adapter for the Higgsfield API. API calls are isolated behind the repository boundary so UI state can be exercised without a network request.
 
 Important behavior is documented in [docs/architecture.md](docs/architecture.md). The implementation plan is now an acceptance checklist rather than a list of unfinished product slices: [docs/implementation-plan.md](docs/implementation-plan.md). Current verification and known limitations are recorded in [docs/progress.md](docs/progress.md).
 
+## Local setup
+
+Build with `./gradlew :app:assembleDebug` (or `gradlew.bat :app:assembleDebug` on Windows). To use generation, copy `secrets.properties.example` to `app/secrets/secrets.properties` and set `HF_KEY_ID` and `HF_KEY_SECRET` with credentials from your own API account. The secrets file is ignored by Git. A build without credentials can run locally, but generation requests will fail authentication.
+
 ## Safety and operational notes
 
-- Do not commit credentials. `secrets.properties` and local API keys are ignored; use `secrets.properties.example` as the template.
+- Do not commit credentials. `secrets.properties` and local API keys are ignored; use `secrets.properties.example` as the template. Never distribute an APK built with your own API keys: BuildConfig values can be extracted from it.
 - The debug build logs request/response diagnostics only for local troubleshooting. Sanitize logs before sharing them.
 - Failed POSTs are not silently retried. Ambiguous outcomes remain visible so a user can decide whether to retry.
 - Chat removal is explicit and cascades local conversation data; it does not attempt to delete provider-side history.
 - Live generation and any billable operation remain user-triggered and require an authenticated environment.
+
+## License
+
+The source code is licensed under [Apache License 2.0](LICENSE). This license permits commercial reuse of the code; the project itself has no monetization feature. Model names and API documentation belong to their respective owners. The license does not grant rights to third-party trademarks or artwork.
 
 ## Verification
 

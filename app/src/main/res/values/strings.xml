@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Higgsfield</string>
+    <string name="app_name">Prompt Studio</string>
     <string name="home_tagline">Create, iterate, compare, and save — with every request kept explicit.</string>
     <string name="home_image">Image</string>
     <string name="home_video">Video</string>
@@ -81,7 +81,7 @@
     <string name="generate">Generate</string>
     <string name="generating">Generating…</string>
     <string name="preparing_workspace">Preparing workspace…</string>
-    <string name="api_credentials_not_configured">Credentials are not configured. Generate will reach Higgsfield and return an authentication error.</string>
+    <string name="api_credentials_not_configured">Credentials are not configured. Generate will reach the model API and return an authentication error.</string>
     <string name="start_with_clear_idea">Start with a clear idea</string>
     <string name="empty_image_conversation">Create an image, then make the next edit from its visible active source.</string>
     <string name="empty_video_conversation">Create a video from text or attach a compatible reference image.</string>
@@ -141,7 +141,7 @@
     <string name="message_demo_only">Demo only — no API request was made.</string>
     <string name="message_select_output_before_continuing">Choose one of the latest images before continuing.</string>
     <string name="message_download_saved">Output saved to the selected location.</string>
-    <string name="error_credentials_rejected">Your Higgsfield credentials were rejected.</string>
+    <string name="error_credentials_rejected">Your API credentials were rejected.</string>
     <string name="error_instruction_required">Write an instruction before generating.</string>
     <string name="error_reference_image_required">Add an uploaded reference image before generating.</string>
     <string name="error_reference_video_required">Add an uploaded motion-reference video before generating.</string>
@@ -151,11 +151,11 @@
     <string name="error_image_edit_unsupported">This model cannot edit the selected image. Choose an image-edit model or detach the image.</string>
     <string name="error_active_image_unavailable">The selected image is no longer available. Choose another image before editing.</string>
     <string name="submitted_references">Submitted references</string>
-    <string name="error_request_not_found">Higgsfield could not find this request.</string>
+    <string name="error_request_not_found">The model API could not find this request.</string>
     <string name="error_remote_protocol">The generation response could not be processed safely.</string>
     <string name="error_generation_failed">The generation failed. Update the request and try again.</string>
     <string name="error_generation_moderated">The generation was blocked by content moderation.</string>
-    <string name="error_not_enough_credits">Not enough Higgsfield credits. Add credits, then try again.</string>
+    <string name="error_not_enough_credits">Not enough API credits. Add credits, then try again.</string>
     <string name="error_network_unavailable">A network error occurred. Check your connection and try again.</string>
     <string name="error_unknown">Something went wrong. Try again.</string>
 </resources>

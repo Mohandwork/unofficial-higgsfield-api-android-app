@@ -1,5 +1,6 @@
 # Android Studio / IntelliJ
 .idea/
+.agents/
 *.iml
 *.ipr
 *.iws
