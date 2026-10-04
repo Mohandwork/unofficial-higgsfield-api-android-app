@@ -1,6 +1,6 @@
 # Workflow API integration (future UI work)
 
-This file records workflow-specific API behavior separately from direct model routes. The app does not currently expose these guided workflows as picker entries. See `model-route-inventory.md` for direct model variants.
+This file records workflow-specific API behavior separately from direct model routes. The app does not currently expose these guided workflows as picker entries.
 
 ## Marketing guides
 
@@ -10,8 +10,8 @@ The guided mode uses `enhance_prompt=true` and a `preset_id` chosen from `GET ht
 
 ## Genjutsu guides
 
-[Motion Transfer](https://open.higgsfield.ai/models/workflows/genjutsu/api-reference) and [Object Swap](https://open.higgsfield.ai/models/workflows/genjutsu/object-swap/api-reference) show the same input shape as their direct model operations: one video, reference images, an optional prompt, and resolution. Their workflow examples spell the provider `higgsfiled`; the [direct Motion Transfer page](https://open.higgsfield.ai/models/higgsfield/genjutsu/motion-transfer/v1.0/api-reference) and the user-provided direct Object Swap example spell it `higgsfield`. Treat `higgsfiled` as a documentation typo, not a second selectable route. The Object Swap route uses the model ID supplied in the conversation; its direct public page and account availability still need a live check.
+[Motion Transfer](https://open.higgsfield.ai/models/workflows/genjutsu/api-reference) and [Object Swap](https://open.higgsfield.ai/models/workflows/genjutsu/object-swap/api-reference) show the same input shape as their direct model operations: one video, reference images, an optional prompt, and resolution. Their workflow examples spell the provider `higgsfiled`; the [direct Motion Transfer page](https://open.higgsfield.ai/models/higgsfield/genjutsu/motion-transfer/v1.0/api-reference) spells it `higgsfield`. Treat `higgsfiled` as a documentation typo, not a second selectable route. The direct Object Swap model ID and account availability still need a live check.
 
 ## Integration boundary
 
-Workflow guides can reuse the existing upload, submit, poll, and result persistence path. The extra work is a guided form, preset fetching when applicable, conditional validation, and storing chosen guide/preset state for faithful retry. No workflow-specific UI or preset network call is implemented in the current model-variant work.
+Workflow guides can reuse the existing upload, submit, poll, and result persistence path. The extra work is a guided form, preset fetching when applicable, conditional validation, and storing chosen guide/preset state for faithful retry. Guided forms and preset fetching are not yet implemented.

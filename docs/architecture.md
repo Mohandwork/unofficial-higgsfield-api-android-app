@@ -143,11 +143,11 @@ Completed cards render the actual persisted `GenerationOutput`: Coil loads image
 
 ## Model-aware settings and estimates
 
-`WorkflowDescriptor` declares its verified adjustable options and static estimate metadata. The conversation stores those selected options in `GenerationDraft` and clears only options unsupported by a newly selected workflow. The settings sheet renders no unsupported controls. Prices, credits, and latency remain unavailable until manually entered with a documentation URL and verification date; the UI never treats them as live values or manufactures a cost.
+`WorkflowDescriptor` declares its verified adjustable options and static estimate metadata. The conversation stores those selected options in `GenerationDraft` and clears only options unsupported by a newly selected workflow. The settings sheet renders no unsupported controls. The provider has no live pricing API for the app to query; starting rates are maintained manually and shown as informational estimates, not a calculated charge.
 
 Direct model variants are registered as separate descriptors in `DirectModelRoutes.kt` and serialized by `DirectModelRequestSchemas.kt`. Each descriptor declares its endpoint, named media roles, required and maximum counts, supported controls, allowed choices, and numeric bounds. The composer renders those roles and validates them before submission; the request adapter validates again after uploaded URLs are available. The settings sheet keeps route-specific values in the draft, and Room migration 2→3 stores them as JSON so a restored draft or retry uses the same controls. `ModelStartingRates.kt` owns the manually editable starting-price labels. Each route inherits its main model's rate unless a verified route override is added. Unverified rates display as unavailable. These are display estimates, not a billing calculation.
 
-Guided workflows are a separate future feature. Their API behavior and required UI states are recorded in `docs/workflow-api-future.md`; direct model variants remain available without a preset-fetching flow. `docs/model-route-inventory.md` tracks endpoint coverage and `docs/model-controls-audit.md` tracks control gaps. Undocumented media maxima remain unspecified in the UI rather than being guessed.
+Guided workflows are a separate future feature. Their API behavior and required UI states are recorded in `docs/workflow-api-future.md`; direct model variants remain available without a preset-fetching flow. Undocumented media maxima remain unspecified in the UI rather than being guessed.
 
 ## Workspace composition
 
