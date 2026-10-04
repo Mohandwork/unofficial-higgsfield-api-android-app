@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Higgsfield" parent="android:style/Theme.Material.Light.NoActionBar" />
-    <style name="Theme.Higgsfield.Splash" parent="Theme.Higgsfield" />
+    <style name="Theme.PromptStudio" parent="android:style/Theme.Material.Light.NoActionBar" />
+    <style name="Theme.PromptStudio.Splash" parent="Theme.PromptStudio" />
 </resources>

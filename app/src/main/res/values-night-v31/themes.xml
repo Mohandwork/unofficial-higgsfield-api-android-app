@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Higgsfield.Splash" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.PromptStudio.Splash" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:windowSplashScreenBackground">#000000</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/higgsfield_brand</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/prompt_studio_brand</item>
     </style>
 </resources>

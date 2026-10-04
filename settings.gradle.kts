@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Higgsfield"
+rootProject.name = "PromptStudio"
 include(":app")
