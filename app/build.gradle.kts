@@ -19,11 +19,11 @@ fun quotedBuildConfig(value: String): String =
     "\"${value.replace("\\", "\\\\").replace("\"", "\\\"")}\""
 
 android {
-    namespace = "com.higgsfield.mobile"
+    namespace = "com.promptstudio.app"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.higgsfield.mobile"
+        applicationId = "com.promptstudio.app"
         minSdk = 24
         targetSdk = 37
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

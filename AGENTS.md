@@ -1,4 +1,4 @@
-# Higgsfield engineering instructions
+# Prompt Studio engineering instructions
 
 ## Git safety — read before doing any task
 
@@ -18,7 +18,7 @@ These instructions govern work in this repository. They are intentionally opinio
 
 - Build a focused, reliable Android experience before adding breadth.
 - Use Kotlin, Jetpack Compose, Material 3, and AndroidX.
-- Keep the existing package `com.higgsfield.mobile`, minimum SDK 24, and compile/target SDK 35 unless a deliberate migration is documented.
+- Keep the package `com.promptstudio.app` and minimum SDK 24 unless a deliberate migration is documented. The current compile and target SDK are 37.
 - Prefer platform and AndroidX capabilities over adding dependencies. Every new dependency needs a concrete reason and a maintenance/security check.
 
 ## Default architecture

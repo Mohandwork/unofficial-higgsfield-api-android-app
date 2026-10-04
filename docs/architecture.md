@@ -5,7 +5,7 @@
 The first release is a single `app` module with feature-oriented packages. Module boundaries can be introduced when build time or ownership justifies them; package contracts are kept extractable from the start.
 
 ```text
-com.higgsfield.mobile
+com.promptstudio.app
 ├── core
 │   ├── model          immutable domain contracts and workflow registry
 │   ├── data           repositories and fake/production implementations
@@ -43,7 +43,7 @@ Repositories persist the stable code and safe diagnostic message for generation 
 
 ## Model submission schemas
 
-`core/network/SchemaWorkflowAdapter` is the only model-adapter implementation. Each verified catalog model contributes a `WorkflowRequestSchema` to `WorkflowRequestSchemas`, which maps a `GenerationDraft` to a JSON request body for the generic Retrofit submission method. Do not add a model-specific adapter class or placeholder schema. Add a route and schema only after the model-specific Higgsfield documentation confirms both. Extend shared request values when a documented route needs a new input type, rather than creating a per-model mapper.
+`core/network/SchemaWorkflowAdapter` is the only model-adapter implementation. Each verified catalog model contributes a `WorkflowRequestSchema` to `WorkflowRequestSchemas`, which maps a `GenerationDraft` to a JSON request body for the generic Retrofit submission method. Do not add a model-specific adapter class or placeholder schema. Add a route and schema only after the model-specific API documentation confirms both. Extend shared request values when a documented route needs a new input type, rather than creating a per-model mapper.
 
 ## Core contracts
 
@@ -60,7 +60,7 @@ The conversation state derives local attachment slots from the selected workflow
 
 ## Request composition
 
-Higgsfield is stateless. `PromptComposer` deterministically joins non-empty Creative Brief fields and the current instruction. When supported, exclusions are mapped to the DTO's `negative_prompt`; they are not duplicated into hidden history. Each generation stores the exact composed prompt, negative prompt, options, source output ID, and attachments. Retry uses these submission-time values instead of recomposing with the conversation's current brief.
+The prompt flow is stateless. `PromptComposer` deterministically joins non-empty Creative Brief fields and the current instruction. When supported, exclusions are mapped to the DTO's `negative_prompt`; they are not duplicated into hidden history. Each generation stores the exact composed prompt, negative prompt, options, source output ID, and attachments. Retry uses these submission-time values instead of recomposing with the conversation's current brief.
 
 Composer drafts are stored separately per conversation in Room (`conversation_drafts`), with a version 1-to-2 migration that preserves existing chats and generations. Normal draft writes are debounced and flushed at key transitions; serialization of overlapping writes remains planned. Reusing a generation's parameters writes its selected model, brief, draft, and cleared active source in one Room transaction. Workflow and source selection update the visible composer after their persistence call succeeds, and late snapshots are held until they confirm the new selection.
 
@@ -68,9 +68,11 @@ App launch and New Chat open a local, unsaved workspace. Model, media, brief, an
 
 ## Attachment upload boundary
 
-The conversation draft retains each picked `content://` URI with its explicit media role. `SecureAttachmentUploader` resolves its MIME type through `ContentResolver`, validates that it matches the declared image/video/audio kind, requests a Higgsfield upload ticket, and streams the content to the presigned URL without buffering the complete file. Both the presigned URL and returned public URL must use HTTPS, and the ticket may not change the requested MIME type.
+The conversation draft retains each picked `content://` URI with its explicit media role. `SecureAttachmentUploader` resolves its MIME type through `ContentResolver`, validates that it matches the declared image/video/audio kind, requests a provider upload ticket, and streams the content to the presigned URL without buffering the complete file. Both the presigned URL and returned public URL must use HTTPS, and the ticket may not change the requested MIME type.
 
 Storage uploads pass through the dedicated unauthenticated client, which strips any authorization header. The uploader returns either attachments containing public URLs or a centralized `AppError`; it never exposes provider errors directly to Compose. Existing valid HTTPS remote attachments are reused without reading local content or uploading again.
+
+An HTTP 413 from the upload service is shown as a file-size rejection. When its response supplies a numeric maximum in bytes, the message includes that maximum in MiB. Otherwise the message states that no maximum was provided; the app does not apply a guessed global file-size cap across models.
 
 ## Iteration and lineage
 
@@ -97,7 +99,7 @@ Polling starts at two seconds and grows toward ten seconds with jitter. Terminal
 
 `app/secrets/secrets.properties` is ignored and loaded into local `BuildConfig` values. Missing values are valid build configuration and disable API actions. The authorization interceptor combines key ID and secret only in memory. HTTP logging is limited to safe metadata and redacts authorization; request/response bodies, signed URLs, and credentials are never logged.
 
-All traffic is HTTPS. Presigned upload requests use a separate unauthenticated client so Higgsfield credentials cannot reach the storage host. Android backups are disabled. Only the launcher Activity is exported. This design is explicitly for a private personal build: secrets embedded in an APK remain extractable.
+All traffic is HTTPS. Presigned upload requests use a separate unauthenticated client so API credentials cannot reach the storage host. Android backups are disabled. Only the launcher Activity is exported. This design uses build-time API credentials: secrets embedded in an APK remain extractable, so distributable builds must not include a maintainer's keys.
 
 ## Offline behavior
 
@@ -123,7 +125,7 @@ The system Storage Access Framework selects a folder and grants persistable URI 
 Real API calls are never part of automated verification and require explicit billable-operation approval.
 ## Production generation submission boundary
 
-`RoomGenerationRepository` is the single production path for a deliberate Generate tap. It persists a draft and local attachment metadata first, uploads only attachments that lack a verified HTTPS public URL, maps the uploaded draft with the selected verified schema, and makes exactly one generation POST. An accepted response must contain a Higgsfield HTTPS status URL and request ID before it is marked queued; the existing status synchronizer then reconciles status without repeating the POST. Authentication is deliberately not pre-checked: a build without local credentials reaches the real API boundary on a user tap and records the returned authentication failure. No submission, upload, or estimate runs automatically.
+`RoomGenerationRepository` is the single production path for a deliberate Generate tap. It persists a draft and local attachment metadata first, uploads only attachments that lack a verified HTTPS public URL, maps the uploaded draft with the selected verified schema, and makes exactly one generation POST. An accepted response must contain a trusted HTTPS status URL and request ID before it is marked queued; the existing status synchronizer then reconciles status without repeating the POST. Authentication is deliberately not pre-checked: a build without local credentials reaches the real API boundary on a user tap and records the returned authentication failure. No submission, upload, or estimate runs automatically.
 
 Debug builds add a verbose, sanitized OkHttp interceptor for the authenticated API client. It logs method, host/path, query parameters, ordinary headers, status, timing, and JSON request/response bodies so manual failures can be diagnosed. Authorization/secret headers, signed query values, and private media URL fields are redacted. The separate presigned upload client retains route/status-only logging and never logs binary media or signing values. Release builds have no network logging interceptor.
 
