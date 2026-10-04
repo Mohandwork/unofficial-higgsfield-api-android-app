@@ -29,6 +29,9 @@ class PresignedUploadClient(
             .apply { headers.forEach { (name, value) -> header(name, value) } }
             .build()
         client.newCall(request).execute().use { response ->
+            if (response.code == HTTP_CONTENT_TOO_LARGE) {
+                throw UploadTooLargeException(response.peekBody(MAX_ERROR_BODY_BYTES).string())
+            }
             if (!response.isSuccessful) throw IOException("$UPLOAD_FAILED_PREFIX${response.code}")
         }
     }
@@ -46,6 +49,8 @@ class PresignedUploadClient(
     }
 }
 
+class UploadTooLargeException(val responseBody: String) : IOException("Presigned upload exceeded the server's size limit")
+
 private object RemoveAuthorizationHeaderInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain) = chain.proceed(
         chain.request().newBuilder().removeHeader(AUTHORIZATION_HEADER).build()
@@ -55,3 +60,5 @@ private object RemoveAuthorizationHeaderInterceptor : Interceptor {
 private const val AUTHORIZATION_HEADER = "Authorization"
 private const val CONTENT_TYPE_MISMATCH_MESSAGE = "The upload body content type must match the presigned upload content type"
 private const val UPLOAD_FAILED_PREFIX = "Presigned upload failed with HTTP "
+private const val HTTP_CONTENT_TOO_LARGE = 413
+private const val MAX_ERROR_BODY_BYTES = 4096L

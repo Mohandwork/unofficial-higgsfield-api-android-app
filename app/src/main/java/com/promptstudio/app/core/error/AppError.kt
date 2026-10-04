@@ -2,7 +2,9 @@ package com.promptstudio.app.core.error
 
 import androidx.annotation.StringRes
 import com.promptstudio.app.R
+import com.promptstudio.app.core.network.UploadTooLargeException
 import java.io.IOException
+import java.util.Locale
 import retrofit2.HttpException
 
 data class AppError(
@@ -20,6 +22,7 @@ object ErrorMapper {
         CODE_REFERENCE_VIDEO_REQUIRED -> R.string.error_reference_video_required
         CODE_ATTACHMENT_UNREADABLE -> R.string.error_attachment_unreadable
         CODE_ATTACHMENT_TYPE_UNSUPPORTED -> R.string.error_attachment_type_unsupported
+        CODE_ATTACHMENT_TOO_LARGE -> R.string.error_attachment_too_large
         CODE_REFERENCE_IMAGE_LIMIT -> R.string.error_reference_image_limit
         CODE_IMAGE_EDIT_UNSUPPORTED -> R.string.error_image_edit_unsupported
         CODE_ACTIVE_IMAGE_UNAVAILABLE -> R.string.error_active_image_unavailable
@@ -67,6 +70,17 @@ object ErrorMapper {
         retryable = false,
         diagnosticMessage = diagnosticMessage,
     )
+
+    fun attachmentTooLarge(responseBody: String? = null): AppError {
+        val maximumBytes = responseBody?.maximumUploadBytes()
+        val maximumMiB = maximumBytes?.let { String.format(Locale.ROOT, "%.1f", it / 1048576.0) }
+        return AppError(
+            code = CODE_ATTACHMENT_TOO_LARGE,
+            messageResId = R.string.error_attachment_too_large,
+            retryable = false,
+            userMessage = maximumMiB?.let { "This file is too large. The maximum upload size is $it MiB. Choose a smaller file." },
+        )
+    }
 
     fun referenceImageLimit() = AppError(
         code = CODE_REFERENCE_IMAGE_LIMIT,
@@ -126,13 +140,16 @@ object ErrorMapper {
     )
 
     fun from(throwable: Throwable): AppError = when (throwable) {
+        is UploadTooLargeException -> attachmentTooLarge(throwable.responseBody)
         is IOException -> AppError(CODE_NETWORK, R.string.error_network_unavailable, retryable = true)
         is HttpException -> httpError(throwable)
         else -> AppError(CODE_UNKNOWN, R.string.error_unknown, retryable = false, diagnosticMessage = throwable.message)
     }
 
     private fun httpError(error: HttpException): AppError {
-        val remoteDetail = error.response()?.errorBody()?.string()?.extractRemoteDetail()
+        val responseBody = error.response()?.errorBody()?.string()
+        if (error.code() == HTTP_CONTENT_TOO_LARGE) return attachmentTooLarge(responseBody)
+        val remoteDetail = responseBody?.extractRemoteDetail()
         val fallback = when (error.code()) {
                 HTTP_UNAUTHORIZED -> credentialsRejected()
                 HTTP_NOT_FOUND -> requestNotFound()
@@ -143,12 +160,14 @@ object ErrorMapper {
 
     private const val HTTP_UNAUTHORIZED = 401
     private const val HTTP_NOT_FOUND = 404
+    private const val HTTP_CONTENT_TOO_LARGE = 413
     private const val HTTP_SERVER_ERROR = 500
     private const val CODE_INSTRUCTION_REQUIRED = "instruction_required"
     private const val CODE_REFERENCE_IMAGE_REQUIRED = "reference_image_required"
     private const val CODE_REFERENCE_VIDEO_REQUIRED = "reference_video_required"
     private const val CODE_ATTACHMENT_UNREADABLE = "attachment_unreadable"
     private const val CODE_ATTACHMENT_TYPE_UNSUPPORTED = "attachment_type_unsupported"
+    private const val CODE_ATTACHMENT_TOO_LARGE = "attachment_too_large"
     private const val CODE_REFERENCE_IMAGE_LIMIT = "reference_image_limit"
     private const val CODE_IMAGE_EDIT_UNSUPPORTED = "image_edit_unsupported"
     private const val CODE_ACTIVE_IMAGE_UNAVAILABLE = "active_image_unavailable"
@@ -164,6 +183,12 @@ object ErrorMapper {
     private const val REMOTE_NOT_ENOUGH_CREDITS = "not_enough_credits"
     private const val REMOTE_INSUFFICIENT_CREDITS = "insufficient_credits"
 }
+
+private fun String.maximumUploadBytes(): Long? = sequenceOf(
+    Regex("<MaxSizeAllowed>\\s*(\\d+)\\s*</MaxSizeAllowed>", RegexOption.IGNORE_CASE),
+    Regex("\"(?:max_size_bytes|maximum_size_bytes)\"\\s*:\\s*(\\d+)", RegexOption.IGNORE_CASE),
+).mapNotNull { it.find(this)?.groupValues?.getOrNull(1)?.toLongOrNull() }
+    .firstOrNull { it > 0L }
 
 private fun String.extractRemoteDetail(): String? =
     Regex("\\\"(?:detail|code)\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"")

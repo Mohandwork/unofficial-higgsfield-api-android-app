@@ -72,6 +72,8 @@ The conversation draft retains each picked `content://` URI with its explicit me
 
 Storage uploads pass through the dedicated unauthenticated client, which strips any authorization header. The uploader returns either attachments containing public URLs or a centralized `AppError`; it never exposes provider errors directly to Compose. Existing valid HTTPS remote attachments are reused without reading local content or uploading again.
 
+An HTTP 413 from the upload service is shown as a file-size rejection. When its response supplies a numeric maximum in bytes, the message includes that maximum in MiB. Otherwise the message states that no maximum was provided; the app does not apply a guessed global file-size cap across models.
+
 ## Iteration and lineage
 
 Every generation has an optional parent generation and branch root. A conversation has at most one active source attachment. Completion rules are explicit:

@@ -163,6 +163,23 @@ class ProviderNetworkTest {
     }
 
     @Test
+    fun `presigned upload preserves a size rejection for the error mapper`() {
+        server.enqueue(MockResponse().setResponseCode(413).setBody("<MaxSizeAllowed>20971520</MaxSizeAllowed>"))
+        val client = PresignedUploadClient(PresignedUploadClient.unauthenticatedClient())
+
+        val error = org.junit.Assert.assertThrows(UploadTooLargeException::class.java) {
+            client.upload(
+                uploadUrl = server.url("/upload").toString(),
+                headers = emptyMap(),
+                contentType = "image/jpeg",
+                body = PresignedUploadClient.body(byteArrayOf(1, 2), "image/jpeg"),
+            )
+        }
+
+        assertTrue(error.responseBody.contains("20971520"))
+    }
+
+    @Test
     fun `polling delays start at two seconds grow and cap at ten seconds plus jitter`() {
         val policy = PollingPolicy(Random(1))
 
