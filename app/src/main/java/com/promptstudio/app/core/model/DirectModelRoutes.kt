@@ -1,4 +1,4 @@
-package com.higgsfield.mobile.core.model
+package com.promptstudio.app.core.model
 
 /** Direct API operations. Guided workflow presentations are documented separately. */
 object DirectModelRoutes {

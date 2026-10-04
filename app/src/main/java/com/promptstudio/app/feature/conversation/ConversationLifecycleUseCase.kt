@@ -1,8 +1,10 @@
 package com.promptstudio.app.feature.conversation
 
 import com.promptstudio.app.core.database.ConversationPersistence
+import com.promptstudio.app.core.database.PersistedComposerDraft
+import com.promptstudio.app.core.model.CreativeBrief
 import com.promptstudio.app.core.model.MediaKind
-import com.promptstudio.app.core.model.WorkflowRegistry
+import com.promptstudio.app.core.model.WorkflowId
 import javax.inject.Inject
 
 /** Chooses a valid destination after conversation creation, switching, or removal. */

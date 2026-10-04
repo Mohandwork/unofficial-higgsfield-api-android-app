@@ -1,4 +1,6 @@
-package com.higgsfield.mobile.core.model
+package com.promptstudio.app.core.model
+
+import kotlin.collections.get
 
 /** Manually maintained starting-price labels shown in Model Details. These are display-only. */
 object ModelStartingRates {

@@ -2,7 +2,11 @@ package com.promptstudio.app.core.network
 
 import com.promptstudio.app.R
 import com.promptstudio.app.core.model.CreativeBrief
+import com.promptstudio.app.core.model.GenerationAttachment
 import com.promptstudio.app.core.model.GenerationDraft
+import com.promptstudio.app.core.model.GenerationOptions
+import com.promptstudio.app.core.model.MediaKind
+import com.promptstudio.app.core.model.MediaRole
 import com.promptstudio.app.core.model.WorkflowCatalog
 import com.promptstudio.app.core.model.WorkflowRegistry
 import kotlinx.serialization.encodeToString

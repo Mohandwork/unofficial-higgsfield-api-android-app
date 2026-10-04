@@ -1,6 +1,6 @@
-package com.higgsfield.mobile.core.database
+package com.promptstudio.app.core.database
 
-import com.higgsfield.mobile.core.model.GenerationOptions
+import com.promptstudio.app.core.model.GenerationOptions
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

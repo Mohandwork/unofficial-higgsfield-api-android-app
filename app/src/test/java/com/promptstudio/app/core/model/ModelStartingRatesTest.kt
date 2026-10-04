@@ -1,4 +1,4 @@
-package com.higgsfield.mobile.core.model
+package com.promptstudio.app.core.model
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue

@@ -2,6 +2,11 @@ package com.promptstudio.app.core.network
 
 import com.promptstudio.app.core.error.ErrorMapper
 import com.promptstudio.app.core.model.WorkflowCatalog
+import com.promptstudio.app.core.model.WorkflowId
+import com.promptstudio.app.core.model.WorkflowRegistry
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonPrimitive
 
 object WorkflowRequestSchemas {
     val soulStandard = WorkflowRequestSchema(
@@ -121,10 +126,10 @@ object WorkflowRequestSchemas {
         wan3Prime,
     ) + DirectModelRequestSchemas.all
 
-    fun find(workflowId: com.promptstudio.app.core.model.WorkflowId): WorkflowRequestSchema? =
+    fun find(workflowId: WorkflowId): WorkflowRequestSchema? =
         all.firstOrNull { it.workflowId == workflowId }
 
-    private fun marketingStudioSchema(workflowId: com.promptstudio.app.core.model.WorkflowId) =
+    private fun marketingStudioSchema(workflowId: WorkflowId) =
         WorkflowRequestSchema(
             workflowId = workflowId,
             fields = listOf(
@@ -147,14 +152,14 @@ object WorkflowRequestSchemas {
     }
 
     /** Text-only schema used only for the documented text-to-video route of each listed family. */
-    private fun textToVideoSchema(workflowId: com.promptstudio.app.core.model.WorkflowId) =
+    private fun textToVideoSchema(workflowId: WorkflowId) =
         WorkflowRequestSchema(
             workflowId = workflowId,
             fields = listOf(WorkflowRequestValues.requiredComposedPrompt()),
         )
 
     private fun referenceVideoSchema(
-        workflowId: com.higgsfield.mobile.core.model.WorkflowId,
+        workflowId: WorkflowId,
         maximumImages: Int,
         maximumVideos: Int,
         maximumDuration: Int,
@@ -175,7 +180,7 @@ object WorkflowRequestSchemas {
             requiresImageOrVideoReference = true,
         )
 
-    private fun seedanceTextSchema(workflowId: com.higgsfield.mobile.core.model.WorkflowId, maximumDuration: Int, supports4k: Boolean) =
+    private fun seedanceTextSchema(workflowId: WorkflowId, maximumDuration: Int, supports4k: Boolean) =
         WorkflowRequestSchema(
             workflowId = workflowId,
             fields = listOf(
@@ -188,19 +193,19 @@ object WorkflowRequestSchemas {
         )
 
     private fun choice(name: String, value: WorkflowRequestValue, allowed: Set<String>) = WorkflowRequestField(
-        name, value, { json: JsonElement? ->
-            if (json != null && json.jsonPrimitive.content !in allowed) listOf(ErrorMapper.protocol("Unsupported $name value.")) else emptyList()
-        },
-    )
+        name, value,
+    ) { json: JsonElement? ->
+        if (json != null && json.jsonPrimitive.content !in allowed) listOf(ErrorMapper.protocol("Unsupported $name value.")) else emptyList()
+    }
 
     private fun integerRange(name: String, value: WorkflowRequestValue, minimum: Int, maximum: Int) = WorkflowRequestField(
-        name, value, { json: JsonElement? ->
-            if (json != null && json.jsonPrimitive.intOrNull?.let { it in minimum..maximum } != true)
-                listOf(ErrorMapper.protocol("$name must be between $minimum and $maximum.")) else emptyList()
-        },
-    )
+        name, value,
+    ) { json: JsonElement? ->
+        if (json != null && json.jsonPrimitive.intOrNull?.let { it in minimum..maximum } != true)
+            listOf(ErrorMapper.protocol("$name must be between $minimum and $maximum.")) else emptyList()
+    }
 
-    private fun motionControlSchema(workflowId: com.higgsfield.mobile.core.model.WorkflowId) =
+    private fun motionControlSchema(workflowId: WorkflowId) =
         WorkflowRequestSchema(
             workflowId = workflowId,
             fields = listOf(
@@ -210,7 +215,7 @@ object WorkflowRequestSchemas {
             ),
         )
 
-    private fun imageReferenceVideoSchema(workflowId: com.promptstudio.app.core.model.WorkflowId) =
+    private fun imageReferenceVideoSchema(workflowId: WorkflowId) =
         WorkflowRequestSchema(
             workflowId = workflowId,
             fields = listOf(

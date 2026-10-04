@@ -1,6 +1,7 @@
 package com.promptstudio.app.feature.conversation
 
 import com.promptstudio.app.core.database.ConversationPersistence
+import com.promptstudio.app.core.database.PersistedComposerDraft
 import com.promptstudio.app.core.model.CreativeBrief
 import com.promptstudio.app.core.model.WorkflowDescriptor
 import javax.inject.Inject

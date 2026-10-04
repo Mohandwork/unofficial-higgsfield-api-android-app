@@ -1,13 +1,13 @@
-package com.higgsfield.mobile.core.network
+package com.promptstudio.app.core.network
 
-import com.higgsfield.mobile.core.model.DirectModelRoutes
-import com.higgsfield.mobile.core.model.GenerationAttachment
-import com.higgsfield.mobile.core.model.GenerationDraft
-import com.higgsfield.mobile.core.model.GenerationOptions
-import com.higgsfield.mobile.core.model.CreativeBrief
-import com.higgsfield.mobile.core.model.MediaKind
-import com.higgsfield.mobile.core.model.MediaRole
-import com.higgsfield.mobile.core.model.WorkflowRegistry
+import com.promptstudio.app.core.model.DirectModelRoutes
+import com.promptstudio.app.core.model.GenerationAttachment
+import com.promptstudio.app.core.model.GenerationDraft
+import com.promptstudio.app.core.model.GenerationOptions
+import com.promptstudio.app.core.model.CreativeBrief
+import com.promptstudio.app.core.model.MediaKind
+import com.promptstudio.app.core.model.MediaRole
+import com.promptstudio.app.core.model.WorkflowRegistry
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import org.junit.Assert.assertEquals
@@ -16,13 +16,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DirectModelRoutesTest {
-    private fun draft(model: com.higgsfield.mobile.core.model.WorkflowDescriptor, vararg attachments: GenerationAttachment) =
+    private fun draft(model: com.promptstudio.app.core.model.WorkflowDescriptor, vararg attachments: GenerationAttachment) =
         GenerationDraft("A camera move", CreativeBrief(), model.id, attachments.toList())
 
     private fun media(id: String, kind: MediaKind, role: MediaRole) =
         GenerationAttachment(id, "content://$id", kind, role, "https://example.com/$id")
 
-    private fun adapter(model: com.higgsfield.mobile.core.model.WorkflowDescriptor) =
+    private fun adapter(model: com.promptstudio.app.core.model.WorkflowDescriptor) =
         SchemaWorkflowAdapter(model, requireNotNull(WorkflowRequestSchemas.find(model.id)))
 
     @Test fun `every enabled direct route has a matching request schema`() {

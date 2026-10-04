@@ -5,31 +5,27 @@ import androidx.lifecycle.viewModelScope
 import com.promptstudio.app.R
 import com.promptstudio.app.core.connectivity.AlwaysOnlineConnectivityStatusProvider
 import com.promptstudio.app.core.connectivity.ConnectivityStatusProvider
-import com.promptstudio.app.core.database.ConversationPersistence
-import com.promptstudio.app.core.database.PersistedConversationSnapshot
-import com.promptstudio.app.core.database.PersistedComposerDraft
-import com.promptstudio.app.core.database.PersistedDraftAttachment
-import com.promptstudio.app.core.database.PersistedGenerationStatus
 import com.promptstudio.app.core.data.GenerationRepository
 import com.promptstudio.app.core.data.GenerationSubmissionException
+import com.promptstudio.app.core.database.ConversationPersistence
+import com.promptstudio.app.core.database.PersistedComposerDraft
+import com.promptstudio.app.core.database.PersistedConversationSnapshot
+import com.promptstudio.app.core.database.PersistedDraftAttachment
+import com.promptstudio.app.core.database.PersistedGenerationStatus
 import com.promptstudio.app.core.error.ErrorMapper
 import com.promptstudio.app.core.model.CreativeBrief
-import com.promptstudio.app.core.model.GenerationAttachment
 import com.promptstudio.app.core.model.GenerationDraft
-import com.promptstudio.app.core.model.GenerationOutput
 import com.promptstudio.app.core.model.GenerationOptions
 import com.promptstudio.app.core.model.GenerationRecord
 import com.promptstudio.app.core.model.GenerationStatus
 import com.promptstudio.app.core.model.MediaKind
-import com.promptstudio.app.core.model.MediaRequirement
 import com.promptstudio.app.core.model.MediaRole
 import com.promptstudio.app.core.model.WorkflowCapability
 import com.promptstudio.app.core.model.WorkflowDescriptor
-import com.promptstudio.app.core.model.WorkflowOption
+import com.promptstudio.app.core.model.WorkflowId
 import com.promptstudio.app.core.model.WorkflowRegistry
 import com.promptstudio.app.core.network.RequestStatusPoller
 import dagger.hilt.android.lifecycle.HiltViewModel
-import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,10 +34,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @HiltViewModel
 class ConversationViewModel @Inject constructor(
     private val persistence: ConversationPersistence,
+    //TODO figure out whatever is wrong here
     private val connectivity: ConnectivityStatusProvider = AlwaysOnlineConnectivityStatusProvider,
     private val generationRepository: GenerationRepository? = null,
     private val statusPoller: RequestStatusPoller? = null,
@@ -76,7 +74,7 @@ class ConversationViewModel @Inject constructor(
     }
 
     fun initialize(kind: MediaKind, requestedConversationId: String? = null) {
-        val id = requestedConversationId ?: kind.name.lowercase() + "-default"
+        val id = requestedConversationId ?: (kind.name.lowercase() + "-default")
         if (conversationId == id && mutableState.value.workflows.isNotEmpty()) return
         workspaceVersion++
         conversationId?.takeIf { it != id }?.let { previousId ->
@@ -461,7 +459,7 @@ class ConversationViewModel @Inject constructor(
             result.getOrNull()?.let { workspace.pollIfNeeded(viewModelScope, it) }
         }
     }
-
+    // TODO deprecated function
     fun attachSource(label: String) = mutableState.update {
         it.copy(
             composer = it.composer.copy(activeSourceId = LOCAL_SOURCE_ID, activeSourceLabel = ConversationText.Dynamic(label)),

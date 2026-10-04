@@ -104,7 +104,6 @@
     <string name="generate">Generate</string>
     <string name="generating">Generating…</string>
     <string name="preparing_workspace">Preparing workspace…</string>
-    <string name="api_credentials_not_configured">Credentials are not configured. Generate will reach the model API and return an authentication error.</string>
     <string name="swipe_left_to_remove_chat">Swipe left</string>
     <string name="submitting_request">Submitting request…</string>
     <string name="waiting_for_request_acceptance">Waiting for Higgsfield to accept it.</string>

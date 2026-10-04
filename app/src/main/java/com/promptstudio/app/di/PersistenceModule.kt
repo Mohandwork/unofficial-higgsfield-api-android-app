@@ -9,6 +9,7 @@ import com.promptstudio.app.core.database.GenerationDao
 import com.promptstudio.app.core.database.PromptStudioDatabase
 import com.promptstudio.app.core.database.MediaDao
 import com.promptstudio.app.core.database.MIGRATION_1_2
+import com.promptstudio.app.core.database.MIGRATION_2_3
 import com.promptstudio.app.core.data.GenerationRepository
 import com.promptstudio.app.core.data.RoomGenerationRepository
 import dagger.Module
@@ -26,7 +27,7 @@ object PersistenceModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): PromptStudioDatabase =
         Room.databaseBuilder(context, PromptStudioDatabase::class.java, DATABASE_NAME)
-            .addMigrations(MIGRATION_1_2)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
             .build()
 
     @Provides fun provideConversationDao(database: PromptStudioDatabase): ConversationDao = database.conversationDao()

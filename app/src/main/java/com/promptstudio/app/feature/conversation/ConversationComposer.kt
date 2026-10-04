@@ -29,26 +29,27 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.promptstudio.app.R
-import com.promptstudio.app.core.model.MediaKind
+import com.promptstudio.app.core.model.CreativeBrief
 import com.promptstudio.app.core.model.GenerationOutput
+import com.promptstudio.app.core.model.MediaKind
+import com.promptstudio.app.core.model.MediaRequirement
 import com.promptstudio.app.core.model.MediaRole
-import com.promptstudio.app.core.model.WorkflowDescriptor
 import com.promptstudio.app.core.model.WorkflowCapability
+import com.promptstudio.app.core.model.WorkflowCatalog
 import com.promptstudio.app.ui.theme.PromptStudioTheme
 
 @Preview(showBackground = true, backgroundColor = 0xFF0D1316)
@@ -186,7 +187,7 @@ private fun ComposerActions(state: ConversationUiState, onShowBrief: (Boolean) -
                 onClick = { onShowBrief(true) },
                 label = {
                     Text(
-                        stringResource(if (state.brief == com.higgsfield.mobile.core.model.CreativeBrief()) R.string.brief_empty_summary else R.string.brief_active_summary),
+                        stringResource(if (state.brief == CreativeBrief()) R.string.brief_empty_summary else R.string.brief_active_summary),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )

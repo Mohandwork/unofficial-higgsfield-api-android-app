@@ -3,6 +3,7 @@ package com.promptstudio.app.core.database
 import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.promptstudio.app.core.model.CreativeBrief
 import com.promptstudio.app.core.model.MediaKind
 import com.promptstudio.app.core.model.MediaRole
 import com.promptstudio.app.core.model.GenerationOptions

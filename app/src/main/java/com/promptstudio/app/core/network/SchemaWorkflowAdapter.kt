@@ -5,6 +5,7 @@ import com.promptstudio.app.core.error.ErrorMapper
 import com.promptstudio.app.core.model.DraftValidation
 import com.promptstudio.app.core.model.GenerationDraft
 import com.promptstudio.app.core.model.MediaKind
+import com.promptstudio.app.core.model.MediaRole
 import com.promptstudio.app.core.model.PromptComposer
 import com.promptstudio.app.core.model.WorkflowAdapter
 import com.promptstudio.app.core.model.WorkflowDescriptor
@@ -211,7 +212,7 @@ object WorkflowRequestValues {
 
     fun constantBoolean(name: String, value: Boolean) = WorkflowRequestField(
         name = name,
-        value = WorkflowRequestValue { _, _ -> JsonPrimitive(value) },
+        value = { _, _ -> JsonPrimitive(value) },
     )
 
     fun optional(name: String, value: WorkflowRequestValue) = WorkflowRequestField(name, value)

@@ -1,15 +1,16 @@
-package com.higgsfield.mobile.core.network
+package com.promptstudio.app.core.network
 
-import com.higgsfield.mobile.core.error.ErrorMapper
-import com.higgsfield.mobile.core.model.DirectModelRoutes
-import com.higgsfield.mobile.core.model.MediaKind
-import com.higgsfield.mobile.core.model.MediaRole
-import com.higgsfield.mobile.core.model.OptionConstraint
-import com.higgsfield.mobile.core.model.WorkflowDescriptor
-import com.higgsfield.mobile.core.model.WorkflowOption
+import com.promptstudio.app.core.error.ErrorMapper
+import com.promptstudio.app.core.model.DirectModelRoutes
+import com.promptstudio.app.core.model.MediaKind
+import com.promptstudio.app.core.model.MediaRole
+import com.promptstudio.app.core.model.OptionConstraint
+import com.promptstudio.app.core.model.WorkflowDescriptor
+import com.promptstudio.app.core.model.WorkflowOption
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
+
 
 /** Request fields for direct operations; workflow guides are intentionally absent. */
 object DirectModelRequestSchemas {
