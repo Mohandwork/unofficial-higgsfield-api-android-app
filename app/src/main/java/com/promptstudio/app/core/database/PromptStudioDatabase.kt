@@ -5,7 +5,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [ConversationEntity::class, ConversationDraftEntity::class, GenerationEntity::class, AttachmentEntity::class, OutputEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class PromptStudioDatabase : RoomDatabase() {

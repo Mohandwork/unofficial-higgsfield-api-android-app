@@ -29,10 +29,10 @@ data class ReusableComposerParameters(
 class ConversationComposerUseCase @Inject constructor() {
     fun slotsFor(workflow: WorkflowDescriptor?): List<MediaRequirement> {
         if (workflow == null) return emptyList()
-        val referenceSlot = MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE)
+        val referenceSlot = MediaRequirement(MediaRole.REFERENCE, MediaKind.IMAGE, maximumCount = null)
         return workflow.mediaRequirements + if (
             WorkflowCapability.REFERENCE_IMAGE in workflow.capabilities &&
-                workflow.mediaRequirements.none { it.role == MediaRole.REFERENCE }
+                workflow.mediaRequirements.none { it.kind == MediaKind.IMAGE }
         ) listOf(referenceSlot) else emptyList()
     }
 
@@ -40,8 +40,8 @@ class ConversationComposerUseCase @Inject constructor() {
         val slots = slotsFor(workflow)
         return ComposerWorkflowSelection(
             slots = slots,
-            attachments = state.attachments.filter { attachment ->
-                slots.any { it.role == attachment.role && it.kind == attachment.kind }
+            attachments = slots.flatMap { slot ->
+                state.attachments.filter { it.role == slot.role && it.kind == slot.kind }.take(slot.maximumCount ?: Int.MAX_VALUE)
             },
             options = retainOptionsFor(state.options, workflow),
             activeImageIncompatible = state.activeSourceId != null && state.mediaKind == MediaKind.IMAGE &&
@@ -57,7 +57,7 @@ class ConversationComposerUseCase @Inject constructor() {
             workflowId = workflow.id,
             attachments = state.attachments.map { attachment ->
                 GenerationAttachment(
-                    id = "local-attachment-${attachment.role.name.lowercase()}",
+                    id = "local-attachment-${attachment.role.name.lowercase()}-${attachment.uri}",
                     uri = attachment.uri,
                     kind = attachment.kind,
                     role = attachment.role,
@@ -80,12 +80,36 @@ class ConversationComposerUseCase @Inject constructor() {
 
     fun retainOptionsFor(options: GenerationOptions, workflow: WorkflowDescriptor?): GenerationOptions {
         val supported = workflow?.supportedOptions.orEmpty()
+        val constraints = workflow?.optionConstraints.orEmpty()
+        fun allowed(option: WorkflowOption, value: String): Boolean =
+            constraints[option]?.choices?.let { it.isEmpty() || value in it } ?: true
+        fun allowedNumber(option: WorkflowOption, value: Long): Boolean =
+            constraints[option]?.let { value >= (it.minimum?.toLong() ?: Long.MIN_VALUE) && value <= (it.maximum?.toLong() ?: Long.MAX_VALUE) } ?: true
         return options.copy(
-            aspectRatio = if (WorkflowOption.ASPECT_RATIO in supported) options.aspectRatio else GenerationOptions().aspectRatio,
-            resolution = options.resolution?.takeIf { WorkflowOption.RESOLUTION in supported },
-            durationSeconds = options.durationSeconds?.takeIf { WorkflowOption.DURATION in supported },
-            seed = options.seed?.takeIf { WorkflowOption.SEED in supported },
+            aspectRatio = if (WorkflowOption.ASPECT_RATIO in supported && allowed(WorkflowOption.ASPECT_RATIO, options.aspectRatio)) options.aspectRatio else GenerationOptions().aspectRatio,
+            resolution = options.resolution?.takeIf { WorkflowOption.RESOLUTION in supported && allowed(WorkflowOption.RESOLUTION, it) },
+            durationSeconds = options.durationSeconds?.takeIf { WorkflowOption.DURATION in supported && allowedNumber(WorkflowOption.DURATION, it.toLong()) },
+            seed = options.seed?.takeIf { WorkflowOption.SEED in supported && allowedNumber(WorkflowOption.SEED, it) },
             negativePrompt = options.negativePrompt?.takeIf { WorkflowOption.NEGATIVE_PROMPT in supported },
+            modelOptions = options.modelOptions.filter { (key, value) ->
+                supported.any { it.name.lowercase() == key || when (it) {
+                    WorkflowOption.GENERATE_AUDIO -> key == "generate_audio"
+                    WorkflowOption.AIGC_WATERMARK -> key == "aigc_watermark"
+                    WorkflowOption.ENABLE_THINKING -> key == "enable_thinking"
+                    WorkflowOption.PROMPT_EXTEND -> key == "prompt_extend"
+                    WorkflowOption.RENDERING_SPEED -> key == "rendering_speed"
+                    WorkflowOption.IMAGE_WEIGHT -> key == "image_weight"
+                    WorkflowOption.OUTPUT_FORMAT -> key == "output_format"
+                    WorkflowOption.QUALITY -> key == "quality"
+                    else -> false
+                } } && supported.firstOrNull { it.name.lowercase() == key }?.let { option ->
+                    val constraint = constraints[option]
+                    (constraint?.choices.isNullOrEmpty() || value in constraint!!.choices) &&
+                        (constraint?.minimum == null && constraint?.maximum == null || value.toIntOrNull()?.let { number ->
+                            number >= (constraint.minimum ?: Int.MIN_VALUE) && number <= (constraint.maximum ?: Int.MAX_VALUE)
+                        } == true)
+                } != false
+            },
         )
     }
 

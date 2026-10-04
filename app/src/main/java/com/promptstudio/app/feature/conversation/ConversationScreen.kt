@@ -5,10 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
-import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
-import androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia
+import androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -33,6 +31,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,12 +65,15 @@ fun ConversationRoute(
     conversationId: String?,
     onBack: () -> Unit,
     onSelectMediaKind: (MediaKind) -> Unit,
-    onSelectConversation: (String, MediaKind) -> Unit,
+    onSelectConversation: (String?, MediaKind) -> Unit,
     viewModel: ConversationViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
-    LaunchedEffect(mediaKind, conversationId) { viewModel.initialize(mediaKind, conversationId) }
+    LaunchedEffect(mediaKind, conversationId) {
+        if (conversationId == null) viewModel.initializeEmpty(mediaKind)
+        else viewModel.initialize(mediaKind, conversationId)
+    }
     val state by viewModel.state.collectAsStateWithLifecycle()
     var pendingRole by remember { mutableStateOf<MediaRole?>(null) }
     var pendingDownload by remember { mutableStateOf<TimelineItem?>(null) }
@@ -85,19 +88,33 @@ fun ConversationRoute(
         }
         pendingDownload = null
     }
-    val imagePicker = rememberLauncherForActivityResult(PickVisualMedia()) { uri: Uri? ->
+    val imagePicker = rememberLauncherForActivityResult(OpenMultipleDocuments()) { uris: List<Uri> ->
         val role = pendingRole
-        if (uri != null && role != null) {
-            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            viewModel.onEvent(ConversationUiEvent.MediaPicked(role, MediaKind.IMAGE, uri.toString(), uri.lastPathSegment ?: uri.toString()))
+        if (role != null) {
+            uris.forEach { uri ->
+                runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                viewModel.onEvent(ConversationUiEvent.MediaPicked(role, MediaKind.IMAGE, uri.toString(), uri.lastPathSegment ?: uri.toString()))
+            }
         }
         pendingRole = null
     }
-    val videoPicker = rememberLauncherForActivityResult(OpenDocument()) { uri: Uri? ->
+    val videoPicker = rememberLauncherForActivityResult(OpenMultipleDocuments()) { uris: List<Uri> ->
         val role = pendingRole
-        if (uri != null && role != null) {
-            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-            viewModel.onEvent(ConversationUiEvent.MediaPicked(role, MediaKind.VIDEO, uri.toString(), uri.lastPathSegment ?: uri.toString()))
+        if (role != null) {
+            uris.forEach { uri ->
+                runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                viewModel.onEvent(ConversationUiEvent.MediaPicked(role, MediaKind.VIDEO, uri.toString(), uri.lastPathSegment ?: uri.toString()))
+            }
+        }
+        pendingRole = null
+    }
+    val audioPicker = rememberLauncherForActivityResult(OpenMultipleDocuments()) { uris: List<Uri> ->
+        val role = pendingRole
+        if (role != null) {
+            uris.forEach { uri ->
+                runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                viewModel.onEvent(ConversationUiEvent.MediaPicked(role, MediaKind.AUDIO, uri.toString(), uri.lastPathSegment ?: uri.toString()))
+            }
         }
         pendingRole = null
     }
@@ -108,9 +125,9 @@ fun ConversationRoute(
                 is ConversationUiEffect.LaunchMediaPicker -> {
                     pendingRole = effect.role
                     when (effect.kind) {
-                        MediaKind.IMAGE -> imagePicker.launch(PickVisualMediaRequest(PickVisualMedia.ImageOnly))
+                        MediaKind.IMAGE -> imagePicker.launch(arrayOf("image/*"))
                         MediaKind.VIDEO -> videoPicker.launch(arrayOf(VIDEO_MIME_TYPE))
-                        MediaKind.AUDIO -> pendingRole = null
+                        MediaKind.AUDIO -> audioPicker.launch(arrayOf("audio/*"))
                     }
                 }
                 is ConversationUiEffect.LaunchDownload -> {
@@ -131,7 +148,7 @@ private fun ConversationScreen(
 ) {
     var pendingConversationSwitch by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
     var pendingConversationCreation by remember { mutableStateOf<MediaKind?>(null) }
-    var pendingRemoval by remember { mutableStateOf(false) }
+    var pendingRemoval by remember { mutableStateOf<Pair<String, MediaKind>?>(null) }
     var modelMenuOpen by rememberSaveable { mutableStateOf(false) }
     var infoOpen by rememberSaveable { mutableStateOf(false) }
     var historyOpen by rememberSaveable { mutableStateOf(false) }
@@ -156,16 +173,16 @@ private fun ConversationScreen(
             pendingConversationSwitch = id to kind
         }
     }
-    val requestConversationRemoval: () -> Unit = {
-        if (!pendingRemoval) pendingRemoval = true
+    val requestConversationRemoval: (String, MediaKind) -> Unit = { id, kind ->
+        if (pendingRemoval == null) pendingRemoval = id to kind
     }
     LaunchedEffect(pendingRemoval) {
-        if (pendingRemoval) {
+        pendingRemoval?.let { (id, kind) ->
             // Let the confirmation dialog (and, on compact screens, the history sheet) leave
             // composition before showing the workspace transition.
             withFrameNanos { }
-            pendingRemoval = false
-            onEvent(ConversationUiEvent.RemoveConversation)
+            pendingRemoval = null
+            onEvent(ConversationUiEvent.RemoveConversation(id, kind))
         }
     }
     LaunchedEffect(pendingConversationSwitch) {
@@ -215,15 +232,40 @@ private fun ConversationScreen(
                 dispatch(ConversationUiEvent.ShowHistory(false))
                 pendingConversationCreation = kind
             },
-            onRemoveConversation = {
+            onRemoveConversation = { id, kind ->
                 dispatch(ConversationUiEvent.ShowHistory(false))
-                requestConversationRemoval()
+                requestConversationRemoval(id, kind)
             },
             onDismiss = { dispatch(ConversationUiEvent.ShowHistory(false)) },
             onEvent = dispatch,
         )
     }
     if (briefOpen) CreativeBriefSheet(state.brief, { dispatch(ConversationUiEvent.ShowBrief(false)) }, { dispatch(ConversationUiEvent.UpdateBrief(it)) })
+    if (state.isSubmitting && !state.isTransitioning) SubmissionOverlay()
+}
+
+@Composable
+private fun SubmissionOverlay() {
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false),
+    ) {
+        Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surface) {
+            Column(
+                Modifier.fillMaxWidth().padding(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                CircularProgressIndicator()
+                Text(stringResource(R.string.submitting_request), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.waiting_for_request_acceptance),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
 
 @Composable

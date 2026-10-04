@@ -86,9 +86,6 @@ class RoomGenerationRepository @Inject constructor(
     override suspend fun estimate(draft: GenerationDraft): EstimateState = EstimateState.Idle
 
     override suspend fun submit(conversationId: String, draft: GenerationDraft): Result<GenerationRecord> {
-        if ((draft.composedPromptOverride ?: PromptComposer.compose(draft.creativeBrief, draft.instruction)).isBlank()) {
-            return Result.failure(GenerationSubmissionException(ErrorMapper.instructionRequired()))
-        }
         val adapter = workflowAdapter(draft).getOrElse { return Result.failure(it) }
         val sourceOutput = draft.activeSourceId?.let { mediaDao.getOutput(it) }
         if (draft.activeSourceId != null) {
@@ -98,7 +95,7 @@ class RoomGenerationRepository @Inject constructor(
                 return Result.failure(GenerationSubmissionException(ErrorMapper.activeImageUnavailable()))
             }
             if (WorkflowCapability.IMAGE_TO_IMAGE !in adapter.descriptor.capabilities ||
-                WorkflowRequestSchemas.find(draft.workflowId)?.fields?.none { it.name == "image_urls" } != false) {
+                WorkflowRequestSchemas.find(draft.workflowId)?.fields?.none { it.name in setOf("image_urls", "image_url") } != false) {
                 return Result.failure(GenerationSubmissionException(ErrorMapper.imageEditUnsupported()))
             }
         }
@@ -376,6 +373,7 @@ private fun String.toOptions(): GenerationOptions = runCatching {
         durationSeconds = values[DURATION_SECONDS_FIELD]?.jsonPrimitive?.intOrNull,
         seed = values[SEED_FIELD]?.jsonPrimitive?.longOrNull,
         negativePrompt = values[NEGATIVE_PROMPT_FIELD]?.jsonPrimitive?.contentOrNull,
+        modelOptions = values[MODEL_OPTIONS_FIELD]?.jsonObject?.mapValues { it.value.jsonPrimitive.content }.orEmpty(),
     )
 }.getOrDefault(GenerationOptions())
 
@@ -387,6 +385,7 @@ private fun com.promptstudio.app.core.model.GenerationOptions.snapshotJson(): St
         durationSeconds?.let { put(DURATION_SECONDS_FIELD, JsonPrimitive(it)) }
         seed?.let { put(SEED_FIELD, JsonPrimitive(it)) }
         negativePrompt?.let { put(NEGATIVE_PROMPT_FIELD, JsonPrimitive(it)) }
+        put(MODEL_OPTIONS_FIELD, JsonObject(modelOptions.mapValues { JsonPrimitive(it.value) }))
     },
 )
 
@@ -396,6 +395,7 @@ private const val RESOLUTION_FIELD = "resolution"
 private const val DURATION_SECONDS_FIELD = "durationSeconds"
 private const val SEED_FIELD = "seed"
 private const val NEGATIVE_PROMPT_FIELD = "negativePrompt"
+private const val MODEL_OPTIONS_FIELD = "modelOptions"
 private const val UNKNOWN_WORKFLOW_MESSAGE = "The selected workflow is not registered"
 private const val MISSING_SCHEMA_MESSAGE = "The selected workflow has no verified submission schema"
 private const val MISSING_ENDPOINT_MESSAGE = "The selected workflow has no verified submission endpoint"

@@ -48,6 +48,25 @@
     <string name="versions">Versions</string>
     <string name="local_demo_versions">%1$d local demo version(s)</string>
     <string name="choose_model">Choose model</string>
+    <string name="all_model_families">All model families</string>
+    <string name="model_family_count">%1$s (%2$d)</string>
+    <string name="model_family_soul">SOUL</string>
+    <string name="model_family_marketing_studio">Marketing Studio</string>
+    <string name="model_family_qwen">Qwen</string>
+    <string name="model_family_seedance">Seedance</string>
+    <string name="model_family_kling">Kling</string>
+    <string name="model_family_cinema_studio">Cinema Studio</string>
+    <string name="model_family_wan">Wan</string>
+    <string name="model_family_happy_horse">Happy Horse</string>
+    <string name="model_family_z_image">Z-Image</string>
+    <string name="model_family_grok">Grok Imagine</string>
+    <string name="model_family_ideogram">Ideogram</string>
+    <string name="model_family_recraft">Recraft</string>
+    <string name="model_family_genjutsu">Genjutsu</string>
+    <string name="model_family_minimax">MiniMax</string>
+    <string name="model_family_pixverse">PixVerse</string>
+    <string name="reference_combined_limit">Up to %1$d photos and videos combined</string>
+    <string name="media_role_source_video">Source video</string>
     <string name="adapter_verification_pending">Adapter verification pending</string>
     <string name="adapter_verified">Adapter verified</string>
     <string name="model_details_and_cost">Model details and cost</string>
@@ -67,6 +86,8 @@
     <string name="model_source_user_provided">Source: pricing and specification screenshots supplied for this build.</string>
     <string name="describe_change">Describe what to change…</string>
     <string name="describe_creation">Describe what to create…</string>
+    <string name="describe_video_motion">Describe what should happen in the video…</string>
+    <string name="describe_video_motion_optional">Describe the video motion (optional)…</string>
     <string name="attach_reference_image">Attach a reference image</string>
     <string name="attach_media">Attach media</string>
     <string name="remove_attachment">Remove attachment</string>
@@ -75,6 +96,8 @@
     <string name="media_role_reference_image">Reference image</string>
     <string name="media_role_start_frame">Start frame</string>
     <string name="media_role_end_frame">End frame</string>
+    <string name="media_role_input_image">Input image</string>
+    <string name="media_role_optional_end_frame">End frame (optional)</string>
     <string name="media_role_audio">Audio reference</string>
     <string name="advanced_options_description">Advanced options</string>
     <string name="generation_specs">Generation specs</string>
@@ -82,6 +105,10 @@
     <string name="generating">Generating…</string>
     <string name="preparing_workspace">Preparing workspace…</string>
     <string name="api_credentials_not_configured">Credentials are not configured. Generate will reach the model API and return an authentication error.</string>
+    <string name="swipe_left_to_remove_chat">Swipe left</string>
+    <string name="submitting_request">Submitting request…</string>
+    <string name="waiting_for_request_acceptance">Waiting for Higgsfield to accept it.</string>
+    <string name="api_credentials_not_configured">Credentials are not configured. Generate will reach Higgsfield and return an authentication error.</string>
     <string name="start_with_clear_idea">Start with a clear idea</string>
     <string name="empty_image_conversation">Create an image, then make the next edit from its visible active source.</string>
     <string name="empty_video_conversation">Create a video from text or attach a compatible reference image.</string>
@@ -158,4 +185,11 @@
     <string name="error_not_enough_credits">Not enough API credits. Add credits, then try again.</string>
     <string name="error_network_unavailable">A network error occurred. Check your connection and try again.</string>
     <string name="error_unknown">Something went wrong. Try again.</string>
+    <string name="message_reference_limit">This model has reached its reference limit.</string>
+    <string name="message_photo_reference_limit">This model allows up to %1$d photos. Remove one to add another.</string>
+    <string name="message_video_reference_limit">This model allows up to %1$d videos. Remove one to add another.</string>
+    <string name="attachment_count_limited">%1$s: %2$d of %3$d</string>
+    <string name="attachment_count_unspecified">%1$s: %2$d selected (API max not stated)</string>
+    <string name="media_role_reference_video">Reference video</string>
+    <string name="duration_seconds">Duration (seconds)</string>
 </resources>

@@ -6,6 +6,7 @@ import com.promptstudio.app.core.model.MediaRole
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -33,6 +34,7 @@ internal fun PersistedComposerDraft.toEntity(conversationId: String) = Conversat
     durationSeconds = options.durationSeconds,
     seed = options.seed,
     negativePrompt = options.negativePrompt,
+    modelOptionsJson = JsonObject(options.modelOptions.mapValues { JsonPrimitive(it.value) }).toString(),
     attachmentsJson = JsonArray(attachments.map { attachment ->
         buildJsonObject {
             put("role", JsonPrimitive(attachment.role.name))
@@ -46,7 +48,8 @@ internal fun PersistedComposerDraft.toEntity(conversationId: String) = Conversat
 
 internal fun ConversationDraftEntity.toDraft() = PersistedComposerDraft(
     prompt = prompt,
-    options = GenerationOptions(aspectRatio, resolution, durationSeconds, seed, negativePrompt),
+    options = GenerationOptions(aspectRatio, resolution, durationSeconds, seed, negativePrompt,
+        runCatching { Json.parseToJsonElement(modelOptionsJson).jsonObject.mapValues { it.value.jsonPrimitive.content } }.getOrDefault(emptyMap())),
     attachments = runCatching {
         Json.parseToJsonElement(attachmentsJson).jsonArray.map { item ->
             val fields = item.jsonObject

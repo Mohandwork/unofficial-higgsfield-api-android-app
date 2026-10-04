@@ -41,9 +41,32 @@ object WorkflowRequestSchemas {
         fields = imageGenerationFields(requiredImageUrls = true),
     )
 
-    val seedance2 = textToVideoSchema(WorkflowCatalog.SEEDANCE_2.id)
+    val zImageTurbo = WorkflowRequestSchema(
+        workflowId = WorkflowCatalog.Z_IMAGE_TURBO.id,
+        fields = listOf(
+            WorkflowRequestValues.requiredComposedPrompt(),
+            choice(RESOLUTION_FIELD, WorkflowRequestValues.resolution, setOf("1k", "2k")),
+            choice(ASPECT_RATIO_FIELD, WorkflowRequestValues.aspectRatio, setOf("1:1", "2:3", "3:2", "3:4", "4:3", "7:9", "9:7", "9:16", "16:9", "21:9")),
+            integerRange(SEED_FIELD, WorkflowRequestValues.seed, 0, 2147483647),
+            WorkflowRequestValues.optional("prompt_extend", WorkflowRequestValues.modelBoolean("prompt_extend")),
+        ),
+    )
 
-    val seedance2_5 = textToVideoSchema(WorkflowCatalog.SEEDANCE_2_5.id)
+    val seedance2 = seedanceTextSchema(WorkflowCatalog.SEEDANCE_2.id, 15, true)
+
+    val seedance2_5 = seedanceTextSchema(WorkflowCatalog.SEEDANCE_2_5.id, 30, false)
+    val seedance2Reference = referenceVideoSchema(WorkflowCatalog.SEEDANCE_2_REFERENCE.id, 9, 3, 15, true)
+    val seedance2_5Reference = referenceVideoSchema(WorkflowCatalog.SEEDANCE_2_5_REFERENCE.id, 30, 10, 30, false)
+    val happyHorse1 = WorkflowRequestSchema(
+        workflowId = WorkflowCatalog.HAPPY_HORSE_1.id,
+        fields = listOf(
+            WorkflowRequestValues.requiredComposedPrompt(),
+            integerRange(DURATION_FIELD, WorkflowRequestValues.duration, 3, 15),
+            choice(RESOLUTION_FIELD, WorkflowRequestValues.resolution, setOf("720p", "1080p")),
+            choice(ASPECT_RATIO_FIELD, WorkflowRequestValues.aspectRatio, setOf("16:9", "9:16", "1:1", "4:3", "3:4")),
+            integerRange(SEED_FIELD, WorkflowRequestValues.seed, 1, 2147483646),
+        ),
+    )
 
     val kling2_5Turbo = textToVideoSchema(WorkflowCatalog.KLING_2_5_TURBO.id)
 
@@ -65,9 +88,9 @@ object WorkflowRequestSchemas {
 
     val wan2_7 = textToVideoSchema(WorkflowCatalog.WAN_2_7.id)
 
-    val wan3 = textToVideoSchema(WorkflowCatalog.WAN_3.id)
+    val wan3 = DirectModelRequestSchemas.schemaFor(requireNotNull(WorkflowRegistry.find(WorkflowCatalog.WAN_3.id)))
 
-    val wan3Prime = textToVideoSchema(WorkflowCatalog.WAN_3_PRIME.id)
+    val wan3Prime = DirectModelRequestSchemas.schemaFor(requireNotNull(WorkflowRegistry.find(WorkflowCatalog.WAN_3_PRIME.id)))
 
     val all: List<WorkflowRequestSchema> = listOf(
         soulStandard,
@@ -78,8 +101,12 @@ object WorkflowRequestSchemas {
         marketingStudioSunburst,
         qwenImage3,
         qwenImage3Edit,
+        zImageTurbo,
         seedance2,
         seedance2_5,
+        seedance2Reference,
+        seedance2_5Reference,
+        happyHorse1,
         kling2_5Turbo,
         kling2_6,
         kling3,
@@ -92,7 +119,7 @@ object WorkflowRequestSchemas {
         wan2_7,
         wan3,
         wan3Prime,
-    )
+    ) + DirectModelRequestSchemas.all
 
     fun find(workflowId: com.promptstudio.app.core.model.WorkflowId): WorkflowRequestSchema? =
         all.firstOrNull { it.workflowId == workflowId }
@@ -105,7 +132,7 @@ object WorkflowRequestSchemas {
                 WorkflowRequestValues.constantString(QUALITY_FIELD, HIGH_QUALITY),
                 WorkflowRequestValues.optional(RESOLUTION_FIELD, WorkflowRequestValues.resolution),
                 WorkflowRequestValues.optional(ASPECT_RATIO_FIELD, WorkflowRequestValues.aspectRatio),
-                WorkflowRequestValues.optionalUploadedImageUrls(),
+                WorkflowRequestValues.optionalUploadedImageUrls(MAXIMUM_MARKETING_IMAGES),
                 WorkflowRequestValues.constantBoolean(ENHANCE_PROMPT_FIELD, false),
             ),
         )
@@ -126,7 +153,54 @@ object WorkflowRequestSchemas {
             fields = listOf(WorkflowRequestValues.requiredComposedPrompt()),
         )
 
-    private fun motionControlSchema(workflowId: com.promptstudio.app.core.model.WorkflowId) =
+    private fun referenceVideoSchema(
+        workflowId: com.higgsfield.mobile.core.model.WorkflowId,
+        maximumImages: Int,
+        maximumVideos: Int,
+        maximumDuration: Int,
+        supports4k: Boolean,
+    ) =
+        WorkflowRequestSchema(
+            workflowId = workflowId,
+            fields = listOf(
+                WorkflowRequestValues.optional(PROMPT_FIELD, WorkflowRequestValues.composedPrompt),
+                WorkflowRequestValues.optionalUploadedImageUrls(maximumImages),
+                WorkflowRequestValues.optionalUploadedVideoUrls(maximumVideos),
+                WorkflowRequestValues.optional("audio_urls", WorkflowRequestValues.uploadedAudioUrls),
+                integerRange(DURATION_FIELD, WorkflowRequestValues.duration, 4, maximumDuration),
+                choice(RESOLUTION_FIELD, WorkflowRequestValues.resolution, if (supports4k) setOf("480p", "720p", "1080p", "4k") else setOf("480p", "720p", "1080p")),
+                choice(ASPECT_RATIO_FIELD, WorkflowRequestValues.aspectRatio, setOf("16:9", "4:3", "1:1", "3:4", "9:16", "21:9")),
+                WorkflowRequestValues.optional("generate_audio", WorkflowRequestValues.modelBoolean("generate_audio")),
+            ) + if (supports4k) emptyList() else listOf(choice("output_format", WorkflowRequestValues.modelString("output_format"), setOf("mp4", "mov"))),
+            requiresImageOrVideoReference = true,
+        )
+
+    private fun seedanceTextSchema(workflowId: com.higgsfield.mobile.core.model.WorkflowId, maximumDuration: Int, supports4k: Boolean) =
+        WorkflowRequestSchema(
+            workflowId = workflowId,
+            fields = listOf(
+                WorkflowRequestValues.requiredComposedPrompt(),
+                integerRange(DURATION_FIELD, WorkflowRequestValues.duration, 4, maximumDuration),
+                choice(RESOLUTION_FIELD, WorkflowRequestValues.resolution, if (supports4k) setOf("480p", "720p", "1080p", "4k") else setOf("480p", "720p")),
+                choice(ASPECT_RATIO_FIELD, WorkflowRequestValues.aspectRatio, setOf("16:9", "4:3", "1:1", "3:4", "9:16", "21:9")),
+                WorkflowRequestValues.optional("generate_audio", WorkflowRequestValues.modelBoolean("generate_audio")),
+            ) + if (supports4k) emptyList() else listOf(choice("output_format", WorkflowRequestValues.modelString("output_format"), setOf("mp4", "mov"))),
+        )
+
+    private fun choice(name: String, value: WorkflowRequestValue, allowed: Set<String>) = WorkflowRequestField(
+        name, value, { json: JsonElement? ->
+            if (json != null && json.jsonPrimitive.content !in allowed) listOf(ErrorMapper.protocol("Unsupported $name value.")) else emptyList()
+        },
+    )
+
+    private fun integerRange(name: String, value: WorkflowRequestValue, minimum: Int, maximum: Int) = WorkflowRequestField(
+        name, value, { json: JsonElement? ->
+            if (json != null && json.jsonPrimitive.intOrNull?.let { it in minimum..maximum } != true)
+                listOf(ErrorMapper.protocol("$name must be between $minimum and $maximum.")) else emptyList()
+        },
+    )
+
+    private fun motionControlSchema(workflowId: com.higgsfield.mobile.core.model.WorkflowId) =
         WorkflowRequestSchema(
             workflowId = workflowId,
             fields = listOf(
@@ -152,8 +226,10 @@ object WorkflowRequestSchemas {
     private const val ASPECT_RATIO_FIELD = "aspect_ratio"
     private const val ENHANCE_PROMPT_FIELD = "enhance_prompt"
     private const val SEED_FIELD = "seed"
+    private const val DURATION_FIELD = "duration"
     private const val NEGATIVE_PROMPT_FIELD = "negative_prompt"
     private const val IMAGE_URL_FIELD = "image_url"
     private const val VIDEO_URL_FIELD = "video_url"
     private const val MAXIMUM_QWEN_EDIT_IMAGES = 3
+    private const val MAXIMUM_MARKETING_IMAGES = 16
 }

@@ -53,7 +53,36 @@ class ConversationComposerUseCaseTest {
         val draft = useCase.draftFor(state, persistedSourceOutputId = null)!!
 
         assertEquals("output-1", draft.activeSourceId)
-        assertEquals("local-attachment-reference", draft.attachments.single().id)
+        assertEquals("local-attachment-reference-content://reference", draft.attachments.single().id)
         assertTrue(draft.attachments.single().uri.startsWith("content://"))
+    }
+
+    @Test
+    fun `qwen edit exposes its three source photos without a second unlimited photo slot`() {
+        val qwenEdit = WorkflowRegistry.find(WorkflowCatalog.QWEN_IMAGE_3_EDIT.id)!!
+
+        assertEquals(listOf(MediaRole.SOURCE), useCase.slotsFor(qwenEdit).map { it.role })
+        assertEquals(3, useCase.slotsFor(qwenEdit).single().maximumCount)
+    }
+
+    @Test
+    fun `kling image reference does not claim an undocumented upload maximum`() {
+        val kling = WorkflowRegistry.find(WorkflowCatalog.KLING_O3.id)!!
+
+        assertEquals(null, useCase.slotsFor(kling).single().maximumCount)
+    }
+
+    @Test
+    fun `switching to MiniMax keeps supported values and removes unsupported Wan controls`() {
+        val options = GenerationOptions(aspectRatio = "adaptive", resolution = "1080p", durationSeconds = 20,
+            modelOptions = mapOf("generate_audio" to "false", "aigc_watermark" to "true"))
+
+        val retained = useCase.retainOptionsFor(options, DirectModelRoutes.miniImage)
+
+        assertEquals("adaptive", retained.aspectRatio)
+        assertEquals(null, retained.resolution)
+        assertEquals(null, retained.durationSeconds)
+        assertEquals(mapOf("aigc_watermark" to "true"), retained.modelOptions)
+        assertEquals(listOf(MediaRole.START_FRAME, MediaRole.END_FRAME), useCase.slotsFor(DirectModelRoutes.miniImage).map { it.role })
     }
 }

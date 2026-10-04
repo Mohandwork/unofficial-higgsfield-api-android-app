@@ -43,14 +43,15 @@ interface ConversationPersistence {
     fun observe(conversationId: String): Flow<PersistedConversationSnapshot?>
     fun observeConversations(): Flow<List<ConversationSummary>>
     suspend fun ensureConversation(conversationId: String, kind: MediaKind, initialWorkflowId: WorkflowId?)
-    suspend fun createConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String
-    suspend fun mostRecentConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String
+    suspend fun mostRecentConversation(kind: MediaKind): String?
+    suspend fun createConversationFromDraft(kind: MediaKind, workflowId: WorkflowId?, brief: CreativeBrief, draft: PersistedComposerDraft): String
     suspend fun renameConversation(conversationId: String, title: String)
     suspend fun deriveTitleFromFirstPrompt(conversationId: String, prompt: String)
     suspend fun deleteConversation(conversationId: String)
     suspend fun saveBrief(conversationId: String, brief: CreativeBrief)
     suspend fun saveDraft(conversationId: String, draft: PersistedComposerDraft)
     suspend fun saveSelectedWorkflow(conversationId: String, workflowId: WorkflowId)
+    suspend fun reuseParameters(conversationId: String, workflowId: WorkflowId, brief: CreativeBrief, draft: PersistedComposerDraft)
     suspend fun saveCompletedDemo(
         conversationId: String,
         generationId: String,
@@ -128,16 +129,34 @@ class RoomConversationPersistence @Inject constructor(
         }
     }
 
-    override suspend fun createConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String {
+    override suspend fun mostRecentConversation(kind: MediaKind): String? =
+        conversationDao.mostRecentForKind(kind.name)?.id
+
+    override suspend fun createConversationFromDraft(
+        kind: MediaKind,
+        workflowId: WorkflowId?,
+        brief: CreativeBrief,
+        draft: PersistedComposerDraft,
+    ): String = database.withTransaction {
         val id = "${kind.name.lowercase()}-${java.util.UUID.randomUUID()}"
         val now = System.currentTimeMillis()
-        conversationDao.upsert(ConversationEntity(id, kind.name, if (kind == MediaKind.IMAGE) "New image chat" else "New video chat", selectedWorkflowId = initialWorkflowId?.value, createdAtEpochMillis = now, updatedAtEpochMillis = now))
-        return id
-    }
-
-    override suspend fun mostRecentConversation(kind: MediaKind, initialWorkflowId: WorkflowId?): String {
-        return conversationDao.mostRecentForKind(kind.name)?.id
-            ?: createConversation(kind, initialWorkflowId)
+        conversationDao.upsert(ConversationEntity(
+            id = id,
+            mediaKind = kind.name,
+            title = if (kind == MediaKind.IMAGE) "New image chat" else "New video chat",
+            selectedWorkflowId = workflowId?.value,
+            briefSubject = brief.subject,
+            briefStyle = brief.style,
+            briefMood = brief.mood,
+            briefCameraDirection = brief.cameraDirection,
+            briefRequirements = brief.requirements,
+            briefExclusions = brief.exclusions,
+            briefOutputGoal = brief.outputGoal,
+            createdAtEpochMillis = now,
+            updatedAtEpochMillis = now,
+        ))
+        conversationDao.upsertDraft(draft.toEntity(id))
+        id
     }
 
     override suspend fun renameConversation(conversationId: String, title: String) {
@@ -182,6 +201,29 @@ class RoomConversationPersistence @Inject constructor(
     override suspend fun saveSelectedWorkflow(conversationId: String, workflowId: WorkflowId) {
         check(conversationDao.setSelectedWorkflow(conversationId, workflowId.value, System.currentTimeMillis()) == 1) {
             MISSING_CONVERSATION_WORKFLOW_MESSAGE
+        }
+    }
+
+    override suspend fun reuseParameters(
+        conversationId: String,
+        workflowId: WorkflowId,
+        brief: CreativeBrief,
+        draft: PersistedComposerDraft,
+    ) {
+        database.withTransaction {
+            check(conversationDao.reuseParameters(
+                conversationId = conversationId,
+                workflowId = workflowId.value,
+                subject = brief.subject,
+                style = brief.style,
+                mood = brief.mood,
+                camera = brief.cameraDirection,
+                requirements = brief.requirements,
+                exclusions = brief.exclusions,
+                outputGoal = brief.outputGoal,
+                now = System.currentTimeMillis(),
+            ) == 1) { "Cannot reuse parameters for a missing conversation" }
+            conversationDao.upsertDraft(draft.toEntity(conversationId))
         }
     }
 

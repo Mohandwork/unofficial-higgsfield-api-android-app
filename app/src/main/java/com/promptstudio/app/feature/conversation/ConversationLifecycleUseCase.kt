@@ -9,13 +9,12 @@ import javax.inject.Inject
 class ConversationLifecycleUseCase @Inject constructor(
     private val persistence: ConversationPersistence,
 ) {
-    suspend fun create(kind: MediaKind): String =
-        persistence.createConversation(kind, WorkflowRegistry.forKind(kind).firstOrNull()?.id)
+    suspend fun createFromDraft(kind: MediaKind, workflowId: WorkflowId?, brief: CreativeBrief, draft: PersistedComposerDraft): String =
+        persistence.createConversationFromDraft(kind, workflowId, brief, draft)
 
-    suspend fun mostRecent(kind: MediaKind): String =
-        persistence.mostRecentConversation(kind, WorkflowRegistry.forKind(kind).firstOrNull()?.id)
+    suspend fun mostRecent(kind: MediaKind): String? = persistence.mostRecentConversation(kind)
 
-    suspend fun removeAndOpenNext(id: String, kind: MediaKind): String {
+    suspend fun removeAndOpenNext(id: String, kind: MediaKind): String? {
         persistence.deleteConversation(id)
         return mostRecent(kind)
     }

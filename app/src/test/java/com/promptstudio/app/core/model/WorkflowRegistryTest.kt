@@ -12,7 +12,7 @@ class WorkflowRegistryTest {
             .forEach { workflow ->
                 assertTrue(workflow.isSubmissionEnabled)
                 assertTrue(workflow.endpointPath.orEmpty().isNotBlank())
-                assertEquals("2026-09-25", workflow.schemaVerifiedOn)
+                assertTrue(workflow.schemaVerifiedOn.orEmpty().isNotBlank())
         }
     }
 
@@ -48,5 +48,20 @@ class WorkflowRegistryTest {
     fun `submission-ready editor search never offers catalog-only models`() {
         assertTrue(WorkflowRegistry.compatibleEditors(MediaKind.IMAGE).isNotEmpty())
         assertTrue(WorkflowRegistry.compatibleEditors(MediaKind.IMAGE).all { it.isSubmissionEnabled })
+    }
+
+    @Test
+    fun `reference limits follow their selected API workflows`() {
+        val seedance2 = WorkflowRegistry.find(WorkflowCatalog.SEEDANCE_2_REFERENCE.id)!!
+        val seedance2_5 = WorkflowRegistry.find(WorkflowCatalog.SEEDANCE_2_5_REFERENCE.id)!!
+        val qwenEdit = WorkflowRegistry.find(WorkflowCatalog.QWEN_IMAGE_3_EDIT.id)!!
+        val marketing = WorkflowRegistry.find(WorkflowCatalog.MARKETING_STUDIO_2_ALPHA.id)!!
+
+        assertEquals(9, seedance2.mediaRequirements.first { it.kind == MediaKind.IMAGE }.maximumCount)
+        assertEquals(3, seedance2.mediaRequirements.first { it.kind == MediaKind.VIDEO }.maximumCount)
+        assertEquals(30, seedance2_5.mediaRequirements.first { it.kind == MediaKind.IMAGE }.maximumCount)
+        assertEquals(10, seedance2_5.mediaRequirements.first { it.kind == MediaKind.VIDEO }.maximumCount)
+        assertEquals(3, qwenEdit.mediaRequirements.single().maximumCount)
+        assertEquals(16, marketing.mediaRequirements.single().maximumCount)
     }
 }

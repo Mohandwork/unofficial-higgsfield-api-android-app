@@ -7,10 +7,12 @@ Prompt Studio is an unofficial Android client for the Higgsfield API. It is free
 The refined product now includes:
 
 - Image and video workspaces with model/workflow selection.
+- Model selection grouped by family in a two-level menu, with a back action to compare families.
 - Persistent, section-scoped conversations with a compact history bottom sheet and an expanded rail.
 - New-chat, rename, and chat-removal flows with confirmation and transition feedback.
 - A Creative Brief for reusable intent, style, exclusions, and output guidance.
 - Reference-image selection, direct single-reference CTA behavior, and multi-reference support where a workflow allows it.
+- Multiple image and video references for Seedance 2.0/2.5 reference-to-video workflows, with model-specific attachment limits.
 - Static model capabilities, pricing, duration, and resolution metadata sourced from the supplied catalog material. Live estimates are intentionally not fabricated.
 - Generation lifecycle cards for queued, running, succeeded, failed, and cancelled requests, including server-provided error details.
 - Loading indicators for generation and larger workspace/history transitions.
@@ -26,6 +28,10 @@ Important behavior is documented in [docs/architecture.md](docs/architecture.md)
 ## Local setup
 
 Build with `./gradlew :app:assembleDebug` (or `gradlew.bat :app:assembleDebug` on Windows). To use generation, copy `secrets.properties.example` to `app/secrets/secrets.properties` and set `HF_KEY_ID` and `HF_KEY_SECRET` with credentials from your own API account. The secrets file is ignored by Git. A build without credentials can run locally, but generation requests will fail authentication.
+
+## Editing starting rates
+
+Edit `app/src/main/java/com/promptstudio/mobile/core/model/WorkflowRegistry.kt`, in `staticMetadataFor`. Each model's `Triple` contains its starting price text, maximum resolution, and duration guidance. These are display-only starting rates; the app does not calculate a live checkout price. New workflows have `Pricing unavailable` until you enter a verified rate. `WorkflowCatalog.kt` holds the names, and `WorkflowRequestSchemas.kt` holds API request fields.
 
 ## Safety and operational notes
 
